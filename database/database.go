@@ -18,6 +18,7 @@ import (
 // ------------------------------------------------------------
 
 var config DBConf
+var db *sql.DB
 
 type DBConf struct {
 	DBUser string
@@ -73,6 +74,29 @@ func storeConfiguration(confFile string) {
 }
 
 // ------------------------------------------------------------
+// The data structs for the queries
+// ------------------------------------------------------------
+
+type Item struct {
+	ID    int64
+	Name  string
+	Image string
+}
+
+type User struct {
+	ID        int64
+	Name      string
+	FavRecipe int64
+}
+
+type Mapping struct {
+	ID       int64
+	ListId   int64
+	ItemId   int64
+	Quantity int64
+}
+
+// ------------------------------------------------------------
 
 func CheckDatabaseOnline(cfg configuration.Config) {
 	if config == (DBConf{}) {
@@ -87,7 +111,8 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		DBName:               config.DBName,
 		AllowNativePasswords: true,
 	}
-	db, err := sql.Open("mysql", mysqlCfg.FormatDSN())
+	var err error
+	db, err = sql.Open("mysql", mysqlCfg.FormatDSN())
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %s", err)
 	}
@@ -98,10 +123,85 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	log.Print("Connected to database")
 }
 
-func GetShopList(id int) error {
+// ------------------------------------------------------------
+
+func GetItem(id int) (Item, error) {
 	if id < 0 {
-		err := errors.New("Cannot open empty database table")
-		return err
+		err := errors.New("items with id < 0 do not exist")
+		return Item{}, err
 	}
-	return nil
+	var item Item
+	row := db.QueryRow("SELECT * FROM items WHERE id = ?", id)
+	// Looping through data, assigning the columns to the given struct
+	if err := row.Scan(&item.ID, &item.Name, &item.Image); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+func GetAllItems() ([]Item, error) {
+	var items []Item
+	rows, err := db.Query("SELECT * FROM items")
+	if err != nil {
+		log.Printf("Failed to query database for item: %s", err)
+		return nil, err
+	}
+	defer rows.Close()
+	// Looping through data, assigning the columns to the given struct
+	for rows.Next() {
+		var item Item
+		if err := rows.Scan(&item.ID, &item.Name, &item.Image); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("Failed to retrieve data from database: %s", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func InsertItem(item Item) (int64, error) {
+	result, err := db.Exec("INSERT INTO items (name, image) VALUES (?, ?)", item.Name, item.Image)
+	if err != nil {
+		log.Printf("Failed to insert item into database: %s", err)
+		return -1, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("Failed to insert item into database: %s", err)
+		return -1, err
+	}
+	return id, nil
+}
+
+// ------------------------------------------------------------
+
+func GetUser(id int) (User, error) {
+	if id < 0 {
+		err := errors.New("users with id < 0 do not exist")
+		return User{}, err
+	}
+	var user User
+	row := db.QueryRow("SELECT * FROM shoppers WHERE id = ?", id)
+	// Looping through data, assigning the columns to the given struct
+	if err := row.Scan(&user.ID, &user.Name, &user.FavRecipe); err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func InsertUser(user User) (int64, error) {
+	result, err := db.Exec("INSERT INTO shoppers (name, favRecipe) VALUES (?, ?)", user.Name, user.FavRecipe)
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
+		return -1, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
+		return -1, err
+	}
+	return id, nil
 }
