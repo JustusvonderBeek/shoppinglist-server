@@ -103,6 +103,10 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		log.Print("Configuration not initialized")
 		loadConfig(cfg.DatabaseConfig)
 	}
+	if db != nil {
+		log.Print("Already connected to database")
+		return
+	}
 	mysqlCfg := mysql.Config{
 		User:                 config.DBUser,
 		Passwd:               config.DBPass,
@@ -201,6 +205,36 @@ func InsertUser(user User) (int64, error) {
 	id, err := result.LastInsertId()
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
+		return -1, err
+	}
+	return id, nil
+}
+
+// ------------------------------------------------------------
+
+func GetMapping(id int) (Mapping, error) {
+	if id < 0 {
+		err := errors.New("mapping with id < 0 do not exist")
+		return Mapping{}, err
+	}
+	var mapping Mapping
+	row := db.QueryRow("SELECT * FROM shoppinglists WHERE id = ?", id)
+	// Looping through data, assigning the columns to the given struct
+	if err := row.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity); err != nil {
+		return Mapping{}, err
+	}
+	return mapping, nil
+}
+
+func InsertMapping(mapping Mapping) (int64, error) {
+	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity)
+	if err != nil {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		return -1, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("Failed to insert mapping into database: %s", err)
 		return -1, err
 	}
 	return id, nil
