@@ -125,6 +125,28 @@ func generateJWT() (string, error) {
 
 }
 
+func performAuthentication(c *gin.Context) {
+	usern, passwd, ok := c.Request.BasicAuth()
+	// log.Printf("Username: %s", usern)
+	// Check if the basic auth is correct
+	log.Printf("Bool okay: %t", ok)
+	log.Printf("User '%s' tries to login", usern)
+
+	exists := database.CheckUserExists(usern, passwd)
+	if exists {
+		log.Printf("User not found!")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	token, _ := generateJWT()
+	tokens = append(tokens, token)
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+	})
+}
+
 func Start(cfg configuration.Config) error {
 	gin.SetMode(gin.DebugMode)
 
@@ -137,61 +159,8 @@ func Start(cfg configuration.Config) error {
 	router.GET("/lists/:userId", getShoppingListsForUser)
 	router.GET("/list/:id", getShoppingList)
 
-	// Testing the authentication
-	// NO AUTHENTICATION
-	// router.GET("/resource", func(c *gin.Context) {
-	// 	c.JSON(http.StatusOK, gin.H{
-	// 		"data": "resource data",
-	// 	})
-	// })
-	// BASIC AUTHENTICATION
-	// router.GET("/resource", gin.BasicAuth(gin.Accounts{
-	// 	"admin": "secret",
-	// }), func(c *gin.Context) {
-
-	// 	c.JSON(http.StatusOK, gin.H{
-	// 		"data": "resource data",
-	// 	})
-	// })
-	// TOKEN BASED AUTHENTICATION
-	// router.POST("/login", gin.BasicAuth(gin.Accounts{
-	// 	"admin": "secret",
-	// }), func(c *gin.Context) {
-	// 	token := rand.Uint64()
-	// 	stringToken := fmt.Sprintf("%x", token)
-	// 	tokens = append(tokens, stringToken)
-
-	// 	c.JSON(http.StatusOK, gin.H{
-	// 		"token": stringToken,
-	// 	})
-	// })
-	// router.GET("/resource", func(c *gin.Context) {
-	// 	bearerToken := c.Request.Header.Get("Authorization")
-	// 	log.Printf("Trying to log in with token %s", bearerToken)
-	// 	reqToken := strings.Split(bearerToken, " ")[1]
-	// 	for _, token := range tokens {
-	// 		if token == reqToken {
-	// 			c.JSON(http.StatusOK, gin.H{
-	// 				"data": "resource data",
-	// 			})
-	// 			return
-	// 		}
-	// 	}
-	// 	c.JSON(http.StatusUnauthorized, gin.H{
-	// 		"message": "unauthorized",
-	// 	})
-	// })
 	// JWT BASED AUTHENTICATION
-	router.POST("/login", gin.BasicAuth(gin.Accounts{
-		"admin": "secret",
-	}), func(c *gin.Context) {
-		token, _ := generateJWT()
-		tokens = append(tokens, token)
-
-		c.JSON(http.StatusOK, gin.H{
-			"token": token,
-		})
-	})
+	router.POST("/login", performAuthentication)
 	router.GET("/resource", func(c *gin.Context) {
 		bearerToken := c.Request.Header.Get("Authorization")
 		reqToken := strings.Split(bearerToken, " ")[1]
