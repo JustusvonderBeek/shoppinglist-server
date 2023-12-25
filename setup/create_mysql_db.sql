@@ -1,3 +1,8 @@
+-- Execute this file with the following command:
+-- Log into mysql: 
+-- sudo mysql
+-- source ./create_mysql_db.sql;
+
 CREATE DATABASE IF NOT EXISTS shoppinglist;
 
 use shoppinglist;
