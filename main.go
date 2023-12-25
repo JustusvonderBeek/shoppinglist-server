@@ -17,12 +17,16 @@ func main() {
 	port := flag.String("p", "46152", "Listen port")
 	logfile := flag.String("l", "server.log", "The logfile location")
 	dbConfig := flag.String("c", "db.json", "The database configuration file")
+	tlscert := flag.String("cert", "resources/shoppinglist.crt", "The location of the TLS Certificate")
+	tlskey := flag.String("key", "resources/shoppinglist.pem", "THe location of the TLS keyfile")
 	flag.Parse()
 
 	configuration := configuration.Config{
 		ListenAddr:     *addr,
 		ListenPort:     *port,
 		DatabaseConfig: *dbConfig,
+		TLSCertificate: *tlscert,
+		TLSKeyfile:     *tlskey,
 	}
 
 	setupLogger(*logfile)
