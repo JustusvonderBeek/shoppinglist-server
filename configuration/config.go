@@ -6,4 +6,6 @@ type Config struct {
 
 	Logfile        string
 	DatabaseConfig string
+	TLSCertificate string
+	TLSKeyfile     string
 }
