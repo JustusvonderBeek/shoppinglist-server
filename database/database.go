@@ -94,6 +94,14 @@ type Mapping struct {
 	ListId   int64
 	ItemId   int64
 	Quantity int64
+	Checked  bool
+}
+
+type UserIdToMapping struct {
+	ID          int64
+	UserId      int64
+	ListId      int64
+	ForEveryone bool
 }
 
 // ------------------------------------------------------------
@@ -125,6 +133,13 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		log.Fatalf("Database not responding: %s", pingErr)
 	}
 	log.Print("Connected to database")
+}
+
+// ------------------------------------------------------------
+
+func CheckUserExists(username string, password string) bool {
+	log.Printf("Checking if user exists")
+	return false
 }
 
 // ------------------------------------------------------------
@@ -226,8 +241,52 @@ func GetMapping(id int) (Mapping, error) {
 	return mapping, nil
 }
 
+func GetMappingWithUserId(id int) ([]Mapping, error) {
+	if id < 0 {
+		err := errors.New("mapping with user id < 0 do not exist")
+		return []Mapping{}, err
+	}
+	var mappings []Mapping
+	rows, err := db.Query("SELECT * FROM listaccess WHERE userId = ?", id)
+	if err != nil {
+		log.Printf("Failed to query for user id %d", id)
+		return []Mapping{}, err
+	}
+	// Looping through data, assigning the columns to the given struct
+	for rows.Next() {
+		var mapping Mapping
+		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
+			return []Mapping{}, err
+		}
+		mappings = append(mappings, mapping)
+	}
+	return mappings, nil
+}
+
+func GetMappingWithListId(id int) ([]Mapping, error) {
+	if id < 0 {
+		err := errors.New("mapping with id < 0 do not exist")
+		return []Mapping{}, err
+	}
+	var mappings []Mapping
+	rows, err := db.Query("SELECT * FROM shoppinglists WHERE listId = ?", id)
+	if err != nil {
+		log.Printf("Failed to query for list id %d", id)
+		return []Mapping{}, err
+	}
+	// Looping through data, assigning the columns to the given struct
+	for rows.Next() {
+		var mapping Mapping
+		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
+			return []Mapping{}, err
+		}
+		mappings = append(mappings, mapping)
+	}
+	return mappings, nil
+}
+
 func InsertMapping(mapping Mapping) (int64, error) {
-	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity)
+	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked)
 	if err != nil {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		return -1, err
