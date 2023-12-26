@@ -1,11 +1,15 @@
 package database
 
 import (
+	"crypto/sha1"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"shop.cloudsheeptech.com/configuration"
@@ -74,6 +78,89 @@ func storeConfiguration(confFile string) {
 }
 
 // ------------------------------------------------------------
+// The data structs and constants for the user handling
+// ------------------------------------------------------------
+
+var random = rand.New(rand.NewSource(time.Now().UnixNano()))
+var hasher = sha1.New()
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+const letterBytesLength = len(letterBytes)
+
+type LoginUser struct {
+	ID       int64
+	Username string
+	Passwd   string
+	Salt     string
+}
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(letterBytesLength)]
+	}
+	return string(b)
+}
+
+func generateSalt() string {
+	return randStringBytes(15)
+}
+
+func GetLoginUser(id int64) (LoginUser, error) {
+	row := db.QueryRow("SELECT * FROM loginuser WHERE id = ?", id)
+	var loginUser LoginUser
+	if err := row.Scan(&loginUser.ID, &loginUser.Username, &loginUser.Passwd, &loginUser.Salt); err == sql.ErrNoRows {
+		return LoginUser{}, err
+	}
+	return loginUser, nil
+}
+
+func CheckUserExists(id int64) error {
+	log.Printf("Checking if user exists")
+	_, err := GetLoginUser(id)
+	return err
+}
+
+func CreateUserAccount(username string, passwd string) (LoginUser, error) {
+	log.Print("Creating new user account")
+	// Creating the struct we are going to insert first
+	userId := random.Int63()
+	for {
+		err := CheckUserExists(int64(userId))
+		if err == nil {
+			userId = rand.Int63()
+			continue
+		} else {
+			break
+		}
+	}
+	// Modifying the password with the salt
+	salt := generateSalt()
+	// APPEND the SALT
+	bytePw := []byte(passwd + salt)
+	hasher.Write(bytePw)
+	hashedPw := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	newUser := LoginUser{
+		ID:       userId,
+		Username: username,
+		Passwd:   hashedPw,
+		Salt:     salt,
+	}
+	// Insert the newly created user into the database
+	result, err := db.Exec("INSERT INTO loginuser (id, username, passwd, salt) VALUES (?, ?, ?, ?)", newUser.ID, newUser.Username, newUser.Passwd, newUser.Salt)
+	if err != nil {
+		log.Printf("Failed to insert new user into database: %s", err)
+		return LoginUser{}, err
+	}
+	_, err = result.LastInsertId()
+	if err != nil {
+		log.Printf("Failed to insert new user into database: %s", err)
+		return LoginUser{}, err
+	}
+	return newUser, nil
+}
+
+// ------------------------------------------------------------
 // The data structs for the queries
 // ------------------------------------------------------------
 
@@ -133,13 +220,6 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		log.Fatalf("Database not responding: %s", pingErr)
 	}
 	log.Print("Connected to database")
-}
-
-// ------------------------------------------------------------
-
-func CheckUserExists(username string, password string) bool {
-	log.Printf("Checking if user exists")
-	return false
 }
 
 // ------------------------------------------------------------
@@ -298,3 +378,7 @@ func InsertMapping(mapping Mapping) (int64, error) {
 	}
 	return id, nil
 }
+
+// ------------------------------------------------------------
+// Debug printout and functionality
+// ------------------------------------------------------------
