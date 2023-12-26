@@ -1,6 +1,8 @@
 package database_test
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"log"
 	"testing"
 
@@ -110,4 +112,24 @@ func TestCreatingUser(t *testing.T) {
 	log.Printf("Created user: %v", user)
 	database.PrintUserTable("loginuser")
 	log.Print("Successfully created new user")
+}
+
+func TestCheckingUserLogin(t *testing.T) {
+	log.Print("Trying to check if user can login")
+	connectDatabase()
+	userId := 5953928440124292227
+	loginUser, err := database.GetLoginUser(int64(userId))
+	if err != nil {
+		log.Printf("Failed to retrieve user with id %d", userId)
+		t.FailNow()
+	}
+	passwd := "schlechtes wetter"
+	hasher := sha1.New()
+	hasher.Write([]byte(passwd + loginUser.Salt))
+	hashedPwd := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	if loginUser.Passwd != hashedPwd {
+		log.Print("Given password does not match the stored password!")
+		t.FailNow()
+	}
+	log.Print("User correctly stored and retrieved")
 }
