@@ -19,6 +19,7 @@ func main() {
 	dbConfig := flag.String("c", "db.json", "The database configuration file")
 	tlscert := flag.String("cert", "resources/shoppinglist.crt", "The location of the TLS Certificate")
 	tlskey := flag.String("key", "resources/shoppinglist.pem", "THe location of the TLS keyfile")
+	jwtFile := flag.String("jwt", "resources/jwt.secret", "The path to the file holding the JWT Secret")
 	flag.Parse()
 
 	configuration := configuration.Config{
@@ -27,6 +28,7 @@ func main() {
 		DatabaseConfig: *dbConfig,
 		TLSCertificate: *tlscert,
 		TLSKeyfile:     *tlskey,
+		JWTSecretFile:  *jwtFile,
 	}
 
 	setupLogger(*logfile)
