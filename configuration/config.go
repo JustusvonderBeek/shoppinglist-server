@@ -8,4 +8,5 @@ type Config struct {
 	DatabaseConfig string
 	TLSCertificate string
 	TLSKeyfile     string
+	JWTSecretFile  string
 }
