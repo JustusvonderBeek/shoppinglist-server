@@ -82,3 +82,32 @@ func TestInsertMapping(t *testing.T) {
 	}
 	log.Print("InsertMapping successfully completed")
 }
+
+func TestGetMapping(t *testing.T) {
+	connectDatabase()
+	id := 0
+	mapping, err := database.GetMappingWithListId(id)
+	if err != nil {
+		log.Printf("Failed to get mapping for id %d", id)
+		t.FailNow()
+	}
+	if len(mapping) == 0 {
+		t.FailNow()
+	}
+	log.Print("GetMapping successfully completed")
+}
+
+func TestCreatingUser(t *testing.T) {
+	connectDatabase()
+	log.Print("Trying to create new user")
+	log.Print("Old User Table")
+	database.PrintUserTable("loginuser")
+	user, err := database.CreateUserAccount("testuser", "schlechtes wetter")
+	if err != nil {
+		log.Printf("Failed to create new user: %s", err)
+		t.FailNow()
+	}
+	log.Printf("Created user: %v", user)
+	database.PrintUserTable("loginuser")
+	log.Print("Successfully created new user")
+}
