@@ -160,6 +160,18 @@ func CreateUserAccount(username string, passwd string) (LoginUser, error) {
 	return newUser, nil
 }
 
+func ResetUserTable() {
+	log.Print("RESETTING ALL USERS. THIS DISABLES LOGIN FOR ALL EXISTING USERS")
+
+	_, err := db.Exec("DELETE FROM loginuser")
+	if err != nil {
+		log.Printf("Failed to delete user table: %s", err)
+		return
+	}
+
+	log.Print("RESET LOGIN USER TABLE")
+}
+
 // ------------------------------------------------------------
 // The data structs for the queries
 // ------------------------------------------------------------
@@ -382,3 +394,20 @@ func InsertMapping(mapping Mapping) (int64, error) {
 // ------------------------------------------------------------
 // Debug printout and functionality
 // ------------------------------------------------------------
+
+func PrintUserTable(tableName string) {
+	rows, err := db.Query("SELECT * FROM loginuser")
+	if err != nil {
+		log.Printf("Failed to print table %s: %s", tableName, err)
+		return
+	}
+	log.Print("------------- User Table -------------")
+	for rows.Next() {
+		var user LoginUser
+		if err := rows.Scan(&user.ID, &user.Username, &user.Passwd, &user.Salt); err != nil {
+			log.Printf("Failed to print table: %s: %s", tableName, err)
+		}
+		log.Printf("%v", user)
+	}
+	log.Print("---------------------------------------")
+}
