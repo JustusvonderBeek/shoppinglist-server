@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"shop.cloudsheeptech.com/authentication"
 	"shop.cloudsheeptech.com/configuration"
 	"shop.cloudsheeptech.com/database"
 )
@@ -102,48 +102,41 @@ func getShoppingList(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, raw)
 }
 
-var tokens []string
 var jwt_secret = []byte("password")
 
-type Claims struct {
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
-
-func generateJWT() (string, error) {
-	expirationTime := time.Now().Add(5 * time.Minute)
-	claims := &Claims{
-		Username: "username",
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	return token.SignedString(jwt_secret)
-
-}
-
-func performAuthentication(c *gin.Context) {
-	usern, passwd, ok := c.Request.BasicAuth()
-	// log.Printf("Username: %s", usern)
-	// Check if the basic auth is correct
-	log.Printf("Bool okay: %t", ok)
-	log.Printf("User '%s' tries to login", usern)
-
-	exists := database.CheckUserExists(usern, passwd)
-	if exists {
-		log.Printf("User not found!")
+func authorize(c *gin.Context) {
+	bearerToken := c.Request.Header.Get("Authorization")
+	if bearerToken == "" {
+		log.Print("No JWT token found")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-
-	token, _ := generateJWT()
-	tokens = append(tokens, token)
+	reqToken := strings.Split(bearerToken, " ")[1]
+	claims := &authentication.Claims{}
+	tkn, err := jwt.ParseWithClaims(reqToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwt_secret, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"message": "unauthorized",
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "bad request",
+		})
+		return
+	}
+	if !tkn.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "unauthorized",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
+		"data": "resource data",
 	})
 }
 
@@ -151,49 +144,35 @@ func Start(cfg configuration.Config) error {
 	gin.SetMode(gin.DebugMode)
 
 	router := gin.Default()
-	router.GET("/items", getAllItems)
-	router.GET("/items/:id", getItem)
 
-	router.POST("/items", addItem)
-
-	router.GET("/lists/:userId", getShoppingListsForUser)
-	router.GET("/list/:id", getShoppingList)
-
+	// User account handling and creation
+	router.POST("/create/account", authentication.CreateAccount)
 	// JWT BASED AUTHENTICATION
-	router.POST("/login", performAuthentication)
-	router.GET("/resource", func(c *gin.Context) {
-		bearerToken := c.Request.Header.Get("Authorization")
-		reqToken := strings.Split(bearerToken, " ")[1]
-		claims := &Claims{}
-		tkn, err := jwt.ParseWithClaims(reqToken, claims, func(token *jwt.Token) (interface{}, error) {
-			return jwt_secret, nil
-		})
-		if err != nil {
-			if err == jwt.ErrSignatureInvalid {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"message": "unauthorized",
-				})
-				return
-			}
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "bad request",
-			})
-			return
-		}
-		if !tkn.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"message": "unauthorized",
-			})
-			return
-		}
+	router.POST("/login", authentication.PerformAuthentication)
+	// router.Use(authentication.AuthenticationMiddleware())
 
-		c.JSON(http.StatusOK, gin.H{
-			"data": "resource data",
-		})
-	})
+	// ------------- Handling Routes v1 ---------------
+
+	// Add authentication middleware to v1 router
+	authorized := router.Group("/v1")
+	authorized.Use(authentication.AuthenticationMiddleware(cfg))
+	{
+		authorized.GET("/items", getAllItems)
+		authorized.GET("/items/:id", getItem)
+
+		authorized.POST("/items", addItem)
+
+		authorized.GET("/lists/:userId", getShoppingListsForUser)
+		authorized.GET("/list/:id", getShoppingList)
+	}
+
+	router.GET("/resource", authorize)
+	router.GET("/test", getAllItems)
+
+	// -------------------------------------------
 
 	address := cfg.ListenAddr + ":" + cfg.ListenPort
-	// router.Run(address)
+	// Only allow TLS
 	router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
 
 	return nil
