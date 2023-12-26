@@ -23,6 +23,7 @@ SHOW GRANTS FOR 'cloudsheeptech'@'localhost';
 DROP TABLE IF EXISTS shoppers;
 DROP TABLE IF EXISTS items;
 DROP TABLE IF EXISTS shoppinglists;
+DROP TABLE IF EXISTS loginuser;
 
 CREATE TABLE shoppers (
     id          INT AUTO_INCREMENT NOT NULL,
@@ -45,3 +46,11 @@ CREATE TABLE shoppinglists (
     quantity INT NOT NULL,
     PRIMARY KEY (`id`)
 );
+
+CREATE TABLE loginuser (
+    id          BIGINT       NOT NULL,
+    username    VARCHAR(256) NOT NULL,
+    passwd      VARCHAR(512) NOT NULL,
+    salt        VARCHAR(256) NOT NULL,
+    PRIMARY KEY (`id`)
+)
