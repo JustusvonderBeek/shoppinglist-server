@@ -7,8 +7,7 @@ The default REST API tests for the server. Each cell can be executed on it's own
 GET https://localhost:46152/resource
 
 HTTP/1.1 401  - Unauthorized
-www-authenticate: Basic realm="Authorization Required"
-date: Mon, 25 Dec 2023 11:41:58 GMT
+date: Tue, 26 Dec 2023 10:44:10 GMT
 content-length: 0
 connection: close
 ###
@@ -20,6 +19,12 @@ GET https://admin:secret@localhost:46152/resource
 # # @noRejectUnauthorized
 # GET https://localhost:46152/resource
 # Authorization: Basic admin:secret
+
+HTTP/1.1 400  - Bad Request
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 10:44:21 GMT
+content-length: 25
+connection: close
 ###
 # Token Bearer Authentication
 
@@ -28,6 +33,11 @@ GET https://admin:secret@localhost:46152/resource
 POST https://admin:secret@localhost:46152/login
 Content-Type application/json
 
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 16:35:25 GMT
+content-length: 195
+connection: close
 ###
 # This is necessary to separate requests
 
@@ -41,13 +51,7 @@ Authorization: Bearer {{authToken}}
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Mon, 25 Dec 2023 17:33:07 GMT
-content-length: 147
-connection: close
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Mon, 25 Dec 2023 17:33:07 GMT
+date: Tue, 26 Dec 2023 16:35:28 GMT
 content-length: 24
 connection: close
 ###
@@ -57,6 +61,11 @@ connection: close
 POST https://admin:secret@localhost:46152/login
 Content-Type: application/json
 
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 17:10:58 GMT
+content-length: 195
+connection: close
 ###
 
 @jwtToken = {{response.parsedBody.token}}
@@ -67,29 +76,127 @@ Authorization: Bearer {{jwtToken}}
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Mon, 25 Dec 2023 17:33:41 GMT
-content-length: 147
-connection: close
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Mon, 25 Dec 2023 17:33:42 GMT
+date: Tue, 26 Dec 2023 17:11:13 GMT
 content-length: 24
 connection: close
-/*
-# Below is the testing of the REST API
-*/
+###
+# @noRejectUnauthorized
+GET https://localhost:46152/login
+
+HTTP/1.1 404  - Not Found
+content-type: text/plain
+date: Tue, 26 Dec 2023 16:35:39 GMT
+content-length: 18
+connection: close
+###
+# @noRejectUnauthorized
+POST https://localhost:46152/login
+Content-Type: application/json
+
+HTTP/1.1 401  - Unauthorized
+date: Tue, 26 Dec 2023 16:43:16 GMT
+content-length: 0
+connection: close
+###
+# @noRejectUnauthorized
+GET https://localhost:46152/v1/items
+Authorization: Bearer {{jwtToken}}
+
+HTTP/1.1 500  - Internal Server Error
+date: Tue, 26 Dec 2023 17:07:50 GMT
+content-length: 0
+connection: close
 ###
 # @noRejectUnauthorized
 
-GET https://localhost:46152/items
+GET https://localhost:46152/v1/items
+
+HTTP/1.1 401  - Unauthorized
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 16:43:05 GMT
+content-length: 24
+connection: close
+###
+# @noRejectUnauthorized
+
+GET https://localhost:46152/v1/lists/1
+
+HTTP/1.1 401  - Unauthorized
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 17:10:28 GMT
+content-length: 24
+connection: close
+###
+# The same authentication with JWT Tokens
+
+# @noRejectUnauthorized
+POST https://admin:secret@localhost:46152/login
+Content-Type: application/json
+
+###
+@jwtToken={{response.parsedBody.token}}
+
+# @noRejectUnauthorized
+
+GET https://localhost:46152/v1/items
+Authorization: Bearer {{jwtToken}}
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Mon, 25 Dec 2023 10:53:03 GMT
+date: Tue, 26 Dec 2023 17:20:22 GMT
+content-length: 195
+connection: close
+
+HTTP/1.1 500  - Internal Server Error
+date: Tue, 26 Dec 2023 17:20:22 GMT
+content-length: 0
+connection: close
+###
+# @noRejectUnauthorized
+
+GET https://localhost:46152/test
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 17:10:15 GMT
 content-length: 4
 connection: close
 ###
+# Create account and login
+
+# # @noRejectUnauthorized
+# POST https://admin:secret@localhost:46152/create/account
+# Content-Type: application/json
+
+# {
+#     "id" : 0,
+#     "username" : "httpuser",
+#     "password" : "blablabla"
+# }
+
+# ###
+
 # @noRejectUnauthorized
 
-GET https://localhost:46152/lists/1
+POST https://631040956780725686:blablabla@localhost:46152/login
+Content-Type: application/json
+
+###
+@jwtToken={{response.parsedBody.token}}
+
+# @noRejectUnauthorized
+
+GET https://localhost:46152/v1/items
+Authorization: Bearer {{jwtToken}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 17:43:55 GMT
+content-length: 212
+connection: close
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Tue, 26 Dec 2023 17:43:55 GMT
+content-length: 4
+connection: close
