@@ -1,0 +1,16 @@
+/*
+# This file contains small script to test the authentication of the REST API
+*/
+# This test should pass and return some JSON
+# @noRejectUnauthorized
+GET https://localhost:46152/test/unauth
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Wed, 27 Dec 2023 20:14:37 GMT
+content-length: 48
+connection: close
+###
+# This test should fail with a status code signaling unauthorized
+# @noRejectUnauthorized
+GET https://localhost:46152/test/auth
