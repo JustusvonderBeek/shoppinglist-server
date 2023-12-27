@@ -5,10 +5,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"shop.cloudsheeptech.com/authentication"
 	"shop.cloudsheeptech.com/configuration"
 	"shop.cloudsheeptech.com/database"
@@ -102,43 +100,18 @@ func getShoppingList(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, raw)
 }
 
-var jwt_secret = []byte("password")
+// ------------------------------------------------------------
+// Debug functionality
+// ------------------------------------------------------------
 
-func authorize(c *gin.Context) {
-	bearerToken := c.Request.Header.Get("Authorization")
-	if bearerToken == "" {
-		log.Print("No JWT token found")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	reqToken := strings.Split(bearerToken, " ")[1]
-	claims := &authentication.Claims{}
-	tkn, err := jwt.ParseWithClaims(reqToken, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwt_secret, nil
-	})
-	if err != nil {
-		if err == jwt.ErrSignatureInvalid {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"message": "unauthorized",
-			})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "bad request",
-		})
-		return
-	}
-	if !tkn.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"message": "unauthorized",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data": "resource data",
-	})
+func returnUnauth(c *gin.Context) {
+	item := database.Item{}
+	c.IndentedJSON(http.StatusOK, item)
 }
+
+// ------------------------------------------------------------
+// The main function
+// ------------------------------------------------------------
 
 func Start(cfg configuration.Config) error {
 	gin.SetMode(gin.DebugMode)
@@ -166,8 +139,7 @@ func Start(cfg configuration.Config) error {
 		authorized.GET("/list/:id", getShoppingList)
 	}
 
-	router.GET("/resource", authorize)
-	router.GET("/test", getAllItems)
+	router.GET("/test/unauth", returnUnauth)
 
 	// -------------------------------------------
 
