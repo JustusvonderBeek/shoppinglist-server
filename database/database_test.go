@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alexedwards/argon2id"
 	"shop.cloudsheeptech.com/database"
 	"shop.cloudsheeptech.com/server/configuration"
+	"shop.cloudsheeptech.com/server/data"
 )
 
 // ------------------------------------------------------------
@@ -28,22 +30,64 @@ func connectDatabase() {
 
 func TestInsertUser(t *testing.T) {
 	connectDatabase()
-	user := database.User{
-		ID:       4,
-		Username: strconv.Itoa(4),
+	user := data.User{
+		ID:       12,
+		Username: strconv.Itoa(32),
 		Passwd:   "Biene Maja",
-		Salt:     "1234",
 	}
-	id, err := database.InsertUser(user)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	if id < 0 {
-		log.Printf("User not correctly inserted: %s", err)
+	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	if err != nil {
+		log.Printf("Password and hash do not match: %s", err)
+		t.FailNow()
+	}
+	if createdUser.Username != user.Username || !match {
+		log.Printf("User not correctly inserted")
 		t.FailNow()
 	}
 	log.Print("InsertUser successfully completed")
+	database.PrintUserTable("shoppers")
+	database.ResetUserTable()
+}
+
+func TestDeletingUser(t *testing.T) {
+	connectDatabase()
+	user := data.User{
+		ID:       0,
+		Username: "Delete User Test",
+		Passwd:   "Biene Maja",
+	}
+	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
+		t.FailNow()
+	}
+	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	if err != nil {
+		log.Printf("Password and hash do not match: %s", err)
+		t.FailNow()
+	}
+	if createdUser.Username != user.Username || !match {
+		log.Printf("User not correctly inserted")
+		t.FailNow()
+	}
+	database.PrintUserTable("shoppers")
+	err = database.DeleteUserAccount(createdUser.ID)
+	if err != nil {
+		log.Printf("Failed to delete user with id %d from database", createdUser.ID)
+		t.FailNow()
+	}
+	deletedUser, err := database.GetUser(createdUser.ID)
+	if err == nil || deletedUser.ID != 0 {
+		log.Print("Could retrieve user from database after deleting!")
+		t.FailNow()
+	}
+	database.PrintUserTable("shoppers")
+	database.ResetUserTable()
 }
 
 // ------------------------------------------------------------
@@ -132,14 +176,14 @@ func TestCheckingUserLogin(t *testing.T) {
 	log.Print("Trying to check if user can login")
 	connectDatabase()
 	userId := 5953928440124292227
-	loginUser, err := database.GetLoginUser(int64(userId))
+	loginUser, err := database.GetUser(int64(userId))
 	if err != nil {
 		log.Printf("Failed to retrieve user with id %d", userId)
 		t.FailNow()
 	}
-	passwd := "schlechtes wetter"
+	// passwd := "schlechtes wetter"
 	hasher := sha1.New()
-	hasher.Write([]byte(passwd + loginUser.Salt))
+	// hasher.Write([]byte(passwd + loginUser.Salt))
 	hashedPwd := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 	if loginUser.Passwd != hashedPwd {
 		log.Print("Given password does not match the stored password!")
