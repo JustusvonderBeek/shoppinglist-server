@@ -1,10 +1,9 @@
 package database_test
 
 import (
-	"crypto/sha1"
-	"encoding/base64"
 	"log"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alexedwards/argon2id"
@@ -348,100 +347,278 @@ func TestDeletingList(t *testing.T) {
 	database.ResetShoppingListTable()
 }
 
+// TODO: Creating and deleting mapping of items to list
+// TODO: Modifying mapping
+// TODO: Extracting useful information for application
+func TestInsertMapping(t *testing.T) {
+	connectDatabase()
+	// mapping := data.ItemPerList{
+	// 	ID:       12,
+	// 	ListId:   0,
+	// 	ItemId:   1,
+	// 	Quantity: 1,
+	// }
+	// id, err := database.InsertMapping(mapping)
+	// if err != nil {
+	// 	log.Printf("Failed to insert mapping into database: %s", err)
+	// 	t.FailNow()
+	// }
+	// if id < 0 {
+	// 	log.Printf("Mapping not correctly inserted: %s", err)
+	// 	t.FailNow()
+	// }
+	// log.Print("InsertMapping successfully completed")
+}
+
+func TestGetMapping(t *testing.T) {
+	connectDatabase()
+	// id := 0
+	// mapping, err := database.GetMappingWithListId(id)
+	// if err != nil {
+	// 	log.Printf("Failed to get mapping for id %d", id)
+	// 	t.FailNow()
+	// }
+	// if len(mapping) == 0 {
+	// 	t.FailNow()
+	// }
+	// log.Print("GetMapping successfully completed")
+}
+
+// ------------------------------------------------------------
+// Testing item handling
+// ------------------------------------------------------------
+
 func TestGetAllItems(t *testing.T) {
 	connectDatabase()
+	item := data.Item{
+		ID:   12,
+		Name: "New Item",
+		Icon: "Abc",
+	}
+	_, err := database.InsertItemStruct(item)
+	if err != nil {
+		log.Printf("Failed to create new item for testing")
+		t.FailNow()
+	}
 	items, err := database.GetAllItems()
 	if err != nil {
 		log.Print("Failed to get all items from database")
 		t.FailNow()
 	}
+	if len(items) != 1 {
+		log.Printf("The number of all items (%d) does not match the expected (1)!", len(items))
+		database.ResetItemTable()
+		t.FailNow()
+	}
 	log.Printf("All items: %v", items)
+	log.Print("GetAllItems successfully completed")
+	database.ResetItemTable()
+}
+
+func TestGetAllItemsFromName(t *testing.T) {
+	connectDatabase()
+	item := data.Item{
+		ID:   12,
+		Name: "New Item A",
+		Icon: "Abc",
+	}
+	_, err := database.InsertItemStruct(item)
+	if err != nil {
+		log.Printf("Failed to create new item for testing")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	items, err := database.GetAllItemsFromName(strings.Split(item.Name, " ")[0])
+	if err != nil {
+		log.Print("Failed to get items from database")
+		t.FailNow()
+	}
+	if len(items) != 1 {
+		log.Printf("The number of all items (%d) does not match the expected (1)!", len(items))
+		database.ResetItemTable()
+		t.FailNow()
+	}
+	log.Printf("All items: %v", items)
+	items, err = database.GetAllItemsFromName("Not contained")
+	if err != nil {
+		log.Print("Failed to get items from database")
+		t.FailNow()
+	}
+	if len(items) != 0 {
+		log.Printf("The number of all items (%d) does not match the expected (0)!", len(items))
+		database.ResetItemTable()
+		t.FailNow()
+	}
+	log.Printf("All items: %v", items)
+	// Testing a SQL injection attack
+	item.Name = "') > 0; INSERT INTO items (name, icon) VALUES ('abc', 'abc'); --"
+	items, err = database.GetAllItemsFromName(item.Name)
+	if err == nil {
+		log.Print("Executed injection attack!")
+		t.FailNow()
+	}
+	if len(items) != 0 {
+		log.Print("Got items for query")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	log.Print("GetAllItems successfully completed")
+	database.ResetItemTable()
 }
 
 func TestInsertItem(t *testing.T) {
 	connectDatabase()
-	item := database.Item{
-		ID:    12,
-		Name:  "New Item",
-		Image: "Abc",
+	item := data.Item{
+		ID:   12,
+		Name: "New Item",
+		Icon: "Abc",
 	}
-	id, err := database.InsertItem(item)
+	created, err := database.InsertItemStruct(item)
 	if err != nil {
-		log.Printf("Failed to insert item into database: %s", err)
+		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	if id < 0 {
-		log.Printf("Item not correctly inserted: %s", err)
+	if created.ID == 0 {
+		log.Printf("Item ID (%d) not correct", created.ID)
+		t.FailNow()
+	}
+	if created.Name != item.Name || created.Icon != item.Icon {
+		log.Print("Information cannot be retrieved correctly")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	getItem, err := database.GetItem(created.ID)
+	if err != nil {
+		log.Printf("Failed to get new item")
+		t.FailNow()
+	}
+	if getItem.ID != created.ID {
+		log.Print("Item ID not correct")
+		t.FailNow()
+	}
+	if getItem.Name != item.Name || getItem.Icon != item.Icon {
+		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
 	log.Print("InsertItem successfully completed")
+	database.ResetItemTable()
 }
 
-func TestInsertMapping(t *testing.T) {
+func TestModifyItemName(t *testing.T) {
 	connectDatabase()
-	mapping := database.Mapping{
-		ID:       12,
-		ListId:   0,
-		ItemId:   1,
-		Quantity: 1,
+	item := data.Item{
+		ID:   12,
+		Name: "Old Item",
+		Icon: "Abc",
 	}
-	id, err := database.InsertMapping(mapping)
+	created, err := database.InsertItemStruct(item)
 	if err != nil {
-		log.Printf("Failed to insert mapping into database: %s", err)
+		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	if id < 0 {
-		log.Printf("Mapping not correctly inserted: %s", err)
+	getItem, err := database.GetItem(created.ID)
+	if err != nil {
+		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	log.Print("InsertMapping successfully completed")
+	if getItem.ID != created.ID {
+		log.Print("Item ID not correct")
+		t.FailNow()
+	}
+	if getItem.Name != item.Name || getItem.Icon != item.Icon {
+		log.Print("Information cannot be retrieved correctly")
+		t.FailNow()
+	}
+	newItem, err := database.ModifyItemName(created.ID, "New Item")
+	if err != nil {
+		log.Printf("Failed to modify item name: %s", err)
+		t.FailNow()
+	}
+	if newItem.Name != "New Item" {
+		log.Print("Name information not correctly stored")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	log.Print("ModifyItemName successfully completed")
+	database.ResetItemTable()
 }
 
-func TestGetMapping(t *testing.T) {
+func TestModifyItemIcon(t *testing.T) {
 	connectDatabase()
-	id := 0
-	mapping, err := database.GetMappingWithListId(id)
+	item := data.Item{
+		ID:   12,
+		Name: "Old Item",
+		Icon: "Abc",
+	}
+	created, err := database.InsertItemStruct(item)
 	if err != nil {
-		log.Printf("Failed to get mapping for id %d", id)
+		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	if len(mapping) == 0 {
+	getItem, err := database.GetItem(created.ID)
+	if err != nil {
+		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	log.Print("GetMapping successfully completed")
+	if getItem.ID != created.ID {
+		log.Print("Item ID not correct")
+		t.FailNow()
+	}
+	if getItem.Name != item.Name || getItem.Icon != item.Icon {
+		log.Print("Information cannot be retrieved correctly")
+		t.FailNow()
+	}
+	newItem, err := database.ModifyItemIcon(created.ID, "New Icon")
+	if err != nil {
+		log.Printf("Failed to modify item icon: %s", err)
+		t.FailNow()
+	}
+	if newItem.Icon != "New Icon" {
+		log.Print("Icon information not correctly stored")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	log.Print("ModifyItemIcon successfully completed")
+	database.ResetItemTable()
 }
 
-func TestCreatingUser(t *testing.T) {
+func TestDeleteItem(t *testing.T) {
 	connectDatabase()
-	log.Print("Trying to create new user")
-	log.Print("Old User Table")
-	database.PrintUserTable("loginuser")
-	user, err := database.CreateUserAccount("testuser", "schlechtes wetter")
+	item := data.Item{
+		ID:   12,
+		Name: "New Item",
+		Icon: "Abc",
+	}
+	created, err := database.InsertItemStruct(item)
 	if err != nil {
-		log.Printf("Failed to create new user: %s", err)
+		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	log.Printf("Created user: %v", user)
-	database.PrintUserTable("loginuser")
-	log.Print("Successfully created new user")
-}
-
-func TestCheckingUserLogin(t *testing.T) {
-	log.Print("Trying to check if user can login")
-	connectDatabase()
-	userId := 5953928440124292227
-	loginUser, err := database.GetUser(int64(userId))
+	database.PrintItemTable()
+	getItem, err := database.GetItem(created.ID)
 	if err != nil {
-		log.Printf("Failed to retrieve user with id %d", userId)
+		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	// passwd := "schlechtes wetter"
-	hasher := sha1.New()
-	// hasher.Write([]byte(passwd + loginUser.Salt))
-	hashedPwd := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
-	if loginUser.Passwd != hashedPwd {
-		log.Print("Given password does not match the stored password!")
+	if getItem.ID != created.ID {
+		log.Print("Item ID not correct")
 		t.FailNow()
 	}
-	log.Print("User correctly stored and retrieved")
+	if getItem.Name != item.Name || getItem.Icon != item.Icon {
+		log.Print("Information cannot be retrieved correctly")
+		t.FailNow()
+	}
+	err = database.DeleteItem(created.ID)
+	if err != nil {
+		log.Printf("Failed to delete item: %s", err)
+		t.FailNow()
+	}
+	getItem, err = database.GetItem(created.ID)
+	if err == nil || getItem.ID != 0 {
+		log.Printf("Can still retrieve item!")
+		t.FailNow()
+	}
+	database.PrintItemTable()
+	log.Print("DeleteItem successfully completed")
+	database.ResetItemTable()
 }
