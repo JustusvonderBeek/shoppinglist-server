@@ -211,7 +211,8 @@ func DeleteUserAccount(id int64) error {
 		log.Printf("Failed to delete user with id %d", id)
 		return err
 	}
-	return nil
+	DeleteAllSharingForUser(id)
+	return DeleteShoppingListFrom(id)
 }
 
 func ResetUserTable() {
@@ -260,8 +261,8 @@ func CreateShoppingList(name string, createdBy int64) (data.Shoppinglist, error)
 		Name:      name,
 		CreatedBy: createdBy,
 	}
-	query := "INSERT INTO " + shoppingListTable + " (id, name, creatorId) VALUES (?, ?, ?)"
-	result, err := db.Exec(query, list.ID, list.Name, list.CreatedBy)
+	query := "INSERT INTO " + shoppingListTable + " (name, creatorId) VALUES (?, ?)"
+	result, err := db.Exec(query, list.Name, list.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to create list into database: %s", err)
 		return data.Shoppinglist{}, err
@@ -306,6 +307,16 @@ func DeleteShoppingList(id int64) error {
 	return nil
 }
 
+func DeleteShoppingListFrom(userId int64) error {
+	query := "DELETE FROM " + shoppingListTable + " WHERE creatorId = ?"
+	_, err := db.Exec(query, userId)
+	if err != nil {
+		log.Printf("Failed to delete shopping lists for user %d: %s", userId, err)
+		return err
+	}
+	return nil
+}
+
 func ResetShoppingListTable() {
 	log.Print("RESETTING ALL SHOPPING LISTS. CANNOT BE REVERTED!")
 
@@ -321,77 +332,211 @@ func ResetShoppingListTable() {
 
 // ------------------------------------------------------------
 
-// func GetMapping(id int) (Mapping, error) {
-// 	if id < 0 {
-// 		err := errors.New("mapping with id < 0 do not exist")
-// 		return Mapping{}, err
-// 	}
-// 	var mapping Mapping
-// 	row := db.QueryRow("SELECT * FROM shoppinglists WHERE id = ?", id)
-// 	// Looping through data, assigning the columns to the given struct
-// 	if err := row.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity); err != nil {
-// 		return Mapping{}, err
-// 	}
-// 	return mapping, nil
-// }
+const sharedListTable = "sharedList"
 
-// func GetMappingWithUserId(id int) ([]Mapping, error) {
-// 	if id < 0 {
-// 		err := errors.New("mapping with user id < 0 do not exist")
-// 		return []Mapping{}, err
-// 	}
-// 	var mappings []Mapping
-// 	rows, err := db.Query("SELECT * FROM listaccess WHERE userId = ?", id)
-// 	if err != nil {
-// 		log.Printf("Failed to query for user id %d", id)
-// 		return []Mapping{}, err
-// 	}
-// 	// Looping through data, assigning the columns to the given struct
-// 	for rows.Next() {
-// 		var mapping Mapping
-// 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
-// 			return []Mapping{}, err
-// 		}
-// 		mappings = append(mappings, mapping)
-// 	}
-// 	return mappings, nil
-// }
+func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
+	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ?"
+	rows, err := db.Query(query, listId)
+	if err != nil {
+		log.Printf("Failed to query for users that get shared list %d: %s", listId, err)
+		return []data.ListShared{}, nil
+	}
+	var list []data.ListShared
+	for rows.Next() {
+		var shared data.ListShared
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err != nil {
+			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
+			return []data.ListShared{}, err
+		}
+		list = append(list, shared)
+	}
+	return list, nil
+}
 
-// func GetMappingWithListId(id int) ([]Mapping, error) {
-// 	if id < 0 {
-// 		err := errors.New("mapping with id < 0 do not exist")
-// 		return []Mapping{}, err
-// 	}
-// 	var mappings []Mapping
-// 	rows, err := db.Query("SELECT * FROM shoppinglists WHERE listId = ?", id)
-// 	if err != nil {
-// 		log.Printf("Failed to query for list id %d", id)
-// 		return []Mapping{}, err
-// 	}
-// 	// Looping through data, assigning the columns to the given struct
-// 	for rows.Next() {
-// 		var mapping Mapping
-// 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
-// 			return []Mapping{}, err
-// 		}
-// 		mappings = append(mappings, mapping)
-// 	}
-// 	return mappings, nil
-// }
+func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
+	query := "SELECT * FROM " + sharedListTable + " WHERE sharedWithId = ?"
+	rows, err := db.Query(query, userId)
+	if err != nil {
+		log.Printf("Failed to query for lists that are shared with the user %d: %s", userId, err)
+		return []data.ListShared{}, nil
+	}
+	var list []data.ListShared
+	for rows.Next() {
+		var shared data.ListShared
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err != nil {
+			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
+			return []data.ListShared{}, err
+		}
+		list = append(list, shared)
+	}
+	return list, nil
+}
 
-// func InsertMapping(mapping Mapping) (int64, error) {
-// 	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked)
-// 	if err != nil {
-// 		log.Printf("Failed to insert mapping into database: %s", err)
-// 		return -1, err
-// 	}
-// 	id, err := result.LastInsertId()
-// 	if err != nil {
-// 		log.Printf("Failed to insert mapping into database: %s", err)
-// 		return -1, err
-// 	}
-// 	return id, nil
-// }
+func CreateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
+	query := "INSERT INTO " + sharedListTable + " (listId, sharedWithId) VALUES (?, ?)"
+	shared := data.ListShared{
+		ID:         0,
+		ListId:     listId,
+		SharedWith: sharedWith,
+	}
+	result, err := db.Exec(query, shared.ListId, shared.SharedWith)
+	if err != nil {
+		log.Printf("Failed to insert sharing into database: %s", err)
+		return data.ListShared{}, err
+	}
+	shared.ID, err = result.LastInsertId()
+	if err != nil || shared.ID == 0 {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		return data.ListShared{}, err
+	}
+	return shared, nil
+}
+
+func DeleteSharingOfList(listId int64) error {
+	query := "DELETE FROM " + sharedListTable + " WHERE listId = ?"
+	_, err := db.Exec(query, listId)
+	if err != nil {
+		log.Printf("Failed to delete sharing of list %d: %s", listId, err)
+		return err
+	}
+	return nil
+}
+
+func DeleteSharingForUser(listId int64, userId int64) error {
+	query := "DELETE FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
+	_, err := db.Exec(query, listId, userId)
+	if err != nil {
+		log.Printf("Failed to delete sharing for user %d of list %d: %s", userId, listId, err)
+		return err
+	}
+	return nil
+}
+
+func DeleteAllSharingForUser(userId int64) error {
+	query := "DELETE FROM " + sharedListTable + " WHERE sharedWithId = ?"
+	_, err := db.Exec(query, userId)
+	if err != nil {
+		log.Printf("Failed to delete sharing for user %d: %s", userId, err)
+		return err
+	}
+	return nil
+}
+
+func ResetSharedList() {
+	log.Print("RESETTING SHARING LIST. CANNOT BE REVERTED!")
+
+	query := "DELETE FROM " + sharedListTable
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to remove all sharing from table: %s", err)
+		return
+	}
+
+	log.Print("RESET SHARING TABLE")
+}
+
+// ------------------------------------------------------------
+
+const itemPerListTable = "itemsPerList"
+
+// Returns the lists in which the item with the given ID is included
+func GetListsOfItem(itemId int64) ([]data.ItemPerList, error) {
+	var lists []data.ItemPerList
+	query := "SELECT * FROM " + itemPerListTable + " WHERE itemId = ?"
+	rows, err := db.Query(query, itemId)
+	if err != nil {
+		log.Printf("Failed to query for lists containing item %d: %s", itemId, err)
+		return []data.ItemPerList{}, nil
+	}
+	for rows.Next() {
+		var mapping data.ItemPerList
+		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.AddedBy); err != nil {
+			log.Printf("Failed to query table: %s: %s", itemPerListTable, err)
+			return []data.ItemPerList{}, err
+		}
+		lists = append(lists, mapping)
+	}
+	return lists, nil
+}
+
+// Returns the items in a specific list
+func GetItemsInList(listId int64) ([]data.ItemPerList, error) {
+	var list []data.ItemPerList
+	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ?"
+	rows, err := db.Query(query, listId)
+	if err != nil {
+		log.Printf("Failed to query for items contained in list %d: %s", listId, err)
+		return []data.ItemPerList{}, nil
+	}
+	for rows.Next() {
+		var mapping data.ItemPerList
+		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.AddedBy); err != nil {
+			log.Printf("Failed to query table: %s: %s", itemPerListTable, err)
+			return []data.ItemPerList{}, err
+		}
+		list = append(list, mapping)
+	}
+	return list, nil
+}
+
+func InsertItemInList(mapping data.ItemPerList) (data.ItemPerList, error) {
+	query := "INSERT INTO " + itemPerListTable + " (listId, itemId, quantity, checked, addedBy) VALUES (?, ?, ?, ?, ?)"
+	result, err := db.Exec(query, mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked, mapping.AddedBy)
+	if err != nil {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		return data.ItemPerList{}, err
+	}
+	mapping.ID, err = result.LastInsertId()
+	if err != nil || mapping.ID == 0 {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		return data.ItemPerList{}, err
+	}
+	return mapping, nil
+}
+
+func DeleteItemInList(itemId int64, listId int64) error {
+	query := "DELETE FROM " + itemPerListTable + " WHERE itemId = ? AND listId = ?"
+	_, err := db.Exec(query, itemId, listId)
+	if err != nil {
+		log.Printf("Failed to delete item %d in list: %s", itemId, err)
+		return err
+	}
+	return nil
+}
+
+// This method should only be used if an item is deleted
+func DeleteItemInAllLists(itemId int64) error {
+	query := "DELETE FROM " + itemPerListTable + " WHERE itemId = ?"
+	_, err := db.Exec(query, itemId)
+	if err != nil {
+		log.Printf("Failed to delete item %d from all lists: %s", itemId, err)
+		return err
+	}
+	return nil
+}
+
+func DeleteAllItemsInList(listId int64) error {
+	query := "DELETE FROM " + itemPerListTable + " WHERE listId = ?"
+	_, err := db.Exec(query, listId)
+	if err != nil {
+		log.Printf("Failed to delete list %d: %s", listId, err)
+		return err
+	}
+	return nil
+}
+
+func ResetItemPerListTable() {
+	log.Print("RESETTING ALL ITEMS PER LIST. CANNOT BE REVERTED!")
+
+	query := "DELETE FROM " + itemPerListTable
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to remove mappings from table: %s", err)
+		return
+	}
+
+	log.Print("RESET ITEM MAPPING TABLE")
+}
 
 // ------------------------------------------------------------
 // Item Handling
@@ -478,12 +623,11 @@ func InsertItemStruct(item data.Item) (data.Item, error) {
 		log.Printf("Failed to insert item into database: %s", err)
 		return data.Item{}, err
 	}
-	id, err := result.LastInsertId()
-	if err != nil || id == 0 {
+	item.ID, err = result.LastInsertId()
+	if err != nil || item.ID == 0 {
 		log.Printf("Failed to insert item into database: %s", err)
 		return data.Item{}, err
 	}
-	item.ID = id
 	return item, nil
 }
 
@@ -536,7 +680,7 @@ func DeleteItem(id int64) error {
 		log.Printf("Failed to delete item %d: %s", id, err)
 		return err
 	}
-	return nil
+	return DeleteItemInAllLists(id)
 }
 
 func ResetItemTable() {
@@ -562,6 +706,7 @@ func PrintUserTable(tableName string) {
 		log.Printf("Failed to print table %s: %s", tableName, err)
 		return
 	}
+	defer rows.Close()
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
 		var user data.User
@@ -580,6 +725,7 @@ func PrintShoppingListTable() {
 		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
 		return
 	}
+	defer rows.Close()
 	log.Print("------------- Shopping List Table -------------")
 	for rows.Next() {
 		var list data.Shoppinglist
@@ -598,6 +744,7 @@ func PrintItemTable() {
 		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
 		return
 	}
+	defer rows.Close()
 	log.Print("------------- Item Table -------------")
 	for rows.Next() {
 		var item data.Item
