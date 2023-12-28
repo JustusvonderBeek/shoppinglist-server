@@ -347,41 +347,86 @@ func TestDeletingList(t *testing.T) {
 	database.ResetShoppingListTable()
 }
 
-// TODO: Creating and deleting mapping of items to list
-// TODO: Modifying mapping
 // TODO: Extracting useful information for application
 func TestInsertMapping(t *testing.T) {
 	connectDatabase()
-	// mapping := data.ItemPerList{
-	// 	ID:       12,
-	// 	ListId:   0,
-	// 	ItemId:   1,
-	// 	Quantity: 1,
-	// }
-	// id, err := database.InsertMapping(mapping)
-	// if err != nil {
-	// 	log.Printf("Failed to insert mapping into database: %s", err)
-	// 	t.FailNow()
-	// }
-	// if id < 0 {
-	// 	log.Printf("Mapping not correctly inserted: %s", err)
-	// 	t.FailNow()
-	// }
-	// log.Print("InsertMapping successfully completed")
+	mapping := data.ItemPerList{
+		ID:       12,
+		ListId:   0,
+		ItemId:   1,
+		Quantity: 1,
+		Checked:  false,
+		AddedBy:  1234,
+	}
+	created, err := database.InsertItemToList(mapping)
+	if err != nil {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		t.FailNow()
+	}
+	if created.ID == 0 {
+		log.Print("Mapping not correctly inserted")
+		t.FailNow()
+	}
+	getMapping, err := database.GetItemsInList(mapping.ListId)
+	if err != nil {
+		log.Printf("The mapping or item for the mapping cannot be found")
+		t.FailNow()
+	}
+	if len(getMapping) != 1 {
+		log.Printf("The list is longer than expected")
+		t.FailNow()
+	}
+	database.PrintItemPerListTable()
+	log.Print("InsertMapping successfully completed")
+	database.ResetItemPerListTable()
 }
 
-func TestGetMapping(t *testing.T) {
+func TestDeleteMapping(t *testing.T) {
 	connectDatabase()
-	// id := 0
-	// mapping, err := database.GetMappingWithListId(id)
-	// if err != nil {
-	// 	log.Printf("Failed to get mapping for id %d", id)
-	// 	t.FailNow()
-	// }
-	// if len(mapping) == 0 {
-	// 	t.FailNow()
-	// }
-	// log.Print("GetMapping successfully completed")
+	mapping := data.ItemPerList{
+		ID:       12,
+		ListId:   0,
+		ItemId:   1,
+		Quantity: 1,
+		Checked:  false,
+		AddedBy:  1234,
+	}
+	created, err := database.InsertItemToList(mapping)
+	if err != nil {
+		log.Printf("Failed to insert mapping into database: %s", err)
+		t.FailNow()
+	}
+	if created.ID == 0 {
+		log.Print("Mapping not correctly inserted")
+		t.FailNow()
+	}
+	getMapping, err := database.GetItemsInList(mapping.ListId)
+	if err != nil {
+		log.Printf("The mapping or item for the mapping cannot be found")
+		t.FailNow()
+	}
+	if len(getMapping) != 1 {
+		log.Printf("The list is longer than expected")
+		t.FailNow()
+	}
+	database.PrintItemPerListTable()
+	err = database.DeleteItemInList(created.ItemId, created.ListId)
+	if err != nil {
+		log.Printf("Failed to delete mapping")
+		t.FailNow()
+	}
+	getMapping, err = database.GetItemsInList(mapping.ListId)
+	if err != nil {
+		log.Printf("The mapping or item for the mapping cannot be found")
+		t.FailNow()
+	}
+	if len(getMapping) != 0 {
+		log.Printf("The list is longer than expected")
+		t.FailNow()
+	}
+	database.PrintItemPerListTable()
+	log.Print("DeleteMapping successfully completed")
+	database.ResetItemPerListTable()
 }
 
 // ------------------------------------------------------------
