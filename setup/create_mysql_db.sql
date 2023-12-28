@@ -38,7 +38,6 @@ CREATE TABLE shoppers (
     id          BIGINT       NOT NULL,
     username    VARCHAR(256) NOT NULL,
     passwd      VARCHAR(512) NOT NULL,
-    salt        VARCHAR(256) NOT NULL,
     PRIMARY KEY (`id`)
 );
 
