@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"shop.cloudsheeptech.com/authentication"
-	"shop.cloudsheeptech.com/configuration"
 	"shop.cloudsheeptech.com/database"
+	"shop.cloudsheeptech.com/server/authentication"
+	"shop.cloudsheeptech.com/server/configuration"
 )
 
 func getAllItems(c *gin.Context) {
