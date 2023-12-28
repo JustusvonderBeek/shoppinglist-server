@@ -149,15 +149,17 @@ func PerformAuthentication(c *gin.Context) {
 	usern, passwd, ok := c.Request.BasicAuth()
 	// Check if the basic auth is correct
 	log.Printf("Bool okay: %t", ok)
-	log.Printf("User '%s' tries to login: %s", usern, passwd)
+	log.Printf("User '%s' tries to login with '%s'", usern, passwd)
 
-	database.PrintUserTable("loginuser")
+	database.PrintUserTable("shoppers")
 	value, err := strconv.Atoi(usern)
 	if err != nil {
-		return
+		log.Print("Failed to convert number to user. Setting default number")
+		value = 0
 	}
 	err = database.CheckUserExists(int64(value))
 	if usern == "admin" && passwd == "secret" {
+		log.Print("Test user tries to log in")
 		err = nil
 	}
 	if err != nil {
@@ -169,6 +171,8 @@ func PerformAuthentication(c *gin.Context) {
 	// Generate a new token that is valid for a few minutes to make a few requests
 	token, _ := generateJWT(0, usern)
 	tokens = append(tokens, token)
+
+	log.Printf("Sending token: %s", token)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
