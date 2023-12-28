@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
-	"shop.cloudsheeptech.com/configuration"
 	"shop.cloudsheeptech.com/database"
+	"shop.cloudsheeptech.com/server/configuration"
 )
 
 var IPWhitelist = map[string]bool{
