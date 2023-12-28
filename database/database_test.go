@@ -86,7 +86,53 @@ func TestDeletingUser(t *testing.T) {
 		log.Print("Could retrieve user from database after deleting!")
 		t.FailNow()
 	}
+	log.Print("DeleteUser successfully completed")
 	database.PrintUserTable("shoppers")
+	database.ResetUserTable()
+}
+
+func TestUserLogin(t *testing.T) {
+	connectDatabase()
+	user := data.User{
+		ID:       12,
+		Username: "Test User Login",
+		Passwd:   "Secure Password 123",
+	}
+	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
+		t.FailNow()
+	}
+	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	if err != nil {
+		log.Printf("Password and hash do not match: %s", err)
+		t.FailNow()
+	}
+	if createdUser.Username != user.Username || !match {
+		log.Printf("User not correctly inserted")
+		t.FailNow()
+	}
+	database.PrintUserTable("shoppers")
+	checkLoginUser, err := database.GetUser(createdUser.ID)
+	if err != nil {
+		log.Printf("Failed to get newly created user for login check: %s", err)
+		t.FailNow()
+	}
+	match, err = argon2id.ComparePasswordAndHash(user.Passwd, checkLoginUser.Passwd)
+	if err != nil {
+		log.Printf("Failed to compare password and hash: %s", err)
+		t.FailNow()
+	}
+	if !match {
+		log.Print("Password and hash do not match even though they should!")
+		t.FailNow()
+	}
+	match, _ = argon2id.ComparePasswordAndHash("Secure Password 12", checkLoginUser.Passwd)
+	if match {
+		log.Print("Passwords match even though they should not!")
+		t.FailNow()
+	}
+	log.Print("TestLoginUser successfully completed")
 	database.ResetUserTable()
 }
 
