@@ -1,9 +1,7 @@
 package database
 
 import (
-	"crypto/sha1"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
@@ -11,8 +9,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/go-sql-driver/mysql"
-	"shop.cloudsheeptech.com/configuration"
+	"shop.cloudsheeptech.com/server/configuration"
+	"shop.cloudsheeptech.com/server/data"
 )
 
 // A small database wrapper allowing to access a MySQL database
@@ -82,88 +82,73 @@ func storeConfiguration(confFile string) {
 // ------------------------------------------------------------
 
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
-var hasher = sha1.New()
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-const letterBytesLength = len(letterBytes)
+const userTable = "shoppers"
 
-type LoginUser struct {
-	ID       int64
-	Username string
-	Passwd   string
-	Salt     string
-}
-
-func randStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(letterBytesLength)]
+func GetUser(id int64) (data.User, error) {
+	query := "SELECT * FROM " + userTable + " WHERE id = ?"
+	row := db.QueryRow(query, id)
+	var user data.User
+	if err := row.Scan(&user.ID, &user.Username, &user.Passwd, &user.Salt); err == sql.ErrNoRows {
+		return data.User{}, err
 	}
-	return string(b)
-}
-
-func generateSalt() string {
-	return randStringBytes(15)
-}
-
-func GetLoginUser(id int64) (LoginUser, error) {
-	row := db.QueryRow("SELECT * FROM loginuser WHERE id = ?", id)
-	var loginUser LoginUser
-	if err := row.Scan(&loginUser.ID, &loginUser.Username, &loginUser.Passwd, &loginUser.Salt); err == sql.ErrNoRows {
-		return LoginUser{}, err
-	}
-	return loginUser, nil
+	return user, nil
 }
 
 func CheckUserExists(id int64) error {
 	log.Printf("Checking if user exists")
-	_, err := GetLoginUser(id)
+	_, err := GetUser(id)
 	return err
 }
 
-func CreateUserAccount(username string, passwd string) (LoginUser, error) {
-	log.Print("Creating new user account")
+func CreateUserAccount(username string, passwd string) (data.User, error) {
+	log.Printf("Creating new user account: %s", username)
 	// Creating the struct we are going to insert first
 	userId := random.Int63()
 	for {
 		err := CheckUserExists(int64(userId))
-		if err == nil {
+		if err == nil { // User already exists
 			userId = rand.Int63()
 			continue
 		} else {
 			break
 		}
 	}
-	// Modifying the password with the salt
-	salt := generateSalt()
-	// APPEND the SALT
-	bytePw := []byte(passwd + salt)
-	hasher.Write(bytePw)
-	hashedPw := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
-	newUser := LoginUser{
+	// Hashing the password
+	hashedPw, err := argon2id.CreateHash(passwd, argon2id.DefaultParams)
+	if err != nil {
+		log.Printf("Failed to hash password: %s", err)
+		return data.User{}, err
+	}
+	newUser := data.User{
 		ID:       userId,
 		Username: username,
 		Passwd:   hashedPw,
-		Salt:     salt,
+		Salt:     "",
 	}
 	// Insert the newly created user into the database
-	result, err := db.Exec("INSERT INTO loginuser (id, username, passwd, salt) VALUES (?, ?, ?, ?)", newUser.ID, newUser.Username, newUser.Passwd, newUser.Salt)
+	query := "INSERT INTO " + userTable + " (id, username, passwd, salt) VALUES (?, ?, ?, ?)"
+	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Passwd, newUser.Salt)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
-		return LoginUser{}, err
-	}
-	_, err = result.LastInsertId()
-	if err != nil {
-		log.Printf("Failed to insert new user into database: %s", err)
-		return LoginUser{}, err
+		return data.User{}, err
 	}
 	return newUser, nil
+}
+
+func DeleteUserAccount(id int64) error {
+	_, err := db.Exec("DELET FROM shoppers WHERE id = ?", id)
+	if err != nil {
+		log.Printf("Failed to delete user with id %d", id)
+		return err
+	}
+	return nil
 }
 
 func ResetUserTable() {
 	log.Print("RESETTING ALL USERS. THIS DISABLES LOGIN FOR ALL EXISTING USERS")
 
-	_, err := db.Exec("DELETE FROM loginuser")
+	_, err := db.Exec("DELETE FROM shoppers")
 	if err != nil {
 		log.Printf("Failed to delete user table: %s", err)
 		return
@@ -180,12 +165,6 @@ type Item struct {
 	ID    int64
 	Name  string
 	Image string
-}
-
-type User struct {
-	ID        int64
-	Name      string
-	FavRecipe int64
 }
 
 type Mapping struct {
@@ -289,33 +268,33 @@ func InsertItem(item Item) (int64, error) {
 
 // ------------------------------------------------------------
 
-func GetUser(id int) (User, error) {
-	if id < 0 {
-		err := errors.New("users with id < 0 do not exist")
-		return User{}, err
-	}
-	var user User
-	row := db.QueryRow("SELECT * FROM shoppers WHERE id = ?", id)
-	// Looping through data, assigning the columns to the given struct
-	if err := row.Scan(&user.ID, &user.Name, &user.FavRecipe); err != nil {
-		return User{}, err
-	}
-	return user, nil
-}
+// func GetUser(id int) (User, error) {
+// 	if id < 0 {
+// 		err := errors.New("users with id < 0 do not exist")
+// 		return User{}, err
+// 	}
+// 	var user User
+// 	row := db.QueryRow("SELECT * FROM shoppers WHERE id = ?", id)
+// 	// Looping through data, assigning the columns to the given struct
+// 	if err := row.Scan(&user.ID, &user.Name, &user.FavRecipe); err != nil {
+// 		return User{}, err
+// 	}
+// 	return user, nil
+// }
 
-func InsertUser(user User) (int64, error) {
-	result, err := db.Exec("INSERT INTO shoppers (name, favRecipe) VALUES (?, ?)", user.Name, user.FavRecipe)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		return -1, err
-	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		return -1, err
-	}
-	return id, nil
-}
+// func InsertUser(user User) (int64, error) {
+// 	result, err := db.Exec("INSERT INTO shoppers (name, favRecipe) VALUES (?, ?)", user.Name, user.FavRecipe)
+// 	if err != nil {
+// 		log.Printf("Failed to insert user into database: %s", err)
+// 		return -1, err
+// 	}
+// 	id, err := result.LastInsertId()
+// 	if err != nil {
+// 		log.Printf("Failed to insert user into database: %s", err)
+// 		return -1, err
+// 	}
+// 	return id, nil
+// }
 
 // ------------------------------------------------------------
 
@@ -403,7 +382,7 @@ func PrintUserTable(tableName string) {
 	}
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
-		var user LoginUser
+		var user data.User
 		if err := rows.Scan(&user.ID, &user.Username, &user.Passwd, &user.Salt); err != nil {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
