@@ -89,7 +89,7 @@ func GetUser(id int64) (data.User, error) {
 	query := "SELECT * FROM " + userTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var user data.User
-	if err := row.Scan(&user.ID, &user.Username, &user.Passwd, &user.Salt); err == sql.ErrNoRows {
+	if err := row.Scan(&user.ID, &user.Username, &user.Passwd); err == sql.ErrNoRows {
 		return data.User{}, err
 	}
 	return user, nil
@@ -124,11 +124,10 @@ func CreateUserAccount(username string, passwd string) (data.User, error) {
 		ID:       userId,
 		Username: username,
 		Passwd:   hashedPw,
-		Salt:     "",
 	}
 	// Insert the newly created user into the database
-	query := "INSERT INTO " + userTable + " (id, username, passwd, salt) VALUES (?, ?, ?, ?)"
-	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Passwd, newUser.Salt)
+	query := "INSERT INTO " + userTable + " (id, username, passwd) VALUES (?, ?, ?)"
+	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Passwd)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
@@ -137,7 +136,7 @@ func CreateUserAccount(username string, passwd string) (data.User, error) {
 }
 
 func DeleteUserAccount(id int64) error {
-	_, err := db.Exec("DELET FROM shoppers WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM shoppers WHERE id = ?", id)
 	if err != nil {
 		log.Printf("Failed to delete user with id %d", id)
 		return err
@@ -375,7 +374,7 @@ func InsertMapping(mapping Mapping) (int64, error) {
 // ------------------------------------------------------------
 
 func PrintUserTable(tableName string) {
-	rows, err := db.Query("SELECT * FROM loginuser")
+	rows, err := db.Query("SELECT * FROM shoppers")
 	if err != nil {
 		log.Printf("Failed to print table %s: %s", tableName, err)
 		return
@@ -383,7 +382,7 @@ func PrintUserTable(tableName string) {
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
 		var user data.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Passwd, &user.Salt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &user.Passwd); err != nil {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
 		log.Printf("%v", user)
