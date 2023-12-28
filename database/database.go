@@ -479,7 +479,7 @@ func GetItemsInList(listId int64) ([]data.ItemPerList, error) {
 	return list, nil
 }
 
-func InsertItemInList(mapping data.ItemPerList) (data.ItemPerList, error) {
+func InsertItemToList(mapping data.ItemPerList) (data.ItemPerList, error) {
 	query := "INSERT INTO " + itemPerListTable + " (listId, itemId, quantity, checked, addedBy) VALUES (?, ?, ?, ?, ?)"
 	result, err := db.Exec(query, mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked, mapping.AddedBy)
 	if err != nil {
@@ -752,6 +752,25 @@ func PrintItemTable() {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", item)
+	}
+	log.Print("---------------------------------------")
+}
+
+func PrintItemPerListTable() {
+	query := "SELECT * FROM " + itemPerListTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to print table %s: %s", itemPerListTable, err)
+		return
+	}
+	defer rows.Close()
+	log.Print("------------- Item Table -------------")
+	for rows.Next() {
+		var mapping data.ItemPerList
+		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.AddedBy); err != nil {
+			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
+		}
+		log.Printf("%v", mapping)
 	}
 	log.Print("---------------------------------------")
 }
