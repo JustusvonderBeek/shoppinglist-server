@@ -78,6 +78,37 @@ func storeConfiguration(confFile string) {
 }
 
 // ------------------------------------------------------------
+
+func CheckDatabaseOnline(cfg configuration.Config) {
+	if config == (DBConf{}) {
+		log.Print("Configuration not initialized")
+		loadConfig(cfg.DatabaseConfig)
+	}
+	if db != nil {
+		log.Print("Already connected to database")
+		return
+	}
+	mysqlCfg := mysql.Config{
+		User:                 config.DBUser,
+		Passwd:               config.DBPass,
+		Net:                  "tcp",
+		Addr:                 config.Addr,
+		DBName:               config.DBName,
+		AllowNativePasswords: true,
+	}
+	var err error
+	db, err = sql.Open("mysql", mysqlCfg.FormatDSN())
+	if err != nil {
+		log.Fatalf("Cannot connect to database: %s", err)
+	}
+	pingErr := db.Ping()
+	if pingErr != nil {
+		log.Fatalf("Database not responding: %s", pingErr)
+	}
+	log.Print("Connected to database")
+}
+
+// ------------------------------------------------------------
 // The data structs and constants for the user handling
 // ------------------------------------------------------------
 
@@ -186,7 +217,8 @@ func DeleteUserAccount(id int64) error {
 func ResetUserTable() {
 	log.Print("RESETTING ALL USERS. THIS DISABLES LOGIN FOR ALL EXISTING USERS")
 
-	_, err := db.Exec("DELETE FROM shoppers")
+	query := "DELETE FROM " + userTable
+	_, err := db.Exec(query)
 	if err != nil {
 		log.Printf("Failed to delete user table: %s", err)
 		return
@@ -196,8 +228,96 @@ func ResetUserTable() {
 }
 
 // ------------------------------------------------------------
-// The data structs for the queries
+// The shopping list handling
 // ------------------------------------------------------------
+
+const shoppingListTable = "shoppinglist"
+
+func GetShoppingList(id int64) (data.Shoppinglist, error) {
+	query := "SELECT * FROM " + shoppingListTable + " WHERE id = ?"
+	row := db.QueryRow(query, id)
+	var list data.Shoppinglist
+	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy); err == sql.ErrNoRows {
+		return data.Shoppinglist{}, err
+	}
+	return list, nil
+}
+
+func GetShoppingListFromUserId(id int64) (data.Shoppinglist, error) {
+	query := "SELECT * FROM " + shoppingListTable + " WHERE creatorId = ?"
+	row := db.QueryRow(query, id)
+	var list data.Shoppinglist
+	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy); err == sql.ErrNoRows {
+		return data.Shoppinglist{}, err
+	}
+	return list, nil
+}
+
+func CreateShoppingList(name string, createdBy int64) (data.Shoppinglist, error) {
+	log.Printf("Creating shopping list %s from %d", name, createdBy)
+	list := data.Shoppinglist{
+		ID:        0,
+		Name:      name,
+		CreatedBy: createdBy,
+	}
+	query := "INSERT INTO " + shoppingListTable + " (id, name, creatorId) VALUES (?, ?, ?)"
+	result, err := db.Exec(query, list.ID, list.Name, list.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to create list into database: %s", err)
+		return data.Shoppinglist{}, err
+	}
+	list.ID, err = result.LastInsertId()
+	if err != nil {
+		log.Printf("Problem with ID during insertion of shopping list: %s", err)
+		return data.Shoppinglist{}, err
+	}
+	return list, err
+}
+
+func ModifyShoppingListName(id int64, name string) (data.Shoppinglist, error) {
+	log.Printf("Modifying list %d", id)
+	list, err := GetShoppingList(id)
+	if err != nil {
+		log.Printf("Failed to get list with ID %s", err)
+		return data.Shoppinglist{}, err
+	}
+	list.Name = name
+	query := "UPDATE " + shoppingListTable + " SET name = ? WHERE id = ?"
+	result, err := db.Exec(query, list.Name, list.ID)
+	if err != nil {
+		log.Printf("Failed to update list name: %s", err)
+		return data.Shoppinglist{}, err
+	}
+	list.ID, err = result.LastInsertId()
+	if err != nil {
+		log.Printf("Problem with ID during insertion of shopping list: %s", err)
+		return data.Shoppinglist{}, err
+	}
+	return list, err
+}
+
+func DeleteShoppingList(id int64) error {
+	query := "DELETE FROM " + shoppingListTable + " WHERE id = ?"
+	_, err := db.Exec(query, id)
+	if err != nil {
+		log.Printf("Failed to delete shopping list with id %d", id)
+		return err
+	}
+	return nil
+}
+
+func ResetShoppingListTable() {
+	log.Print("RESETTING ALL SHOPPING LISTS. CANNOT BE REVERTED!")
+
+	query := "DELETE FROM " + shoppingListTable
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to delete shopping list table: %s", err)
+		return
+	}
+
+	log.Print("RESET SHOPPING TABLE")
+}
 
 type Item struct {
 	ID    int64
@@ -218,37 +338,6 @@ type UserIdToMapping struct {
 	UserId      int64
 	ListId      int64
 	ForEveryone bool
-}
-
-// ------------------------------------------------------------
-
-func CheckDatabaseOnline(cfg configuration.Config) {
-	if config == (DBConf{}) {
-		log.Print("Configuration not initialized")
-		loadConfig(cfg.DatabaseConfig)
-	}
-	if db != nil {
-		log.Print("Already connected to database")
-		return
-	}
-	mysqlCfg := mysql.Config{
-		User:                 config.DBUser,
-		Passwd:               config.DBPass,
-		Net:                  "tcp",
-		Addr:                 config.Addr,
-		DBName:               config.DBName,
-		AllowNativePasswords: true,
-	}
-	var err error
-	db, err = sql.Open("mysql", mysqlCfg.FormatDSN())
-	if err != nil {
-		log.Fatalf("Cannot connect to database: %s", err)
-	}
-	pingErr := db.Ping()
-	if pingErr != nil {
-		log.Fatalf("Database not responding: %s", pingErr)
-	}
-	log.Print("Connected to database")
 }
 
 // ------------------------------------------------------------
@@ -303,36 +392,6 @@ func InsertItem(item Item) (int64, error) {
 	}
 	return id, nil
 }
-
-// ------------------------------------------------------------
-
-// func GetUser(id int) (User, error) {
-// 	if id < 0 {
-// 		err := errors.New("users with id < 0 do not exist")
-// 		return User{}, err
-// 	}
-// 	var user User
-// 	row := db.QueryRow("SELECT * FROM shoppers WHERE id = ?", id)
-// 	// Looping through data, assigning the columns to the given struct
-// 	if err := row.Scan(&user.ID, &user.Name, &user.FavRecipe); err != nil {
-// 		return User{}, err
-// 	}
-// 	return user, nil
-// }
-
-// func InsertUser(user User) (int64, error) {
-// 	result, err := db.Exec("INSERT INTO shoppers (name, favRecipe) VALUES (?, ?)", user.Name, user.FavRecipe)
-// 	if err != nil {
-// 		log.Printf("Failed to insert user into database: %s", err)
-// 		return -1, err
-// 	}
-// 	id, err := result.LastInsertId()
-// 	if err != nil {
-// 		log.Printf("Failed to insert user into database: %s", err)
-// 		return -1, err
-// 	}
-// 	return id, nil
-// }
 
 // ------------------------------------------------------------
 
@@ -425,6 +484,24 @@ func PrintUserTable(tableName string) {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
 		log.Printf("%v", user)
+	}
+	log.Print("---------------------------------------")
+}
+
+func PrintShoppingListTable() {
+	query := "SELECT * FROM " + shoppingListTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
+		return
+	}
+	log.Print("------------- Shopping List Table -------------")
+	for rows.Next() {
+		var list data.Shoppinglist
+		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy); err != nil {
+			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
+		}
+		log.Printf("%v", list)
 	}
 	log.Print("---------------------------------------")
 }
