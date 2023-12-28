@@ -22,10 +22,10 @@ type Shoppinglist struct {
 	CreatedBy int64
 }
 
-type SharingMapping struct {
-	ID           int64
-	ListId       int64
-	SharedWithId int64
+type ListShared struct {
+	ID         int64
+	ListId     int64
+	SharedWith int64
 }
 
 type ItemPerList struct {
@@ -35,4 +35,36 @@ type ItemPerList struct {
 	Quantity int64
 	Checked  bool
 	AddedBy  int64
+}
+
+// ------------------------------------------------------------
+// The items that are stored in the list
+// ------------------------------------------------------------
+
+type Item struct {
+	ID   int64
+	Name string
+	Icon string
+}
+
+// ------------------------------------------------------------
+// The recipe data structures
+// ------------------------------------------------------------
+
+type Recipe struct {
+	ID                  int64
+	Name                string
+	DescriptionFilePath string
+	CreatedBy           int64
+	DefaultPortion      int
+}
+
+type ItemPerRecipe struct {
+	ID       int64
+	RecipeId int64
+	ItemId   int64
+	Quantity float32
+}
+
+type RecipeShared struct {
 }
