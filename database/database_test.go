@@ -230,6 +230,124 @@ func TestModifyUserPassword(t *testing.T) {
 // Testing data handling
 // ------------------------------------------------------------
 
+func TestCreatingList(t *testing.T) {
+	connectDatabase()
+	list := data.Shoppinglist{
+		ID:        0,
+		Name:      "Create List Name",
+		CreatedBy: 1337,
+	}
+	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to create new list: %s", err)
+		t.FailNow()
+	}
+	if created.ID == 0 {
+		log.Printf("Assigned list ID == 0!")
+		t.FailNow()
+	}
+	getList, err := database.GetShoppingList(created.ID)
+	if err != nil {
+		log.Printf("Failed to get newly created shopping list")
+		t.FailNow()
+	}
+	if getList.ID != created.ID {
+		log.Printf("IDs do not match")
+		t.FailNow()
+	}
+	database.PrintShoppingListTable()
+	log.Print("TestCreatingList successfully completed")
+	database.ResetShoppingListTable()
+}
+
+func TestModifyListName(t *testing.T) {
+	connectDatabase()
+	list := data.Shoppinglist{
+		ID:        0,
+		Name:      "Old List Name",
+		CreatedBy: 1337,
+	}
+	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to create new list: %s", err)
+		t.FailNow()
+	}
+	if created.ID == 0 {
+		log.Printf("Assigned list ID == 0!")
+		t.FailNow()
+	}
+	getList, err := database.GetShoppingList(created.ID)
+	if err != nil {
+		log.Printf("Failed to get newly created shopping list")
+		t.FailNow()
+	}
+	if getList.ID != created.ID {
+		log.Printf("IDs do not match")
+		t.FailNow()
+	}
+	updatedList, err := database.ModifyShoppingListName(created.ID, "New List Name")
+	if err != nil {
+		log.Printf("Failed to modify shopping list name: %s", err)
+		t.FailNow()
+	}
+	if updatedList.Name == list.Name {
+		log.Print("List names still match after update!")
+		t.FailNow()
+	}
+	getList, err = database.GetShoppingList(created.ID)
+	if err != nil {
+		log.Printf("Failed to get modified list")
+		t.FailNow()
+	}
+	if getList.Name != "New List Name" {
+		log.Printf("Name update not correctly stored")
+		t.FailNow()
+	}
+	log.Print("TestModifyListName successfully completed")
+	database.ResetShoppingListTable()
+}
+
+func TestDeletingList(t *testing.T) {
+	connectDatabase()
+	list := data.Shoppinglist{
+		ID:        0,
+		Name:      "Create List Name",
+		CreatedBy: 1337,
+	}
+	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to create new list: %s", err)
+		t.FailNow()
+	}
+	if created.ID == 0 {
+		log.Printf("Assigned list ID == 0!")
+		t.FailNow()
+	}
+	database.PrintShoppingListTable()
+	getList, err := database.GetShoppingList(created.ID)
+	if err != nil {
+		log.Printf("Failed to get newly created shopping list")
+		t.FailNow()
+	}
+	if getList.ID != created.ID {
+		log.Printf("IDs do not match")
+		t.FailNow()
+	}
+	err = database.DeleteShoppingList(created.ID)
+	if err != nil {
+		log.Printf("Failed to delete shopping list: %s", err)
+		t.FailNow()
+	}
+	getList, err = database.GetShoppingList(created.ID)
+	if err == nil || getList.ID != 0 {
+		log.Printf("Can get delete list!")
+		t.FailNow()
+	}
+	database.PrintShoppingListTable()
+	log.Print("TestDeletingList successfully completed")
+	database.ResetShoppingListTable()
+}
+
 func TestGetAllItems(t *testing.T) {
 	connectDatabase()
 	items, err := database.GetAllItems()
