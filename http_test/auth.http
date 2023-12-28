@@ -7,10 +7,47 @@ GET https://localhost:46152/test/unauth
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Wed, 27 Dec 2023 20:14:37 GMT
-content-length: 48
+date: Thu, 28 Dec 2023 18:25:21 GMT
+content-length: 47
 connection: close
 ###
 # This test should fail with a status code signaling unauthorized
 # @noRejectUnauthorized
-GET https://localhost:46152/test/auth
+GET https://localhost:46152/v1/test/auth
+
+HTTP/1.1 401  - Unauthorized
+content-type: application/json; charset=utf-8
+date: Thu, 28 Dec 2023 18:25:22 GMT
+content-length: 24
+connection: close
+###
+# Register and retrieve token
+# @noRejectUnauthorized
+POST https://admin:secret@localhost:46152/login
+Content-Type application/json
+
+# Assert successful login
+?? status == 200
+
+{{response.parsedBody}}
+
+@jwtToken = {{response.parsedBody.token}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Thu, 28 Dec 2023 20:24:41 GMT
+content-length: 195
+connection: close
+###
+# Use token to authenticate
+# @noRejectUnauthorized
+GET https://@localhost:46152/v1/test/auth
+Authorization: Bearer {{jwtToken}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Thu, 28 Dec 2023 20:24:42 GMT
+content-length: 47
+connection: close
