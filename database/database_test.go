@@ -4,18 +4,51 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"log"
+	"strconv"
 	"testing"
 
-	"shop.cloudsheeptech.com/configuration"
 	"shop.cloudsheeptech.com/database"
+	"shop.cloudsheeptech.com/server/configuration"
 )
+
+// ------------------------------------------------------------
+// Connect the test to the database: required
+// ------------------------------------------------------------
 
 func connectDatabase() {
 	cfg := configuration.Config{
-		DatabaseConfig: "../db.json",
+		DatabaseConfig: "../resources/db.json",
 	}
 	database.CheckDatabaseOnline(cfg)
 }
+
+// ------------------------------------------------------------
+// Testing user creation and authentication
+// ------------------------------------------------------------
+
+func TestInsertUser(t *testing.T) {
+	connectDatabase()
+	user := database.User{
+		ID:       4,
+		Username: strconv.Itoa(4),
+		Passwd:   "Biene Maja",
+		Salt:     "1234",
+	}
+	id, err := database.InsertUser(user)
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
+		t.FailNow()
+	}
+	if id < 0 {
+		log.Printf("User not correctly inserted: %s", err)
+		t.FailNow()
+	}
+	log.Print("InsertUser successfully completed")
+}
+
+// ------------------------------------------------------------
+// Testing data handling
+// ------------------------------------------------------------
 
 func TestGetAllItems(t *testing.T) {
 	connectDatabase()
@@ -44,25 +77,6 @@ func TestInsertItem(t *testing.T) {
 		t.FailNow()
 	}
 	log.Print("InsertItem successfully completed")
-}
-
-func TestInsertUser(t *testing.T) {
-	connectDatabase()
-	user := database.User{
-		ID:        4,
-		Name:      "New Item",
-		FavRecipe: 3,
-	}
-	id, err := database.InsertUser(user)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	if id < 0 {
-		log.Printf("User not correctly inserted: %s", err)
-		t.FailNow()
-	}
-	log.Print("InsertUser successfully completed")
 }
 
 func TestInsertMapping(t *testing.T) {
