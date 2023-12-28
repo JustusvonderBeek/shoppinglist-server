@@ -135,6 +135,45 @@ func CreateUserAccount(username string, passwd string) (data.User, error) {
 	return newUser, nil
 }
 
+func ModifyUserAccountName(id int64, username string) (data.User, error) {
+	log.Printf("Modifying user with ID %d", id)
+	user, err := GetUser(id)
+	if err != nil {
+		log.Printf("Failed to find user with ID %d", id)
+		return data.User{}, err
+	}
+	user.Username = username
+	query := "UPDATE " + userTable + " SET username = ? WHERE id = ?"
+	_, err = db.Exec(query, user.Username, user.ID)
+	if err != nil {
+		log.Printf("Failed to update user with ID %d", id)
+		return data.User{}, err
+	}
+	return user, nil
+}
+
+func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
+	log.Printf("Modifying user with ID %d", id)
+	user, err := GetUser(id)
+	if err != nil {
+		log.Printf("Failed to find user with ID %d", id)
+		return data.User{}, err
+	}
+	hashedPw, err := argon2id.CreateHash(password, argon2id.DefaultParams)
+	if err != nil {
+		log.Printf("Failed to hash given password: %s", err)
+		return data.User{}, err
+	}
+	user.Passwd = hashedPw
+	query := "UPDATE " + userTable + " SET passwd = ? WHERE id = ?"
+	_, err = db.Exec(query, user.Passwd, user.ID)
+	if err != nil {
+		log.Printf("Failed to update user with ID %d", id)
+		return data.User{}, err
+	}
+	return user, nil
+}
+
 func DeleteUserAccount(id int64) error {
 	_, err := db.Exec("DELETE FROM shoppers WHERE id = ?", id)
 	if err != nil {
