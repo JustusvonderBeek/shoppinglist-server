@@ -71,7 +71,7 @@ CREATE TABLE itemsPerList (
     listId      INT                 NOT NULL,
     itemId      INT                 NOT NULL,
     quantity    INT                 NOT NULL,
-    checked     BIT(1)              NOT NULL,
+    checked     BOOLEAN             NOT NULL,
     addedBy     BIGINT              NOT NULL,
     PRIMARY KEY (`id`)
 );
