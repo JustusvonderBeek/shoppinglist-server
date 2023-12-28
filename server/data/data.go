@@ -10,5 +10,4 @@ type User struct {
 	ID       int64
 	Username string
 	Passwd   string
-	Salt     string
 }
