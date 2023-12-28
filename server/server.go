@@ -10,6 +10,7 @@ import (
 	"shop.cloudsheeptech.com/database"
 	"shop.cloudsheeptech.com/server/authentication"
 	"shop.cloudsheeptech.com/server/configuration"
+	"shop.cloudsheeptech.com/server/data"
 )
 
 func getAllItems(c *gin.Context) {
@@ -32,7 +33,7 @@ func getItem(c *gin.Context) {
 		return
 	}
 	log.Printf("Trying to access item: %d", id)
-	item, err := database.GetItem(id)
+	item, err := database.GetItem(int64(id))
 	if err != nil {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
@@ -42,18 +43,18 @@ func getItem(c *gin.Context) {
 }
 
 func addItem(c *gin.Context) {
-	var item database.Item
+	var item data.Item
 	if err := c.BindJSON(&item); err != nil {
 		log.Printf("Item is in incorrect format: %v", c.Request.Body)
 		return
 	}
-	id, err := database.InsertItem(item)
-	if err != nil || id < 0 {
+	item, err := database.InsertItemStruct(item)
+	if err != nil || item.ID < 0 {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.IndentedJSON(http.StatusAccepted, id)
-	log.Printf("Inserted item under ID %d", id)
+	c.IndentedJSON(http.StatusAccepted, item)
+	log.Printf("Inserted item under ID %d", item.ID)
 }
 
 // TODO: Implement actual mapping of user id to list
@@ -65,7 +66,7 @@ func getShoppingListsForUser(c *gin.Context) {
 		log.Printf("Err: %s", err)
 		return
 	}
-	listIds, err := database.GetMappingWithUserId(id)
+	listIds, err := database.GetShoppingListFromUserId(int64(id))
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}
@@ -73,6 +74,7 @@ func getShoppingListsForUser(c *gin.Context) {
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}
+	// TODO: add also the different lists to the data that is sent back
 	c.IndentedJSON(http.StatusOK, raw)
 }
 
@@ -84,7 +86,7 @@ func getShoppingList(c *gin.Context) {
 		log.Printf("Err: %s", err)
 		return
 	}
-	mapping, err := database.GetMappingWithListId(id)
+	mapping, err := database.GetShoppingList(int64(id))
 	if err != nil {
 		log.Printf("Failed to get mapping for id %d: %s", id, err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -105,7 +107,7 @@ func getShoppingList(c *gin.Context) {
 // ------------------------------------------------------------
 
 func returnUnauth(c *gin.Context) {
-	item := database.Item{}
+	item := data.Item{}
 	c.IndentedJSON(http.StatusOK, item)
 }
 
@@ -137,6 +139,8 @@ func Start(cfg configuration.Config) error {
 
 		authorized.GET("/lists/:userId", getShoppingListsForUser)
 		authorized.GET("/list/:id", getShoppingList)
+
+		authorized.GET("/test/auth", returnUnauth)
 	}
 
 	router.GET("/test/unauth", returnUnauth)
