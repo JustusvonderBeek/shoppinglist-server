@@ -220,11 +220,11 @@ func ResetUserTable() {
 	query := "DELETE FROM " + userTable
 	_, err := db.Exec(query)
 	if err != nil {
-		log.Printf("Failed to delete user table: %s", err)
+		log.Printf("Failed to reset user table: %s", err)
 		return
 	}
 
-	log.Print("RESET LOGIN USER TABLE")
+	log.Print("RESET USER TABLE")
 }
 
 // ------------------------------------------------------------
@@ -278,7 +278,7 @@ func ModifyShoppingListName(id int64, name string) (data.Shoppinglist, error) {
 	log.Printf("Modifying list %d", id)
 	list, err := GetShoppingList(id)
 	if err != nil {
-		log.Printf("Failed to get list with ID %s", err)
+		log.Printf("Failed to get list with ID %d", id)
 		return data.Shoppinglist{}, err
 	}
 	list.Name = name
@@ -312,159 +312,244 @@ func ResetShoppingListTable() {
 	query := "DELETE FROM " + shoppingListTable
 	_, err := db.Exec(query)
 	if err != nil {
-		log.Printf("Failed to delete shopping list table: %s", err)
+		log.Printf("Failed to reset shopping list table: %s", err)
 		return
 	}
 
 	log.Print("RESET SHOPPING TABLE")
 }
 
-type Item struct {
-	ID    int64
-	Name  string
-	Image string
-}
-
-type Mapping struct {
-	ID       int64
-	ListId   int64
-	ItemId   int64
-	Quantity int64
-	Checked  bool
-}
-
-type UserIdToMapping struct {
-	ID          int64
-	UserId      int64
-	ListId      int64
-	ForEveryone bool
-}
-
 // ------------------------------------------------------------
 
-func GetItem(id int) (Item, error) {
+// func GetMapping(id int) (Mapping, error) {
+// 	if id < 0 {
+// 		err := errors.New("mapping with id < 0 do not exist")
+// 		return Mapping{}, err
+// 	}
+// 	var mapping Mapping
+// 	row := db.QueryRow("SELECT * FROM shoppinglists WHERE id = ?", id)
+// 	// Looping through data, assigning the columns to the given struct
+// 	if err := row.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity); err != nil {
+// 		return Mapping{}, err
+// 	}
+// 	return mapping, nil
+// }
+
+// func GetMappingWithUserId(id int) ([]Mapping, error) {
+// 	if id < 0 {
+// 		err := errors.New("mapping with user id < 0 do not exist")
+// 		return []Mapping{}, err
+// 	}
+// 	var mappings []Mapping
+// 	rows, err := db.Query("SELECT * FROM listaccess WHERE userId = ?", id)
+// 	if err != nil {
+// 		log.Printf("Failed to query for user id %d", id)
+// 		return []Mapping{}, err
+// 	}
+// 	// Looping through data, assigning the columns to the given struct
+// 	for rows.Next() {
+// 		var mapping Mapping
+// 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
+// 			return []Mapping{}, err
+// 		}
+// 		mappings = append(mappings, mapping)
+// 	}
+// 	return mappings, nil
+// }
+
+// func GetMappingWithListId(id int) ([]Mapping, error) {
+// 	if id < 0 {
+// 		err := errors.New("mapping with id < 0 do not exist")
+// 		return []Mapping{}, err
+// 	}
+// 	var mappings []Mapping
+// 	rows, err := db.Query("SELECT * FROM shoppinglists WHERE listId = ?", id)
+// 	if err != nil {
+// 		log.Printf("Failed to query for list id %d", id)
+// 		return []Mapping{}, err
+// 	}
+// 	// Looping through data, assigning the columns to the given struct
+// 	for rows.Next() {
+// 		var mapping Mapping
+// 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
+// 			return []Mapping{}, err
+// 		}
+// 		mappings = append(mappings, mapping)
+// 	}
+// 	return mappings, nil
+// }
+
+// func InsertMapping(mapping Mapping) (int64, error) {
+// 	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked)
+// 	if err != nil {
+// 		log.Printf("Failed to insert mapping into database: %s", err)
+// 		return -1, err
+// 	}
+// 	id, err := result.LastInsertId()
+// 	if err != nil {
+// 		log.Printf("Failed to insert mapping into database: %s", err)
+// 		return -1, err
+// 	}
+// 	return id, nil
+// }
+
+// ------------------------------------------------------------
+// Item Handling
+// ------------------------------------------------------------
+
+const itemTable = "items"
+
+func GetItem(id int64) (data.Item, error) {
 	if id < 0 {
 		err := errors.New("items with id < 0 do not exist")
-		return Item{}, err
+		return data.Item{}, err
 	}
-	var item Item
-	row := db.QueryRow("SELECT * FROM items WHERE id = ?", id)
+	query := "SELECT * FROM " + itemTable + " WHERE id = ?"
+	var item data.Item
+	row := db.QueryRow(query, id)
 	// Looping through data, assigning the columns to the given struct
-	if err := row.Scan(&item.ID, &item.Name, &item.Image); err != nil {
-		return Item{}, err
+	if err := row.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+		return data.Item{}, err
 	}
 	return item, nil
 }
 
-func GetAllItems() ([]Item, error) {
-	var items []Item
-	rows, err := db.Query("SELECT * FROM items")
+func GetAllItems() ([]data.Item, error) {
+	query := "SELECT * FROM " + itemTable
+	rows, err := db.Query(query)
 	if err != nil {
-		log.Printf("Failed to query database for item: %s", err)
+		log.Printf("Failed to query database for items: %s", err)
 		return nil, err
 	}
 	defer rows.Close()
 	// Looping through data, assigning the columns to the given struct
+	var items []data.Item
 	for rows.Next() {
-		var item Item
-		if err := rows.Scan(&item.ID, &item.Name, &item.Image); err != nil {
+		var item data.Item
+		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("Failed to retrieve data from database: %s", err)
+		log.Printf("Failed to retrieve items from database: %s", err)
 		return nil, err
 	}
 	return items, nil
 }
 
-func InsertItem(item Item) (int64, error) {
-	result, err := db.Exec("INSERT INTO items (name, image) VALUES (?, ?)", item.Name, item.Image)
+func GetAllItemsFromName(name string) ([]data.Item, error) {
+	query := "SELECT * FROM " + itemTable + " WHERE INSTR(name, '" + name + "') > 0"
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to query database for items: %s", err)
+		return nil, err
+	}
+	defer rows.Close()
+	// Looping through data, assigning the columns to the given struct
+	var items []data.Item
+	for rows.Next() {
+		var item data.Item
+		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("Failed to retrieve items from database: %s", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func InsertItem(name string, icon string) (data.Item, error) {
+	item := data.Item{
+		ID:   0,
+		Name: name,
+		Icon: icon,
+	}
+	return InsertItemStruct(item)
+}
+
+func InsertItemStruct(item data.Item) (data.Item, error) {
+	query := "INSERT INTO " + itemTable + " (name, icon) VALUES (?, ?)"
+	result, err := db.Exec(query, item.Name, item.Icon)
 	if err != nil {
 		log.Printf("Failed to insert item into database: %s", err)
-		return -1, err
+		return data.Item{}, err
 	}
 	id, err := result.LastInsertId()
-	if err != nil {
+	if err != nil || id == 0 {
 		log.Printf("Failed to insert item into database: %s", err)
-		return -1, err
+		return data.Item{}, err
 	}
-	return id, nil
+	item.ID = id
+	return item, nil
 }
 
-// ------------------------------------------------------------
-
-func GetMapping(id int) (Mapping, error) {
-	if id < 0 {
-		err := errors.New("mapping with id < 0 do not exist")
-		return Mapping{}, err
+func ModifyItemName(id int64, name string) (data.Item, error) {
+	item, err := GetItem(id)
+	if err != nil {
+		log.Printf("Failed to get item with ID %d", id)
+		return data.Item{}, err
 	}
-	var mapping Mapping
-	row := db.QueryRow("SELECT * FROM shoppinglists WHERE id = ?", id)
-	// Looping through data, assigning the columns to the given struct
-	if err := row.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity); err != nil {
-		return Mapping{}, err
+	item.Name = name
+	query := "UPDATE " + itemTable + " SET name = ? WHERE id = ?"
+	result, err := db.Exec(query, item.Name, item.ID)
+	if err != nil {
+		log.Printf("Failed to update item name: %s", err)
+		return data.Item{}, err
 	}
-	return mapping, nil
+	item.ID, err = result.LastInsertId()
+	if err != nil {
+		log.Printf("Problem with ID during insertion of item: %s", err)
+		return data.Item{}, err
+	}
+	return item, err
 }
 
-func GetMappingWithUserId(id int) ([]Mapping, error) {
-	if id < 0 {
-		err := errors.New("mapping with user id < 0 do not exist")
-		return []Mapping{}, err
-	}
-	var mappings []Mapping
-	rows, err := db.Query("SELECT * FROM listaccess WHERE userId = ?", id)
+func ModifyItemIcon(id int64, icon string) (data.Item, error) {
+	item, err := GetItem(id)
 	if err != nil {
-		log.Printf("Failed to query for user id %d", id)
-		return []Mapping{}, err
+		log.Printf("Failed to get item with ID %d", id)
+		return data.Item{}, err
 	}
-	// Looping through data, assigning the columns to the given struct
-	for rows.Next() {
-		var mapping Mapping
-		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
-			return []Mapping{}, err
-		}
-		mappings = append(mappings, mapping)
+	item.Icon = icon
+	query := "UPDATE " + itemTable + " SET icon = ? WHERE id = ?"
+	result, err := db.Exec(query, item.Icon, item.ID)
+	if err != nil {
+		log.Printf("Failed to update item icon: %s", err)
+		return data.Item{}, err
 	}
-	return mappings, nil
+	item.ID, err = result.LastInsertId()
+	if err != nil {
+		log.Printf("Problem with ID during insertion of item: %s", err)
+		return data.Item{}, err
+	}
+	return item, err
 }
 
-func GetMappingWithListId(id int) ([]Mapping, error) {
-	if id < 0 {
-		err := errors.New("mapping with id < 0 do not exist")
-		return []Mapping{}, err
-	}
-	var mappings []Mapping
-	rows, err := db.Query("SELECT * FROM shoppinglists WHERE listId = ?", id)
+func DeleteItem(id int64) error {
+	query := "DELETE FROM " + itemTable + " WHERE id = ?"
+	_, err := db.Exec(query, id)
 	if err != nil {
-		log.Printf("Failed to query for list id %d", id)
-		return []Mapping{}, err
+		log.Printf("Failed to delete item %d: %s", id, err)
+		return err
 	}
-	// Looping through data, assigning the columns to the given struct
-	for rows.Next() {
-		var mapping Mapping
-		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked); err != nil {
-			return []Mapping{}, err
-		}
-		mappings = append(mappings, mapping)
-	}
-	return mappings, nil
+	return nil
 }
 
-func InsertMapping(mapping Mapping) (int64, error) {
-	result, err := db.Exec("INSERT INTO shoppinglists (listId, itemId, quantity) VALUES (?, ?, ?, ?)", mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked)
+func ResetItemTable() {
+	log.Print("RESETTING ALL ITEMS. CANNOT BE REVERTED!")
+
+	query := "DELETE FROM " + itemTable
+	_, err := db.Exec(query)
 	if err != nil {
-		log.Printf("Failed to insert mapping into database: %s", err)
-		return -1, err
+		log.Printf("Failed to remove all items from table: %s", err)
+		return
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		log.Printf("Failed to insert mapping into database: %s", err)
-		return -1, err
-	}
-	return id, nil
+
+	log.Print("RESET ITEMS TABLE")
 }
 
 // ------------------------------------------------------------
@@ -502,6 +587,24 @@ func PrintShoppingListTable() {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
+	}
+	log.Print("---------------------------------------")
+}
+
+func PrintItemTable() {
+	query := "SELECT * FROM " + itemTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
+		return
+	}
+	log.Print("------------- Item Table -------------")
+	for rows.Next() {
+		var item data.Item
+		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
+		}
+		log.Printf("%v", item)
 	}
 	log.Print("---------------------------------------")
 }
