@@ -93,13 +93,36 @@ func getShoppingList(c *gin.Context) {
 		return
 	}
 	// TODO: Transform this mapping to a concrete item list
-	raw, err := json.Marshal(mapping)
+	// raw, err := json.Marshal(mapping)
+	// if err != nil {
+	// 	log.Printf("Failed to convert raw data: %s", err)
+	// 	c.AbortWithStatus(http.StatusInternalServerError)
+	// 	return
+	// }
+	c.IndentedJSON(http.StatusOK, mapping)
+}
+
+func postShoppingList(c *gin.Context) {
+	var list data.Shoppinglist
+	err := c.BindJSON(&list)
 	if err != nil {
-		log.Printf("Failed to convert raw data: %s", err)
+		log.Printf("Failed to convert given data to shopping list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	shoplist, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to insert list into server: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.IndentedJSON(http.StatusOK, raw)
+	// raw, err := json.Marshal(shoplist)
+	// if err != nil {
+	// 	log.Printf("Failed to convert list to JSON! %s", err)
+	// 	c.AbortWithStatus(http.StatusInternalServerError)
+	// 	return
+	// }
+	c.IndentedJSON(http.StatusCreated, shoplist)
 }
 
 // ------------------------------------------------------------
@@ -140,6 +163,8 @@ func Start(cfg configuration.Config) error {
 
 		authorized.GET("/lists/:userId", getShoppingListsForUser)
 		authorized.GET("/list/:id", getShoppingList)
+
+		authorized.POST("/list", postShoppingList)
 
 		authorized.GET("/test/auth", returnUnauth)
 	}
