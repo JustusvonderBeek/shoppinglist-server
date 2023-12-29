@@ -29,7 +29,6 @@ var IPWhitelist = map[string]bool{
 
 var config configuration.Config
 var tokens []string
-var jwt_secret = []byte("password")
 
 // ------------------------------------------------------------
 // The authentication and login data structures
@@ -193,17 +192,6 @@ func CreateAccount(c *gin.Context) {
 // ------------------------------------------------------------
 
 func Login(c *gin.Context) {
-	// log.Printf("Header: %s", c.Request.Header)
-	// // Ok signals if the format of the authentication is okay
-	// username, passwd, ok := c.Request.BasicAuth()
-	// // Check if the basic auth is correct
-	// if !ok {
-	// 	log.Print("Basic authentication is in incorrect format")
-	// 	c.AbortWithStatus(http.StatusBadRequest)
-	// 	return
-	// }
-	// log.Printf("User '%s' tries to login", username)
-
 	// Decided to only use the JSON in the body for authentication as everything else is redundant
 	var user data.User
 	err := c.ShouldBindJSON(&user)
@@ -212,26 +200,13 @@ func Login(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-
-	// TODO: Debug information
-	database.PrintUserTable("shoppers")
-	// usernumber, err := strconv.Atoi(user.ID)
-	// if err != nil {
-	// 	log.Print("Failed to convert number to user!")
-	// 	c.AbortWithStatus(http.StatusBadRequest)
-	// 	return
-	// }
+	// database.PrintUserTable("shoppers")
 	err = database.CheckUserExists(int64(user.ID))
-	// if usernumber == 0 && user.Password == "secret" {
-	// 	log.Print("Test user tries to log in")
-	// 	err = nil
-	// }
 	if err != nil {
 		log.Printf("User not found!")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-
 	// Generate a new token that is valid for a few minutes to make a few requests
 	token, err := generateJWT(int(user.ID), user.Username)
 	if err != nil {
@@ -240,7 +215,6 @@ func Login(c *gin.Context) {
 		return
 	}
 	tokens = append(tokens, token)
-
 	log.Print("User found and token generated")
 	// log.Printf("Sending token: %s", token)
 
@@ -295,13 +269,8 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 				log.Print("The given secret is no longer valid! Please renew the secret")
 				return "", err
 			}
-			// jwt_secret = []byte(jwtSecret.Secret)
-			// log.Printf("Secret: %s", jwtSecret.Secret)
-			// secretKey := os.Getenv("")
-			// secretKeyByte := []byte(jwt_secret)
 			secretKeyByte := []byte(jwtSecret.Secret)
 			return secretKeyByte, nil
-			// return jwt_secret, nil
 		})
 		// log.Printf("Parsing got: %s, %s", token.Raw, err)
 		if err != nil {
@@ -310,6 +279,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			return
 		}
 		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
+		// TODO: Update checking token validity, include if we generated the token and if user exists
 		if token.Valid {
 			// c.Set("userId", claims["Id"])
 			c.Next()
