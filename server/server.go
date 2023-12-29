@@ -119,12 +119,13 @@ func Start(cfg configuration.Config) error {
 	gin.SetMode(gin.DebugMode)
 
 	router := gin.Default()
+	authentication.Setup(cfg)
 
-	// User account handling and creation
-	router.POST("/create/account", authentication.CreateAccount)
+	// ------------- Handling Account Creation and Login ---------------
+
+	router.POST("/auth/create", authentication.CreateAccount)
 	// JWT BASED AUTHENTICATION
-	router.POST("/login", authentication.PerformAuthentication)
-	// router.Use(authentication.AuthenticationMiddleware())
+	router.POST("/auth/login", authentication.Login)
 
 	// ------------- Handling Routes v1 ---------------
 
