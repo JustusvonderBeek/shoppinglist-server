@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -194,42 +193,47 @@ func CreateAccount(c *gin.Context) {
 // ------------------------------------------------------------
 
 func Login(c *gin.Context) {
-	// Ok signals if the format of the authentication is okay
-	username, passwd, ok := c.Request.BasicAuth()
-	// Check if the basic auth is correct
-	if !ok {
-		log.Print("Basic authentication is in incorrect format")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	log.Printf("User '%s' tries to login", username)
-	// TODO: Debug information
-	database.PrintUserTable("shoppers")
-	usernumber, err := strconv.Atoi(username)
-	if err != nil {
-		log.Print("Failed to convert number to user!")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	err = database.CheckUserExists(int64(usernumber))
-	if usernumber == 0 && passwd == "secret" {
-		log.Print("Test user tries to log in")
-		err = nil
-	}
-	if err != nil {
-		log.Printf("User not found!")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
+	// log.Printf("Header: %s", c.Request.Header)
+	// // Ok signals if the format of the authentication is okay
+	// username, passwd, ok := c.Request.BasicAuth()
+	// // Check if the basic auth is correct
+	// if !ok {
+	// 	log.Print("Basic authentication is in incorrect format")
+	// 	c.AbortWithStatus(http.StatusBadRequest)
+	// 	return
+	// }
+	// log.Printf("User '%s' tries to login", username)
+
+	// Decided to only use the JSON in the body for authentication as everything else is redundant
 	var user data.User
-	err = c.ShouldBindJSON(&user)
+	err := c.ShouldBindJSON(&user)
 	if err != nil {
 		log.Printf("Login does not contain user information: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+
+	// TODO: Debug information
+	database.PrintUserTable("shoppers")
+	// usernumber, err := strconv.Atoi(user.ID)
+	// if err != nil {
+	// 	log.Print("Failed to convert number to user!")
+	// 	c.AbortWithStatus(http.StatusBadRequest)
+	// 	return
+	// }
+	err = database.CheckUserExists(int64(user.ID))
+	// if usernumber == 0 && user.Password == "secret" {
+	// 	log.Print("Test user tries to log in")
+	// 	err = nil
+	// }
+	if err != nil {
+		log.Printf("User not found!")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	// Generate a new token that is valid for a few minutes to make a few requests
-	token, err := generateJWT(usernumber, user.Username)
+	token, err := generateJWT(int(user.ID), user.Username)
 	if err != nil {
 		log.Printf("Failed to generate JWT token: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -263,7 +267,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 		}
 		splits := strings.Split(tokenString, " ")
 		if len(splits) != 2 {
-			log.Print("Token in incorrect format!")
+			log.Printf("Token in incorrect format! '%s'", tokenString)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
 			return
 		}
