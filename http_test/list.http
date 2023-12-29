@@ -1,138 +1,29 @@
 /*
 The default REST API tests for the server. Each cell can be executed on it's own but sometimes the results depend on what has been executed before.
 */
-# Testing the authenticaiton by accessing default data
-
-# @noRejectUnauthorized
-GET https://localhost:46152/resource
-
-HTTP/1.1 401  - Unauthorized
-date: Tue, 26 Dec 2023 10:44:10 GMT
-content-length: 0
-connection: close
-###
-# No again with basic HTTP authentication
-
-# @noRejectUnauthorized
-GET https://admin:secret@localhost:46152/resource
-
-# # @noRejectUnauthorized
-# GET https://localhost:46152/resource
-# Authorization: Basic admin:secret
-
-HTTP/1.1 400  - Bad Request
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 10:44:21 GMT
-content-length: 25
-connection: close
-###
-# Token Bearer Authentication
-
 # Register and retrieve token
 # @noRejectUnauthorized
 POST https://admin:secret@localhost:46152/login
 Content-Type application/json
 
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 16:35:25 GMT
-content-length: 195
-connection: close
-###
-# This is necessary to separate requests
-
-@authToken={{response.parsedBody.token}}
-
-
-# Use token to authenticate
-# @noRejectUnauthorized
-GET https://@localhost:46152/resource
-Authorization: Bearer {{authToken}}
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 16:35:28 GMT
-content-length: 24
-connection: close
-###
-# The same authentication with JWT Tokens
-
-# @noRejectUnauthorized
-POST https://admin:secret@localhost:46152/login
-Content-Type: application/json
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:10:58 GMT
-content-length: 195
-connection: close
-###
+# Assert successful login
+?? status == 200
 
 @jwtToken = {{response.parsedBody.token}}
-
-# @noRejectUnauthorized
-GET https://localhost:46152/resource
-Authorization: Bearer {{jwtToken}}
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:11:13 GMT
-content-length: 24
-connection: close
-###
-# @noRejectUnauthorized
-GET https://localhost:46152/login
-
-HTTP/1.1 404  - Not Found
-content-type: text/plain
-date: Tue, 26 Dec 2023 16:35:39 GMT
-content-length: 18
-connection: close
-###
-# @noRejectUnauthorized
-POST https://localhost:46152/login
-Content-Type: application/json
-
-HTTP/1.1 401  - Unauthorized
-date: Tue, 26 Dec 2023 16:43:16 GMT
-content-length: 0
-connection: close
 ###
 # @noRejectUnauthorized
 GET https://localhost:46152/v1/items
 Authorization: Bearer {{jwtToken}}
-
-HTTP/1.1 500  - Internal Server Error
-date: Tue, 26 Dec 2023 17:07:50 GMT
-content-length: 0
-connection: close
 ###
 # @noRejectUnauthorized
-
-GET https://localhost:46152/v1/items
-
-HTTP/1.1 401  - Unauthorized
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 16:43:05 GMT
-content-length: 24
-connection: close
-###
-# @noRejectUnauthorized
-
 GET https://localhost:46152/v1/lists/1
-
-HTTP/1.1 401  - Unauthorized
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:10:28 GMT
-content-length: 24
-connection: close
+Authorization: Bearer {{jwtToken}}
 ###
 # The same authentication with JWT Tokens
 
 # @noRejectUnauthorized
 POST https://admin:secret@localhost:46152/login
 Content-Type: application/json
-
 ###
 @jwtToken={{response.parsedBody.token}}
 
@@ -140,63 +31,79 @@ Content-Type: application/json
 
 GET https://localhost:46152/v1/items
 Authorization: Bearer {{jwtToken}}
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:20:22 GMT
-content-length: 195
-connection: close
-
-HTTP/1.1 500  - Internal Server Error
-date: Tue, 26 Dec 2023 17:20:22 GMT
-content-length: 0
-connection: close
 ###
 # @noRejectUnauthorized
 
 GET https://localhost:46152/test
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:10:15 GMT
-content-length: 4
-connection: close
 ###
 # Create account and login
 
-# # @noRejectUnauthorized
-# POST https://admin:secret@localhost:46152/create/account
-# Content-Type: application/json
-
-# {
-#     "id" : 0,
-#     "username" : "httpuser",
-#     "password" : "blablabla"
-# }
-
-# ###
-
 # @noRejectUnauthorized
-
-POST https://631040956780725686:blablabla@localhost:46152/login
+POST https://admin:secret@localhost:46152/auth/create
 Content-Type: application/json
 
+{
+    "id" : 0,
+    "username" : "httpuser",
+    "password" : "blablabla"
+}
+
+?? status == 201
+###
+
+@userId = {{response.parsedBody.ID}}
+
+# @noRejectUnauthorized
+POST https://{{userId}}:blablabla@localhost:46152/auth/login
+Content-Type: application/json
+
+{
+    "id" : {{userId}},
+    "username" : "httpuser",
+    "password" : "blablabla"
+}
+
+?? status == 200
+/*
+# Trying a hardcoded one to check the login persistence
+*/
+###
+@userId = 53952638
+@password = blablabla
+@username = httpuser
+
+# @noRejectUnauthorized
+POST https://{{userId}}:{{password}}@localhost:46152/auth/login
+Content-Type: application/json
+
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Fri, 29 Dec 2023 13:31:39 GMT
+content-length: 208
+connection: close
+/*
+# Trying if the token is valid for 3 minutes
+*/
 ###
 @jwtToken={{response.parsedBody.token}}
 
 # @noRejectUnauthorized
 
-GET https://localhost:46152/v1/items
+GET https://localhost:46152/v1/test/auth
 Authorization: Bearer {{jwtToken}}
 
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:43:55 GMT
-content-length: 212
-connection: close
+?? status == 200
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Tue, 26 Dec 2023 17:43:55 GMT
-content-length: 4
+date: Fri, 29 Dec 2023 13:31:41 GMT
+content-length: 47
 connection: close
