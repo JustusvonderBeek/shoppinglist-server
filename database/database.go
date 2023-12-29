@@ -120,7 +120,7 @@ func GetUser(id int64) (data.User, error) {
 	query := "SELECT * FROM " + userTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var user data.User
-	if err := row.Scan(&user.ID, &user.Username, &user.Passwd); err == sql.ErrNoRows {
+	if err := row.Scan(&user.ID, &user.Username, &user.Password); err == sql.ErrNoRows {
 		return data.User{}, err
 	}
 	return user, nil
@@ -135,11 +135,11 @@ func CheckUserExists(id int64) error {
 func CreateUserAccount(username string, passwd string) (data.User, error) {
 	log.Printf("Creating new user account: %s", username)
 	// Creating the struct we are going to insert first
-	userId := random.Int63()
+	userId := random.Int31()
 	for {
 		err := CheckUserExists(int64(userId))
 		if err == nil { // User already exists
-			userId = rand.Int63()
+			userId = rand.Int31()
 			continue
 		} else {
 			break
@@ -152,13 +152,14 @@ func CreateUserAccount(username string, passwd string) (data.User, error) {
 		return data.User{}, err
 	}
 	newUser := data.User{
-		ID:       userId,
+		ID:       int64(userId),
 		Username: username,
-		Passwd:   hashedPw,
+		Password: hashedPw,
 	}
+	log.Printf("Inserting %v", newUser)
 	// Insert the newly created user into the database
 	query := "INSERT INTO " + userTable + " (id, username, passwd) VALUES (?, ?, ?)"
-	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Passwd)
+	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Password)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
@@ -195,9 +196,9 @@ func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
 		log.Printf("Failed to hash given password: %s", err)
 		return data.User{}, err
 	}
-	user.Passwd = hashedPw
+	user.Password = hashedPw
 	query := "UPDATE " + userTable + " SET passwd = ? WHERE id = ?"
-	_, err = db.Exec(query, user.Passwd, user.ID)
+	_, err = db.Exec(query, user.Password, user.ID)
 	if err != nil {
 		log.Printf("Failed to update user with ID %d", id)
 		return data.User{}, err
@@ -710,7 +711,7 @@ func PrintUserTable(tableName string) {
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
 		var user data.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Passwd); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &user.Password); err != nil {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
 		log.Printf("%v", user)

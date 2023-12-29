@@ -9,7 +9,7 @@ package data
 type User struct {
 	ID       int64
 	Username string
-	Passwd   string
+	Password string
 }
 
 // ------------------------------------------------------------
@@ -67,4 +67,7 @@ type ItemPerRecipe struct {
 }
 
 type RecipeShared struct {
+	ID         int64
+	RecipeId   int64
+	SharedWith int64
 }
