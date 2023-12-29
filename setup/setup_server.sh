@@ -14,4 +14,7 @@ read -p "Press enter to continue"
 # Create the tables in the database
 sudo mysql < ./create_mysql_db.sql
 
+# Create the JWT secret
+./create_jwt_secret.sh
+
 echo "Setup done"
