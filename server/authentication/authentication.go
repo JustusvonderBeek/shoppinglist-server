@@ -1,9 +1,12 @@
 package authentication
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"shop.cloudsheeptech.com/database"
 	"shop.cloudsheeptech.com/server/configuration"
+	"shop.cloudsheeptech.com/server/data"
 )
 
 var IPWhitelist = map[string]bool{
@@ -24,8 +28,13 @@ var IPWhitelist = map[string]bool{
 	"178.1.0.0":      true,
 }
 
+var config configuration.Config
 var tokens []string
 var jwt_secret = []byte("password")
+
+// ------------------------------------------------------------
+// The authentication and login data structures
+// ------------------------------------------------------------
 
 type Claims struct {
 	Id       int    `json:"id"`
@@ -33,19 +42,46 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-type UserWireFormat struct {
-	Id       int64
-	Username string
-	Password string
-}
-
 type JWTSecretFile struct {
 	Secret     string
-	ValidUntil string
+	ValidUntil time.Time
+}
+
+// ------------------------------------------------------------
+// Setup and configuration
+// ------------------------------------------------------------
+
+func Setup(cfg configuration.Config) {
+	config = cfg
+}
+
+// ------------------------------------------------------------
+// Helping methods and auxiliary functions
+// ------------------------------------------------------------
+
+func writeDefaultJWTSecretFile() {
+	secretFile := JWTSecretFile{
+		Secret:     "<enter secret here>",
+		ValidUntil: time.Now().AddDate(0, 3, 0), // Adding 3 months as duration
+		// ValidUntil: time.Now(), // For testing purposes
+	}
+	raw, err := json.MarshalIndent(secretFile, "", "\t")
+	if err != nil {
+		log.Printf("Failed to convert JWT file struct to raw data: %s", err)
+		return
+	}
+	pwd, _ := os.Getwd()
+	finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+	err = os.WriteFile(finalJWTFile, raw, 0760)
+	if err != nil {
+		log.Printf("Failed to store JWT secret to file: %s", err)
+	}
+	log.Printf("Stored default JWT secret file in: %s", finalJWTFile)
 }
 
 func generateJWT(id int, username string) (string, error) {
-	expirationTime := time.Now().Add(5 * time.Minute)
+	// Give enough time for a few requests
+	expirationTime := time.Now().Add(3 * time.Minute)
 	claims := &Claims{
 		Id:       id,
 		Username: username,
@@ -54,129 +90,26 @@ func generateJWT(id int, username string) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-
-	return token.SignedString(jwt_secret)
-}
-
-func CreateAccount(c *gin.Context) {
-	// Creating a new user and inserting into the database
-	// Extracting username and password from request
-	var user UserWireFormat
-	err := c.ShouldBindJSON(&user)
+	// Load the secret from the file system and sign the token
+	pwd, _ := os.Getwd()
+	finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+	content, err := os.ReadFile(finalJWTFile)
 	if err != nil {
-		log.Printf("Failed to create new user: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+		log.Printf("Error during token generation. Cannot read token secret file! %s", err)
+		writeDefaultJWTSecretFile()
+		return "", err
 	}
-	if user.Id != 0 {
-		log.Print("Given user has ID already set!")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	loginUser, err := database.CreateUserAccount(user.Username, user.Password)
+	var jwtSecretFile JWTSecretFile
+	err = json.Unmarshal(content, &jwtSecretFile)
 	if err != nil {
-		log.Printf("Failed to create user: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
+		log.Printf("The given jwt secret file is in incorrect format! %s", err)
+		return "", err
 	}
-	user.Id = loginUser.ID
-	c.IndentedJSON(http.StatusCreated, user)
-}
-
-func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// body, _ := io.ReadAll(c.Request.Body)
-		// header := c.Request.Header
-		origin := c.ClientIP()
-		remote := c.RemoteIP()
-		// log.Printf("Request body: %s", body)
-		// log.Printf("Request header: %s", header)
-		log.Printf("Origin: %s, Remote: %s", origin, remote)
-
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
-			log.Print("No token found! Abort")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-		splits := strings.Split(tokenString, " ")
-		if len(splits) != 2 {
-			log.Print("Token in incorrect format!")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
-			return
-		}
-		reqToken := splits[1]
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(reqToken, claims, func(t *jwt.Token) (interface{}, error) {
-			_, ok := t.Method.(*jwt.SigningMethodHMAC)
-			if !ok {
-				return "", errors.New("unauthorized")
-			}
-			// data, err := os.ReadFile(cfg.JWTSecretFile)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// var jwtSecret JWTSecretFile
-			// err = json.Unmarshal(data, &jwtSecret)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// // jwt_secret = []byte(jwtSecret.Secret)
-			// log.Printf("Secret: %s", jwtSecret.Secret)
-			// secretKey := os.Getenv("")
-			// secretKeyByte := []byte(jwt_secret)
-			// return secretKeyByte, nil
-			return jwt_secret, nil
-		})
-		// log.Printf("Parsing got: %s, %s", token.Raw, err)
-		if err != nil {
-			log.Printf("Invalid token: %s", err)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
-		if token.Valid {
-			// c.Set("userId", claims["Id"])
-			c.Next()
-		} else {
-			log.Printf("Invalid claims: %s", claims.Valid().Error())
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		}
+	if time.Now().After(jwtSecretFile.ValidUntil) {
+		log.Print("The given secret is no longer valid! Please renew the secret")
+		return "", errors.New("token no longer valid")
 	}
-}
-
-func PerformAuthentication(c *gin.Context) {
-	usern, passwd, ok := c.Request.BasicAuth()
-	// Check if the basic auth is correct
-	log.Printf("Bool okay: %t", ok)
-	log.Printf("User '%s' tries to login with '%s'", usern, passwd)
-
-	database.PrintUserTable("shoppers")
-	value, err := strconv.Atoi(usern)
-	if err != nil {
-		log.Print("Failed to convert number to user. Setting default number")
-		value = 0
-	}
-	err = database.CheckUserExists(int64(value))
-	if usern == "admin" && passwd == "secret" {
-		log.Print("Test user tries to log in")
-		err = nil
-	}
-	if err != nil {
-		log.Printf("User not found!")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-
-	// Generate a new token that is valid for a few minutes to make a few requests
-	token, _ := generateJWT(0, usern)
-	tokens = append(tokens, token)
-
-	log.Printf("Sending token: %s", token)
-
-	c.JSON(http.StatusOK, gin.H{
-		"token": token,
-	})
+	return token.SignedString([]byte(jwtSecretFile.Secret))
 }
 
 func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
@@ -206,9 +139,179 @@ func CheckIPWhitelisted(clientIP string, whitelist map[string]bool) error {
 	ipRange := re.ReplaceAllString(clientIP, "$1.$2.0.0")
 	// log.Printf("Ip Range: %s", ipRange)
 	if !whitelist[clientIP] && !whitelist[ipRange] {
-		log.Printf("Unauthorized access from %s", clientIP)
+		log.Printf("Unauthorized access from IP '%s'", clientIP)
 		errString := "ip address '" + clientIP + "' not authorized."
 		return errors.New(errString)
 	}
 	return nil
+}
+
+// ------------------------------------------------------------
+// Account creation
+// ------------------------------------------------------------
+
+func CreateAccount(c *gin.Context) {
+	// Creating a new user and inserting into the database
+	// First checking if the creation is from a whitelisted IP address
+	origin := c.ClientIP()
+	err := CheckIPWhitelisted(origin, IPWhitelist)
+	if err != nil {
+		log.Printf("Request origin %s not from a whitelisted IP address!", origin)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	// Extracting username and password from request
+	var user data.User
+	err = c.ShouldBindJSON(&user)
+	if err != nil {
+		log.Printf("Failed decode given user: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if user.ID != 0 {
+		log.Print("Given user has ID already set!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if user.Username == "" || user.Password == "" {
+		log.Print("Username or password not set!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	loginUser, err := database.CreateUserAccount(user.Username, user.Password)
+	if err != nil {
+		log.Printf("Failed to create user: %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	// Dont include hashed password information in answer
+	loginUser.Password = "accepted"
+	c.IndentedJSON(http.StatusCreated, loginUser)
+}
+
+// ------------------------------------------------------------
+// Account authentication and login
+// ------------------------------------------------------------
+
+func Login(c *gin.Context) {
+	// Ok signals if the format of the authentication is okay
+	username, passwd, ok := c.Request.BasicAuth()
+	// Check if the basic auth is correct
+	if !ok {
+		log.Print("Basic authentication is in incorrect format")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	log.Printf("User '%s' tries to login", username)
+	// TODO: Debug information
+	database.PrintUserTable("shoppers")
+	usernumber, err := strconv.Atoi(username)
+	if err != nil {
+		log.Print("Failed to convert number to user!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	err = database.CheckUserExists(int64(usernumber))
+	if usernumber == 0 && passwd == "secret" {
+		log.Print("Test user tries to log in")
+		err = nil
+	}
+	if err != nil {
+		log.Printf("User not found!")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	var user data.User
+	err = c.ShouldBindJSON(&user)
+	if err != nil {
+		log.Printf("Login does not contain user information: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Generate a new token that is valid for a few minutes to make a few requests
+	token, err := generateJWT(usernumber, user.Username)
+	if err != nil {
+		log.Printf("Failed to generate JWT token: %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	tokens = append(tokens, token)
+
+	log.Print("User found and token generated")
+	// log.Printf("Sending token: %s", token)
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+	})
+}
+
+func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// body, _ := io.ReadAll(c.Request.Body)
+		// header := c.Request.Header
+		origin := c.ClientIP()
+		remote := c.RemoteIP()
+		// log.Printf("Request body: %s", body)
+		// log.Printf("Request header: %s", header)
+		log.Printf("Origin: %s, Remote: %s", origin, remote)
+
+		tokenString := c.GetHeader("Authorization")
+		if tokenString == "" {
+			log.Print("No token found! Abort")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no token"})
+			return
+		}
+		splits := strings.Split(tokenString, " ")
+		if len(splits) != 2 {
+			log.Print("Token in incorrect format!")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
+			return
+		}
+		reqToken := splits[1]
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(reqToken, claims, func(t *jwt.Token) (interface{}, error) {
+			_, ok := t.Method.(*jwt.SigningMethodHMAC)
+			if !ok {
+				return "", errors.New("unauthorized")
+			}
+			pwd, _ := os.Getwd()
+			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+			data, err := os.ReadFile(finalJWTFile)
+			if err != nil {
+				log.Print("Failed to find JWT secret file")
+				return nil, err
+			}
+			var jwtSecret JWTSecretFile
+			err = json.Unmarshal(data, &jwtSecret)
+			if err != nil {
+				log.Print("JWT secret file is in incorrect format")
+				return nil, err
+			}
+			if time.Now().After(jwtSecret.ValidUntil) {
+				log.Print("The given secret is no longer valid! Please renew the secret")
+				return "", err
+			}
+			// jwt_secret = []byte(jwtSecret.Secret)
+			// log.Printf("Secret: %s", jwtSecret.Secret)
+			// secretKey := os.Getenv("")
+			// secretKeyByte := []byte(jwt_secret)
+			secretKeyByte := []byte(jwtSecret.Secret)
+			return secretKeyByte, nil
+			// return jwt_secret, nil
+		})
+		// log.Printf("Parsing got: %s, %s", token.Raw, err)
+		if err != nil {
+			log.Printf("Invalid token: %s", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
+		if token.Valid {
+			// c.Set("userId", claims["Id"])
+			c.Next()
+		} else {
+			log.Printf("Invalid claims: %s", claims.Valid().Error())
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		}
+	}
 }
