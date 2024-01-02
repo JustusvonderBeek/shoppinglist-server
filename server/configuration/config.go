@@ -9,4 +9,6 @@ type Config struct {
 	TLSCertificate string
 	TLSKeyfile     string
 	JWTSecretFile  string
+
+	JWTTimeout int // This is only meant for testing; not for production
 }
