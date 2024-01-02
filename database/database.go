@@ -297,12 +297,13 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	return lists, nil
 }
 
-func CreateShoppingList(name string, createdBy int64) (data.Shoppinglist, error) {
-	log.Printf("Creating shopping list %s from %d", name, createdBy)
+func CreateShoppingList(name string, createdBy int64, lastEdited string) (data.Shoppinglist, error) {
+	log.Printf("Creating shopping list '%s' from %d", name, createdBy)
 	list := data.Shoppinglist{
-		ID:        0,
-		Name:      name,
-		CreatedBy: createdBy,
+		ID:         0,
+		Name:       name,
+		CreatedBy:  createdBy,
+		LastEdited: lastEdited,
 	}
 	query := "INSERT INTO " + shoppingListTable + " (name, creatorId, lastEdited) VALUES (?, ?, ?)"
 	result, err := db.Exec(query, list.Name, list.CreatedBy, list.LastEdited)
@@ -772,7 +773,7 @@ func PrintShoppingListTable() {
 	log.Print("------------- Shopping List Table -------------")
 	for rows.Next() {
 		var list data.Shoppinglist
-		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy); err != nil {
+		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
