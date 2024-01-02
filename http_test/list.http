@@ -39,7 +39,7 @@ GET https://localhost:46152/test
 # Create account and login
 
 # @noRejectUnauthorized
-POST https://admin:secret@localhost:46152/auth/create
+POST https://localhost:46152/auth/create
 Content-Type: application/json
 
 {
@@ -49,6 +49,12 @@ Content-Type: application/json
 }
 
 ?? status == 201
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Fri, 29 Dec 2023 14:53:39 GMT
+content-length: 80
+connection: close
 ###
 
 @userId = {{response.parsedBody.ID}}
@@ -64,9 +70,11 @@ Content-Type: application/json
 }
 
 ?? status == 200
-/*
-# Trying a hardcoded one to check the login persistence
-*/
+
+HTTP/1.1 401  - Unauthorized
+date: Fri, 29 Dec 2023 18:02:42 GMT
+content-length: 0
+connection: close
 ###
 @userId = 53952638
 @password = blablabla
@@ -86,12 +94,9 @@ Content-Type: application/json
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Fri, 29 Dec 2023 13:31:39 GMT
+date: Sat, 30 Dec 2023 19:11:58 GMT
 content-length: 208
 connection: close
-/*
-# Trying if the token is valid for 3 minutes
-*/
 ###
 @jwtToken={{response.parsedBody.token}}
 
@@ -104,6 +109,154 @@ Authorization: Bearer {{jwtToken}}
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Fri, 29 Dec 2023 13:31:41 GMT
+date: Sat, 30 Dec 2023 18:55:35 GMT
 content-length: 47
+connection: close
+###
+@jwtToken={{response.parsedBody.token}}
+
+# @noRejectUnauthorized
+
+GET https://localhost:46152/v1/items
+Authorization: Bearer {{jwtToken}}
+
+?? status == 200
+
+HTTP/1.1 401  - Unauthorized
+content-type: application/json; charset=utf-8
+date: Fri, 29 Dec 2023 18:46:39 GMT
+content-length: 25
+connection: close
+###
+@userId = 53952638
+@currentToken="eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpZCI6NTM5NTI2MzgsInVzZXJuYW1lIjoiaHR0cHVzZXIiLCJleHAiOjE3MDM5NjM2OTh9.8u6OvMxaDPSyICiaLo4Hs97eBDCCDuPZKR9YgMYWCfWeR3N_ngAc2Htd3gW1M9hPR8KNlZ6esknH0dp78L7PMg"
+@password = blablabla
+@username = httpuser
+
+# @noRejectUnauthorized
+POST https://{{userId}}:{{password}}@localhost:46152/auth/login
+Content-Type: application/json
+
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+###
+
+# Creating a few lists for this user and then fetch them
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/list
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+    "ID" : 0,
+    "Name" : "List 1",
+    "CreatedBy" : {{userId}}
+}
+
+?? status == 201
+###
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/list
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+    "ID" : 0,
+    "Name" : "List 2",
+    "CreatedBy" : {{userId}}
+}
+
+?? status == 201
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Sat, 30 Dec 2023 19:14:13 GMT
+content-length: 208
+connection: close
+###
+@userId = 53952638
+@password = blablabla
+@username = httpuser
+
+# @noRejectUnauthorized
+POST https://{{userId}}:{{password}}@localhost:46152/auth/login
+Content-Type: application/json
+
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Sat, 30 Dec 2023 19:40:18 GMT
+content-length: 208
+connection: close
+###
+
+# @noRejectUnauthorized
+GET https://localhost:46152/v1/lists/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Sat, 30 Dec 2023 19:40:20 GMT
+content-length: 93
+connection: close
+###
+@userId = 1896640049
+@password = blablabla
+@username = httpuser
+
+# @noRejectUnauthorized
+POST https://{{userId}}:{{password}}@localhost:46152/auth/login
+Content-Type: application/json
+
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Sat, 30 Dec 2023 19:35:58 GMT
+content-length: 211
+connection: close
+###
+
+# Creating a few lists for this user and then fetch them
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/list
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+    "ID" : 0,
+    "Name" : "List 1",
+    "CreatedBy" : {{userId}}
+}
+
+?? status == 201
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Sat, 30 Dec 2023 19:36:00 GMT
+content-length: 66
 connection: close
