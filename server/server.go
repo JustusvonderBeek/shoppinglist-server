@@ -202,7 +202,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, listShared)
+	c.JSON(http.StatusCreated, listShared)
 }
 
 // ------------------------------------------------------------
