@@ -281,7 +281,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
 		// TODO: Update checking token validity, include if we generated the token and if user exists
 		if token.Valid {
-			// c.Set("userId", claims["Id"])
+			c.Set("userId", claims.Id)
 			c.Next()
 		} else {
 			log.Printf("Invalid claims: %s", claims.Valid().Error())
