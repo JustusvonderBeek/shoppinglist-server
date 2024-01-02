@@ -62,6 +62,7 @@ func getShoppingListsForUser(c *gin.Context) {
 	if err != nil {
 		log.Printf("Failed to parse given item id: %s", sUserId)
 		log.Printf("Err: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	// User MUST be authenticated so it does exist and is allowed to make the request
@@ -71,12 +72,14 @@ func getShoppingListsForUser(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
+	log.Printf("Got %d lists for user itself", len(lists))
 	// Asking the database for all the lists that are shared with the current user
 	sharedInfo, err := database.GetSharedListForUserId(int64(id))
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
+	log.Printf("Got %d shared lists for user", len(sharedInfo))
 	// Get full information for the shared lists
 	sharedLists, err := database.GetShoppingListsFromSharedListIds(sharedInfo)
 	if err != nil {
