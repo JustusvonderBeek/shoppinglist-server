@@ -31,4 +31,11 @@ db.json
 *.crt
 *.pem
 
-# Ignore 
+# Ignore the JWT secret
+jwtSecret.json
+
+# Ignore testing
+*/testing/*
+
+# Ignore resources
+resources/*
