@@ -119,7 +119,24 @@ func postShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	shoplist, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	if userId != int(list.CreatedBy) || list.CreatedBy == 0 {
+		log.Print("The logged in user and the created by are not equal")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	shoplist, err := database.CreateShoppingList(list.Name, list.CreatedBy, list.LastEdited)
 	if err != nil {
 		log.Printf("Failed to insert list into server: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
