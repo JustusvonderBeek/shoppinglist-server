@@ -268,15 +268,18 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 
 func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Shoppinglist, error) {
 	if len(sharedLists) == 0 {
+		log.Print("No ids given.")
 		return []data.Shoppinglist{}, nil
 	}
 	// Extract the list ids so we can query them
-	var listIds []string
+	listIds := make([]interface{}, len(sharedLists))
 	for _, shared := range sharedLists {
 		listIds = append(listIds, strconv.FormatInt(shared.ListId, 10))
+		// listIds = append(listIds, int(shared.ListId))
 	}
 	query := "SELECT * FROM " + shoppingListTable + " WHERE id IN (?" + strings.Repeat(",?", len(listIds)-1) + ")"
-	rows, err := db.Query(query, listIds)
+	log.Printf("Query string: %s", query)
+	rows, err := db.Query(query, listIds...)
 	if err != nil {
 		sharedWithId := -1
 		if len(sharedLists) > 0 {
@@ -466,7 +469,7 @@ func DeleteAllSharingForUser(userId int64) error {
 	return nil
 }
 
-func ResetSharedList() {
+func ResetSharedListTable() {
 	log.Print("RESETTING SHARING LIST. CANNOT BE REVERTED!")
 
 	query := "DELETE FROM " + sharedListTable
