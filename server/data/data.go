@@ -17,9 +17,10 @@ type User struct {
 // ------------------------------------------------------------
 
 type Shoppinglist struct {
-	ID        int64
-	Name      string
-	CreatedBy int64
+	ID         int64
+	Name       string
+	CreatedBy  int64
+	LastEdited string
 }
 
 type ListShared struct {
