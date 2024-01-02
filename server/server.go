@@ -198,7 +198,7 @@ func returnUnauth(c *gin.Context) {
 // The main function
 // ------------------------------------------------------------
 
-func Start(cfg configuration.Config) error {
+func SetupRouter(cfg configuration.Config) *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 
 	router := gin.Default()
@@ -237,11 +237,16 @@ func Start(cfg configuration.Config) error {
 
 	router.GET("/test/unauth", returnUnauth)
 
+	return router
+}
+
+func Start(cfg configuration.Config) error {
+	router := SetupRouter(cfg)
+
 	// -------------------------------------------
 
 	address := cfg.ListenAddr + ":" + cfg.ListenPort
 	// Only allow TLS
-	router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
-
-	return nil
+	err := router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
+	return err
 }
