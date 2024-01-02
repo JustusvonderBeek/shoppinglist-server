@@ -56,6 +56,7 @@ CREATE TABLE shoppinglist(
     id          INT AUTO_INCREMENT  NOT NULL,
     name        VARCHAR(256)        NOT NULL,
     creatorId   BIGINT              NOT NULL,
+    lastEdited  VARCHAR(256)        NOT NULL,
     PRIMARY KEY (`id`)
 );
 
