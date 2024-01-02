@@ -250,7 +250,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 		token, err := jwt.ParseWithClaims(reqToken, claims, func(t *jwt.Token) (interface{}, error) {
 			_, ok := t.Method.(*jwt.SigningMethodHMAC)
 			if !ok {
-				return "", errors.New("unauthorized")
+				return nil, errors.New("unauthorized")
 			}
 			pwd, _ := os.Getwd()
 			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
@@ -267,14 +267,14 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			}
 			if time.Now().After(jwtSecret.ValidUntil) {
 				log.Print("The given secret is no longer valid! Please renew the secret")
-				return "", err
+				return nil, errors.New("token no longer valid")
 			}
 			secretKeyByte := []byte(jwtSecret.Secret)
 			return secretKeyByte, nil
 		})
 		// log.Printf("Parsing got: %s, %s", token.Raw, err)
 		if err != nil {
-			log.Printf("Invalid token: %s", err)
+			log.Printf("Error during token parsing: %s", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
