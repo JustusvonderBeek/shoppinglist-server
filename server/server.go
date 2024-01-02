@@ -134,6 +134,57 @@ func postShoppingList(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, shoplist)
 }
 
+func shareList(c *gin.Context) {
+	sId := c.Param("id")
+	id, err := strconv.Atoi(sId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", sId, err)
+		return
+	}
+	var shared data.ListShared
+	if err = c.BindJSON(&shared); err != nil {
+		log.Printf("Failed to bind given data: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Check if the user owns this list?
+	list, err := database.GetShoppingList(shared.ListId)
+	if err != nil {
+		log.Printf("Failed to retrieve list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	if list.ID != int64(id) {
+		log.Printf("IDs do not match!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if list.CreatedBy != int64(userId) {
+		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	listShared, err := database.CreateSharedList(shared.ListId, shared.SharedWith)
+	if err != nil {
+		log.Printf("Failed to create sharing: %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, listShared)
+}
+
 // ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
@@ -176,6 +227,9 @@ func Start(cfg configuration.Config) error {
 		authorized.GET("/items/:id", getItem)
 
 		authorized.POST("/items", addItem)
+
+		// Handling sharing a list
+		authorized.POST("/share/:id", shareList)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
