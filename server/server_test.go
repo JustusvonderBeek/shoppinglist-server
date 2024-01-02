@@ -387,3 +387,68 @@ func TestGetAllLists(t *testing.T) {
 	database.ResetShoppingListTable()
 	database.ResetSharedListTable()
 }
+
+func TestRemoveList(t *testing.T) {
+	// TODO:
+}
+
+func TestCreateSharing(t *testing.T) {
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+	log.Printf("Testing creating sharing for user %d", user.ID)
+	connectDatabase()
+
+	// Creating two own lists and share one with a random user
+	sharedWithUserId := 12345
+	var offlineList []data.Shoppinglist
+	for i := 0; i < 2; i++ {
+		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID)
+		if err != nil {
+			log.Printf("Failed to create list: %s", err)
+			t.FailNow()
+		} else {
+			offlineList = append(offlineList, list)
+		}
+	}
+
+	// Now trying if we can get both lists via the API
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	sharedWith := data.ListShared{
+		ID:         0,
+		ListId:     offlineList[0].ID,
+		SharedWith: int64(sharedWithUserId),
+	}
+	encodedShared, err := json.Marshal(sharedWith)
+	if err != nil {
+		log.Printf("Failed to encoded data: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(encodedShared)
+	req, _ := http.NewRequest("POST", "/v1/share/"+strconv.Itoa(int(offlineList[0].ID)), reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	sharedDb, err := database.GetSharedListForUserId(int64(sharedWithUserId))
+
+	assert.Equal(t, nil, err)
+	assert.Equal(t, 1, len(sharedDb))
+	assert.Equal(t, sharedWith.ListId, sharedDb[0].ListId)
+	assert.Equal(t, sharedWith.SharedWith, sharedDb[0].SharedWith)
+
+	database.PrintShoppingListTable()
+	database.ResetShoppingListTable()
+	database.ResetSharedListTable()
+}
