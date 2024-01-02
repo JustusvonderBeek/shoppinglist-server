@@ -32,14 +32,14 @@ func TestInsertUser(t *testing.T) {
 	user := data.User{
 		ID:       12,
 		Username: strconv.Itoa(32),
-		Passwd:   "Biene Maja",
+		Password: "Biene Maja",
 	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
 	if err != nil {
 		log.Printf("Password and hash do not match: %s", err)
 		t.FailNow()
@@ -58,14 +58,14 @@ func TestDeletingUser(t *testing.T) {
 	user := data.User{
 		ID:       0,
 		Username: "Delete User Test",
-		Passwd:   "Biene Maja",
+		Password: "Biene Maja",
 	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
 	if err != nil {
 		log.Printf("Password and hash do not match: %s", err)
 		t.FailNow()
@@ -95,14 +95,14 @@ func TestUserLogin(t *testing.T) {
 	user := data.User{
 		ID:       12,
 		Username: "Test User Login",
-		Passwd:   "Secure Password 123",
+		Password: "Secure Password 123",
 	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	match, err := argon2id.ComparePasswordAndHash(user.Passwd, createdUser.Passwd)
+	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
 	if err != nil {
 		log.Printf("Password and hash do not match: %s", err)
 		t.FailNow()
@@ -117,7 +117,7 @@ func TestUserLogin(t *testing.T) {
 		log.Printf("Failed to get newly created user for login check: %s", err)
 		t.FailNow()
 	}
-	match, err = argon2id.ComparePasswordAndHash(user.Passwd, checkLoginUser.Passwd)
+	match, err = argon2id.ComparePasswordAndHash(user.Password, checkLoginUser.Password)
 	if err != nil {
 		log.Printf("Failed to compare password and hash: %s", err)
 		t.FailNow()
@@ -126,7 +126,7 @@ func TestUserLogin(t *testing.T) {
 		log.Print("Password and hash do not match even though they should!")
 		t.FailNow()
 	}
-	match, _ = argon2id.ComparePasswordAndHash("Secure Password 12", checkLoginUser.Passwd)
+	match, _ = argon2id.ComparePasswordAndHash("Secure Password 12", checkLoginUser.Password)
 	if match {
 		log.Print("Passwords match even though they should not!")
 		t.FailNow()
@@ -140,9 +140,9 @@ func TestModifyUsername(t *testing.T) {
 	user := data.User{
 		ID:       12,
 		Username: "Test User modify",
-		Passwd:   "Biene Maja",
+		Password: "Biene Maja",
 	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
@@ -184,9 +184,9 @@ func TestModifyUserPassword(t *testing.T) {
 	user := data.User{
 		ID:       12,
 		Username: "Test User modify",
-		Passwd:   "Old Password",
+		Password: "Old Password",
 	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Passwd)
+	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
@@ -196,7 +196,7 @@ func TestModifyUserPassword(t *testing.T) {
 		log.Printf("Failed to get newly created user for modify check: %s", err)
 		t.FailNow()
 	}
-	if checkOldPassword.Passwd != createdUser.Passwd {
+	if checkOldPassword.Password != createdUser.Password {
 		log.Print("Password do not match before update!")
 		t.FailNow()
 	}
@@ -206,7 +206,7 @@ func TestModifyUserPassword(t *testing.T) {
 		t.FailNow()
 	}
 	database.PrintUserTable("shoppers")
-	match, err := argon2id.ComparePasswordAndHash("New Password", updatedUser.Passwd)
+	match, err := argon2id.ComparePasswordAndHash("New Password", updatedUser.Password)
 	if err != nil || !match {
 		log.Print("The password was not correctly updated!")
 		t.FailNow()
@@ -216,7 +216,7 @@ func TestModifyUserPassword(t *testing.T) {
 		log.Printf("Failed to get updated user: %s", err)
 		t.FailNow()
 	}
-	match, err = argon2id.ComparePasswordAndHash("New Password", checkNewPassword.Passwd)
+	match, err = argon2id.ComparePasswordAndHash("New Password", checkNewPassword.Password)
 	if err != nil || !match {
 		log.Print("The password was not correctly updated!")
 		t.FailNow()
