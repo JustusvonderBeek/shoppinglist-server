@@ -45,6 +45,10 @@ type JWTSecretFile struct {
 	ValidUntil time.Time
 }
 
+type Token struct {
+	Token string `json:"token"`
+}
+
 // ------------------------------------------------------------
 // Setup and configuration
 // ------------------------------------------------------------
@@ -79,7 +83,7 @@ func writeDefaultJWTSecretFile() {
 
 func generateJWT(id int, username string) (string, error) {
 	// Give enough time for a few requests
-	expirationTime := time.Now().Add(3 * time.Minute)
+	expirationTime := time.Now().Add(time.Duration(config.JWTTimeout) * time.Minute)
 	claims := &Claims{
 		Id:       id,
 		Username: username,
@@ -218,9 +222,10 @@ func Login(c *gin.Context) {
 	log.Print("User found and token generated")
 	// log.Printf("Sending token: %s", token)
 
-	c.JSON(http.StatusOK, gin.H{
-		"token": token,
-	})
+	wireToken := Token{
+		Token: token,
+	}
+	c.JSON(http.StatusOK, wireToken)
 }
 
 func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
