@@ -369,20 +369,21 @@ func TestGetAllLists(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var allOwnLists []data.Shoppinglist
-	if json.Unmarshal(w.Body.Bytes(), &allOwnLists) != nil {
+	var allLists []data.Shoppinglist
+	if json.Unmarshal(w.Body.Bytes(), &allLists) != nil {
 		log.Printf("Failed to parse server answer. Expected lists JSON: %s", err)
 		t.FailNow()
 	}
 
-	assert.Equal(t, 4, len(allOwnLists))
+	assert.Equal(t, 4, len(allLists))
 	for i := 0; i < 4; i++ {
-		assert.Equal(t, user.ID, allOwnLists[i].CreatedBy)
-		assert.Equal(t, offlineList[i].LastEdited, allOwnLists[i].LastEdited)
-		assert.Equal(t, offlineList[i].Name, allOwnLists[i].Name)
-		assert.Equal(t, offlineList[i].ID, allOwnLists[i].ID)
+		assert.Equal(t, offlineList[i].CreatedBy, allLists[i].CreatedBy)
+		assert.Equal(t, offlineList[i].LastEdited, allLists[i].LastEdited)
+		assert.Equal(t, offlineList[i].Name, allLists[i].Name)
+		assert.Equal(t, offlineList[i].ID, allLists[i].ID)
 	}
 
 	database.PrintShoppingListTable()
 	database.ResetShoppingListTable()
+	database.ResetSharedListTable()
 }
