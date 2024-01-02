@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -57,7 +56,6 @@ func addItem(c *gin.Context) {
 	log.Printf("Inserted item under ID %d", item.ID)
 }
 
-// TODO: Implement actual mapping of user id to list
 func getShoppingListsForUser(c *gin.Context) {
 	sUserId := c.Param("userId")
 	id, err := strconv.Atoi(sUserId)
@@ -66,16 +64,27 @@ func getShoppingListsForUser(c *gin.Context) {
 		log.Printf("Err: %s", err)
 		return
 	}
-	listIds, err := database.GetShoppingListFromUserId(int64(id))
+	// User MUST be authenticated so it does exist and is allowed to make the request
+	// Check for the lists of the user itself first
+	lists, err := database.GetShoppingListsFromUserId(int64(id))
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
+		return
 	}
-	raw, err := json.Marshal(listIds)
+	// Asking the database for all the lists that are shared with the current user
+	sharedInfo, err := database.GetSharedListForUserId(int64(id))
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
+		return
 	}
-	// TODO: add also the different lists to the data that is sent back
-	c.IndentedJSON(http.StatusOK, raw)
+	// Get full information for the shared lists
+	sharedLists, err := database.GetShoppingListsFromSharedListIds(sharedInfo)
+	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	lists = append(lists, sharedLists...)
+	c.JSON(http.StatusOK, lists)
 }
 
 func getShoppingList(c *gin.Context) {
@@ -156,16 +165,19 @@ func Start(cfg configuration.Config) error {
 	authorized := router.Group("/v1")
 	authorized.Use(authentication.AuthenticationMiddleware(cfg))
 	{
+		// Handling the lists itself
+		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
+		authorized.GET("/list/:id", getShoppingList)
+
+		authorized.POST("/list", postShoppingList)
+
+		// Handling the items
 		authorized.GET("/items", getAllItems)
 		authorized.GET("/items/:id", getItem)
 
 		authorized.POST("/items", addItem)
 
-		authorized.GET("/lists/:userId", getShoppingListsForUser)
-		authorized.GET("/list/:id", getShoppingList)
-
-		authorized.POST("/list", postShoppingList)
-
+		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
 	}
 
