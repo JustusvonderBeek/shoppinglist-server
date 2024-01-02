@@ -7,6 +7,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -239,20 +241,60 @@ func GetShoppingList(id int64) (data.Shoppinglist, error) {
 	query := "SELECT * FROM " + shoppingListTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var list data.Shoppinglist
-	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy); err == sql.ErrNoRows {
+	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err == sql.ErrNoRows {
 		return data.Shoppinglist{}, err
 	}
 	return list, nil
 }
 
-func GetShoppingListFromUserId(id int64) (data.Shoppinglist, error) {
+func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	query := "SELECT * FROM " + shoppingListTable + " WHERE creatorId = ?"
-	row := db.QueryRow(query, id)
-	var list data.Shoppinglist
-	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy); err == sql.ErrNoRows {
-		return data.Shoppinglist{}, err
+	rows, err := db.Query(query, id)
+	if err != nil {
+		log.Printf("Failed to retrieve any list for user %d: %s", id, err)
+		return []data.Shoppinglist{}, err
 	}
-	return list, nil
+	var lists []data.Shoppinglist
+	for rows.Next() {
+		var list data.Shoppinglist
+		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
+			return []data.Shoppinglist{}, err
+		}
+		lists = append(lists, list)
+	}
+	return lists, nil
+}
+
+func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Shoppinglist, error) {
+	if len(sharedLists) == 0 {
+		return []data.Shoppinglist{}, nil
+	}
+	// Extract the list ids so we can query them
+	var listIds []string
+	for _, shared := range sharedLists {
+		listIds = append(listIds, strconv.FormatInt(shared.ListId, 10))
+	}
+	query := "SELECT * FROM " + shoppingListTable + " WHERE id IN (?" + strings.Repeat(",?", len(listIds)-1) + ")"
+	rows, err := db.Query(query, listIds)
+	if err != nil {
+		sharedWithId := -1
+		if len(sharedLists) > 0 {
+			sharedWithId = int(sharedLists[0].ID)
+		}
+		log.Printf("Failed to retrieve any shared list for user %d: %s", sharedWithId, err)
+		return []data.Shoppinglist{}, err
+	}
+	var lists []data.Shoppinglist
+	for rows.Next() {
+		var list data.Shoppinglist
+		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
+			return []data.Shoppinglist{}, err
+		}
+		lists = append(lists, list)
+	}
+	return lists, nil
 }
 
 func CreateShoppingList(name string, createdBy int64) (data.Shoppinglist, error) {
@@ -262,8 +304,8 @@ func CreateShoppingList(name string, createdBy int64) (data.Shoppinglist, error)
 		Name:      name,
 		CreatedBy: createdBy,
 	}
-	query := "INSERT INTO " + shoppingListTable + " (name, creatorId) VALUES (?, ?)"
-	result, err := db.Exec(query, list.Name, list.CreatedBy)
+	query := "INSERT INTO " + shoppingListTable + " (name, creatorId, lastEdited) VALUES (?, ?, ?)"
+	result, err := db.Exec(query, list.Name, list.CreatedBy, list.LastEdited)
 	if err != nil {
 		log.Printf("Failed to create list into database: %s", err)
 		return data.Shoppinglist{}, err
