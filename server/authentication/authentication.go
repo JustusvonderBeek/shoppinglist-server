@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"shop.cloudsheeptech.com/database"
@@ -197,6 +198,9 @@ func CreateAccount(c *gin.Context) {
 
 func Login(c *gin.Context) {
 	// Decided to only use the JSON in the body for authentication as everything else is redundant
+	// Even prevent login if header with credentials is set
+	c.GetHeader("Authorization")
+
 	var user data.User
 	err := c.ShouldBindJSON(&user)
 	if err != nil {
@@ -205,12 +209,31 @@ func Login(c *gin.Context) {
 		return
 	}
 	// database.PrintUserTable("shoppers")
-	err = database.CheckUserExists(int64(user.ID))
+	dbUser, err := database.GetUser(int64(user.ID))
 	if err != nil {
 		log.Printf("User not found!")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	// Username and ID must match
+	if dbUser.ID != user.ID || dbUser.Username != user.Username {
+		log.Print("The stored user does not match the user trying to log in!")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	// Check if the given password matches the one stored
+	match, err := argon2id.ComparePasswordAndHash(user.Password, dbUser.Password)
+	if err != nil {
+		log.Printf("Failed to compare password and hash: %s", err)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	if !match {
+		log.Printf("The given password is incorrect for user %d", user.ID)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	// Generate a new token that is valid for a few minutes to make a few requests
 	token, err := generateJWT(int(user.ID), user.Username)
 	if err != nil {
