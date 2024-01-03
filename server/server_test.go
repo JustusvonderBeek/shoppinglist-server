@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"shop.cloudsheeptech.com/database"
 	"shop.cloudsheeptech.com/server"
@@ -121,6 +124,8 @@ func CreateTestUser(t *testing.T) {
 		log.Printf("Failed to create user: %s", "user id == 0")
 		t.FailNow()
 	}
+	// We get the hash back but need to store the password
+	user.Password = PASSWORD
 	if err = storeUser(user); err != nil {
 		log.Printf("Failed to store user: %s", err)
 		t.FailNow()
@@ -153,6 +158,31 @@ func DeleteTestUser(t *testing.T) {
 // Testing the authentication methods
 // ------------------------------------------------------------
 
+func loadUserAndSetupFields(id int64, name string, password string) (io.Reader, error) {
+	user, err := readUserFile()
+	if err != nil {
+		return nil, err
+	}
+	if id != 0 {
+		log.Printf("Set id to %d", id)
+		user.ID = id
+	}
+	if name != "" {
+		log.Printf("Set name to %s", name)
+		user.Username = name
+	}
+	if password != "" {
+		log.Printf("Set password to %s", password)
+		user.Password = password
+	}
+	raw, err := json.Marshal(user)
+	if err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(raw)
+	return reader, nil
+}
+
 func TestLogin(t *testing.T) {
 	log.Print("Testing login function")
 	connectDatabase()
@@ -160,18 +190,11 @@ func TestLogin(t *testing.T) {
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 
-	user, err := readUserFile()
+	reader, err := loadUserAndSetupFields(0, "", "")
 	if err != nil {
-		log.Printf("Failed to read user: %s", err)
+		log.Printf("Failed to load user: %s", err)
 		t.FailNow()
 	}
-
-	raw, err := json.Marshal(user)
-	if err != nil {
-		log.Printf("Failed to encode user: %s", err)
-		t.FailNow()
-	}
-	reader := bytes.NewReader(raw)
 	req, _ := http.NewRequest("POST", "/auth/login", reader)
 	router.ServeHTTP(w, req)
 
@@ -184,6 +207,142 @@ func TestLogin(t *testing.T) {
 	}
 	storeJwtToFile(token.Token)
 	log.Print("Logged in and stored jwt secret to file")
+}
+
+func TestLoginIncorrectUsername(t *testing.T) {
+	log.Print("Testing login with wrong username")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	unknownUserName := "not known"
+
+	reader, err := loadUserAndSetupFields(0, unknownUserName, "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestLoginIncorrectPassword(t *testing.T) {
+	log.Print("Testing login with wrong password")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	unknownPassword := "empty"
+	reader, err := loadUserAndSetupFields(0, "", unknownPassword)
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestLoginIncorrectId(t *testing.T) {
+	log.Print("Testing login with wrong password")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	unknownUserId := 12345
+	reader, err := loadUserAndSetupFields(int64(unknownUserId), "", "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestAuthenticationTimeoutedToken(t *testing.T) {
+	log.Print("Testing login with token that timed out")
+	connectDatabase()
+
+	testConfiguration := cfg
+	testConfiguration.JWTTimeout = 0.1
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	reader, err := loadUserAndSetupFields(0, "", "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var token authentication.Token
+	if json.Unmarshal(w.Body.Bytes(), &token) != nil {
+		log.Printf("Failed to decode answer into token! %s", err)
+		t.FailNow()
+	}
+
+	tkn, err := jwt.Parse(token.Token, func(t *jwt.Token) (interface{}, error) {
+		_, ok := t.Method.(*jwt.SigningMethodHMAC)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		pwd, _ := os.Getwd()
+		finalJWTFile := filepath.Join(pwd, cfg.JWTSecretFile)
+		data, err := os.ReadFile(finalJWTFile)
+		if err != nil {
+			log.Print("Failed to find JWT secret file")
+			return nil, err
+		}
+		var jwtSecret authentication.JWTSecretFile
+		err = json.Unmarshal(data, &jwtSecret)
+		if err != nil {
+			log.Print("JWT secret file is in incorrect format")
+			return nil, err
+		}
+		secretByteKey := []byte(jwtSecret.Secret)
+		return secretByteKey, nil
+	})
+	if err != nil {
+		log.Print("Failed to parse token")
+		t.FailNow()
+	}
+	log.Printf("Token is valid until: %s", tkn.Claims.Valid())
+	// Now we wait and try to access the debug resource with our invalid token
+	log.Printf("Waiting for token to time out: %s", "")
+	time.Sleep(time.Second * 7)
+
+	w = httptest.NewRecorder()
+	// Adding the authentication token
+	req, _ = http.NewRequest("GET", "/v1/test/auth", reader)
+	bearer := "Bearer " + token.Token
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestAuthentcationInvalidToken(t *testing.T) {
+	// TODO:
+}
+
+func TestAuthenticationModifiedToken(t *testing.T) {
+	// TODO:
+}
+
+func TestUnissuedToken(t *testing.T) {
+	// TODO:
 }
 
 // ------------------------------------------------------------
@@ -451,4 +610,8 @@ func TestCreateSharing(t *testing.T) {
 	database.PrintShoppingListTable()
 	database.ResetShoppingListTable()
 	database.ResetSharedListTable()
+}
+
+func TestCreateSharingOfUnownedList(t *testing.T) {
+	// TODO: Testing that no one can create sharing for list that is not owned by himself
 }
