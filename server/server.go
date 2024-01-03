@@ -226,11 +226,12 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 	// ------------- Handling Account Creation and Login ---------------
 
+	// Independent of API version, therefore not in the auth bracket
 	router.POST("/auth/create", authentication.CreateAccount)
 	// JWT BASED AUTHENTICATION
 	router.POST("/auth/login", authentication.Login)
 
-	// ------------- Handling Routes v1 ---------------
+	// ------------- Handling Routes v1 (API version 1) ---------------
 
 	// Add authentication middleware to v1 router
 	authorized := router.Group("/v1")
@@ -238,13 +239,13 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	{
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
-		authorized.GET("/list/:id", getShoppingList)
+		// authorized.GET("/list/:id", getShoppingList)
 
 		authorized.POST("/list", postShoppingList)
 
 		// Handling the items
 		authorized.GET("/items", getAllItems)
-		authorized.GET("/items/:id", getItem)
+		// authorized.GET("/items/:id", getItem)
 
 		authorized.POST("/items", addItem)
 
