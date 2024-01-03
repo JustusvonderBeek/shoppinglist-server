@@ -29,7 +29,7 @@ func main() {
 		TLSCertificate: *tlscert,
 		TLSKeyfile:     *tlskey,
 		JWTSecretFile:  *jwtFile,
-		JWTTimeout:     3, // Maybe make this a parameter later
+		JWTTimeout:     3.0, // Maybe make this a parameter later
 	}
 
 	setupLogger(*logfile)
