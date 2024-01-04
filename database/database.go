@@ -821,3 +821,22 @@ func PrintItemPerListTable() {
 	}
 	log.Print("---------------------------------------")
 }
+
+func PrintSharingTable() {
+	query := "SELECT * FROM " + sharedListTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to print table %s: %s", sharedListTable, err)
+		return
+	}
+	defer rows.Close()
+	log.Print("------------- Sharing Table -------------")
+	for rows.Next() {
+		var sharing data.ListShared
+		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.SharedWith); err != nil {
+			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
+		}
+		log.Printf("%v", sharing)
+	}
+	log.Print("---------------------------------------")
+}
