@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ var cfg = configuration.Config{
 	TLSCertificate: "../resources/shoppinglist.crt",
 	TLSKeyfile:     "../resources/shoppinglist.pem",
 	JWTSecretFile:  "../resources/jwtSecret.json",
-	JWTTimeout:     20, // 20 minutes; ONLY for testing
+	JWTTimeout:     1200, // 20 minutes; ONLY for testing
 }
 
 // ------------------------------------------------------------
@@ -272,9 +273,9 @@ func TestAuthenticationTimeoutedToken(t *testing.T) {
 	connectDatabase()
 
 	testConfiguration := cfg
-	testConfiguration.JWTTimeout = 0.1
+	testConfiguration.JWTTimeout = 1
 
-	router := server.SetupRouter(cfg)
+	router := server.SetupRouter(testConfiguration)
 	w := httptest.NewRecorder()
 
 	reader, err := loadUserAndSetupFields(0, "", "")
@@ -311,17 +312,18 @@ func TestAuthenticationTimeoutedToken(t *testing.T) {
 			log.Print("JWT secret file is in incorrect format")
 			return nil, err
 		}
+		log.Print("Parsed and loaded JWT secret file")
 		secretByteKey := []byte(jwtSecret.Secret)
 		return secretByteKey, nil
 	})
 	if err != nil {
-		log.Print("Failed to parse token")
+		log.Printf("Failed to parse token: %s", err)
 		t.FailNow()
 	}
-	log.Printf("Token is valid until: %s", tkn.Claims.Valid())
+	log.Printf("Token is still valid: %v", tkn.Claims)
 	// Now we wait and try to access the debug resource with our invalid token
 	log.Printf("Waiting for token to time out: %s", "")
-	time.Sleep(time.Second * 7)
+	time.Sleep(time.Second * 2)
 
 	w = httptest.NewRecorder()
 	// Adding the authentication token
@@ -333,16 +335,143 @@ func TestAuthenticationTimeoutedToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestAuthentcationInvalidToken(t *testing.T) {
-	// TODO:
+func TestAuthentcationWrongTokenSignature(t *testing.T) {
+	log.Print("Testing login with token that is invalid (wrong signature) wrong username, wrong id)")
+	connectDatabase()
+
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Failed to read user: %s", err)
+		t.FailNow()
+	}
+
+	expirationTime := time.Now().Add(1 * time.Minute)
+	wrongUsername := authentication.Claims{
+		Id:       int(user.ID),
+		Username: user.Username + "invalid",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+	ownToken := jwt.NewWithClaims(jwt.SigningMethodHS512, wrongUsername)
+	content, err := os.ReadFile(cfg.JWTSecretFile)
+	if err != nil {
+		log.Printf("Cannot read token secret file! %s", err)
+		t.FailNow()
+	}
+	var jwtSecretFile authentication.JWTSecretFile
+	err = json.Unmarshal(content, &jwtSecretFile)
+	if err != nil {
+		log.Printf("The given jwt secret file is in incorrect format! %s", err)
+		t.FailNow()
+	}
+	signedToken, err := ownToken.SignedString([]byte(jwtSecretFile.Secret))
+	if err != nil {
+		log.Printf("Failed to sign token: %s", err)
+		t.FailNow()
+	}
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	reader, err := loadUserAndSetupFields(0, "", "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("GET", "/v1/test/auth", reader)
+	bearer := "Bearer " + signedToken
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
 }
 
 func TestAuthenticationModifiedToken(t *testing.T) {
-	// TODO:
+	log.Print("Testing login with token that was modified")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	reader, err := loadUserAndSetupFields(0, "", "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	var token authentication.Token
+	if json.Unmarshal(w.Body.Bytes(), &token) != nil {
+		log.Printf("Failed to decode answer into token! %s", err)
+		t.FailNow()
+	}
+	// log.Printf("Answered Token: %s", token.Token)
+	// Modify the token
+	modifiedToken := strings.ReplaceAll(token.Token, "U", "u")
+
+	w = httptest.NewRecorder()
+	// Adding the authentication token
+	req, _ = http.NewRequest("GET", "/v1/test/auth", reader)
+	bearer := "Bearer " + modifiedToken
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestUnissuedToken(t *testing.T) {
-	// TODO:
+	log.Print("Testing login with unissued token")
+	connectDatabase()
+
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Failed to read user: %s", err)
+		t.FailNow()
+	}
+
+	expirationTime := time.Now().Add(1 * time.Minute)
+	userToken := authentication.Claims{
+		Id:       int(user.ID),
+		Username: user.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+	ownToken := jwt.NewWithClaims(jwt.SigningMethodHS512, userToken)
+	content, err := os.ReadFile(cfg.JWTSecretFile)
+	if err != nil {
+		log.Printf("Cannot read token secret file! %s", err)
+		t.FailNow()
+	}
+	var jwtSecretFile authentication.JWTSecretFile
+	err = json.Unmarshal(content, &jwtSecretFile)
+	if err != nil {
+		log.Printf("The given jwt secret file is in incorrect format! %s", err)
+		t.FailNow()
+	}
+	signedToken, err := ownToken.SignedString([]byte(jwtSecretFile.Secret))
+	if err != nil {
+		log.Printf("Failed to sign token: %s", err)
+		t.FailNow()
+	}
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	reader, err := loadUserAndSetupFields(0, "", "")
+	if err != nil {
+		log.Printf("Failed to load and setup user: %s", err)
+		t.FailNow()
+	}
+	req, _ := http.NewRequest("GET", "/v1/test/auth", reader)
+	bearer := "Bearer " + signedToken
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 // ------------------------------------------------------------
