@@ -84,7 +84,7 @@ func writeDefaultJWTSecretFile() {
 
 func generateJWT(id int, username string) (string, error) {
 	// Give enough time for a few requests
-	expirationTime := time.Now().Add(time.Duration(config.JWTTimeout) * time.Minute)
+	expirationTime := time.Now().Add(time.Duration(config.JWTTimeout) * time.Second)
 	claims := &Claims{
 		Id:       id,
 		Username: username,
@@ -198,8 +198,8 @@ func CreateAccount(c *gin.Context) {
 
 func Login(c *gin.Context) {
 	// Decided to only use the JSON in the body for authentication as everything else is redundant
-	// Even prevent login if header with credentials is set
-	c.GetHeader("Authorization")
+	// TODO: Even prevent login if header with credentials is set
+	// c.GetHeader("Authorization")
 
 	var user data.User
 	err := c.ShouldBindJSON(&user)
@@ -274,12 +274,18 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			return
 		}
 		reqToken := splits[1]
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(reqToken, claims, func(t *jwt.Token) (interface{}, error) {
+		claims := Claims{}
+		token, err := jwt.ParseWithClaims(reqToken, &claims, func(t *jwt.Token) (interface{}, error) {
 			_, ok := t.Method.(*jwt.SigningMethodHMAC)
 			if !ok {
 				return nil, errors.New("unauthorized")
 			}
+			// parsedClaim, ok := t.Claims.(Claims)
+			// if !ok {
+			// 	log.Print("Token in invalid format")
+			// 	return nil, errors.New("token in invalid format")
+			// }
+			// log.Printf("Token is issued for: %d", parsedClaim.Id)
 			pwd, _ := os.Getwd()
 			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
 			data, err := os.ReadFile(finalJWTFile)
@@ -306,6 +312,26 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
+		// Checking if user in this form exists
+		// TODO: Find a way to extract the custom information from the token
+		parsedClaims, ok := token.Claims.(Claims)
+		if !ok {
+			log.Print("Received token claims are in incorrect format!")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		user, err := database.GetUser(int64(parsedClaims.Id))
+		if err != nil {
+			log.Printf("User for id %d not found!", parsedClaims.Id)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		if user.Username != parsedClaims.Username {
+			log.Print("The stored user and claimed token user do not match")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
 		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
 		// TODO: Update checking token validity, include if we generated the token and if user exists
 		if token.Valid {
