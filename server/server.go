@@ -12,6 +12,10 @@ import (
 	"shop.cloudsheeptech.com/server/data"
 )
 
+// ------------------------------------------------------------
+// Handling of items
+// ------------------------------------------------------------
+
 func getAllItems(c *gin.Context) {
 	log.Printf("Trying to access all items")
 	items, err := database.GetAllItems()
@@ -45,6 +49,7 @@ func addItem(c *gin.Context) {
 	var item data.Item
 	if err := c.BindJSON(&item); err != nil {
 		log.Printf("Item is in incorrect format: %v", c.Request.Body)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	item, err := database.InsertItemStruct(item)
@@ -52,9 +57,35 @@ func addItem(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.IndentedJSON(http.StatusAccepted, item)
+	c.IndentedJSON(http.StatusCreated, item)
 	log.Printf("Inserted item under ID %d", item.ID)
 }
+
+func addMultipleItems(c *gin.Context) {
+	var items []data.Item
+	if err := c.BindJSON(&items); err != nil {
+		log.Printf("Items not in correct format: %v", c.Request.Body)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	var insertedItems []data.Item
+	for _, item := range items {
+		// TODO: Implement check that no item with the same name is inserted twice
+		insertedItem, err := database.InsertItem(item.Name, item.Icon)
+		if err != nil {
+			log.Printf("Failed to insert item: %s", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		insertedItems = append(insertedItems, insertedItem)
+	}
+	// This answer is relevant for the client regarding the Item ID
+	c.JSON(http.StatusCreated, insertedItems)
+}
+
+// ------------------------------------------------------------
+// Handling of lists
+// ------------------------------------------------------------
 
 func getShoppingListsForUser(c *gin.Context) {
 	sUserId := c.Param("userId")
@@ -154,6 +185,10 @@ func postShoppingList(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, shoplist)
 }
 
+// ------------------------------------------------------------
+// Handling of sharing
+// ------------------------------------------------------------
+
 func shareList(c *gin.Context) {
 	sId := c.Param("id")
 	id, err := strconv.Atoi(sId)
@@ -193,7 +228,7 @@ func shareList(c *gin.Context) {
 	}
 	if list.CreatedBy != int64(userId) {
 		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy)
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	listShared, err := database.CreateSharedList(shared.ListId, shared.SharedWith)
@@ -205,13 +240,18 @@ func shareList(c *gin.Context) {
 	c.JSON(http.StatusCreated, listShared)
 }
 
+// TODO:
+func unshareList() {
+	log.Print("Not implemented!")
+
+}
+
 // ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
 
 func returnUnauth(c *gin.Context) {
-	item := data.Item{}
-	c.IndentedJSON(http.StatusOK, item)
+	c.IndentedJSON(http.StatusOK, gin.H{"status": "testing content"})
 }
 
 // ------------------------------------------------------------
@@ -247,7 +287,8 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.GET("/items", getAllItems)
 		// authorized.GET("/items/:id", getItem)
 
-		authorized.POST("/items", addItem)
+		authorized.POST("/item", addItem)
+		authorized.POST("/items", addMultipleItems)
 
 		// Handling sharing a list
 		authorized.POST("/share/:id", shareList)
