@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"shop.cloudsheeptech.com/database"
@@ -182,6 +183,58 @@ func loadUserAndSetupFields(id int64, name string, password string) (io.Reader, 
 	}
 	reader := bytes.NewReader(raw)
 	return reader, nil
+}
+
+// TODO: Fix the whitelisted IP not showing in the test
+func TestUserCreation(t *testing.T) {
+	log.Print("Testing creating new user")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	c, r := gin.CreateTestContext(w)
+
+	newUser := data.User{
+		ID:       0,
+		Username: "test creation user",
+		Password: "new password",
+	}
+	rawUser, err := json.Marshal(newUser)
+	if err != nil {
+		log.Printf("Failed to encode user: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(rawUser)
+	r.POST("/auth/create", authentication.CreateAccount)
+	c.Request, _ = http.NewRequest("POST", "/auth/create", reader)
+	// Set a custom IP address for the request
+	c.Request.Host = "192.168.1.33"
+	c.Request.Header.Set("X-Real-IP", "192.168.1.33")
+	router.ServeHTTP(w, c.Request)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var answeredUser data.User
+	if err = json.Unmarshal(w.Body.Bytes(), &answeredUser); err != nil {
+		log.Printf("Did not receive a user as answer!")
+		t.FailNow()
+	}
+	assert.NotEqual(t, 0, answeredUser.ID)
+	assert.Equal(t, answeredUser.Username, newUser.Username)
+	assert.Equal(t, "accepted", newUser.Password)
+
+	w = httptest.NewRecorder()
+	newUser.ID = answeredUser.ID
+	rawUser, err = json.Marshal(newUser)
+	if err != nil {
+		log.Printf("Failed to encode user: %s", err)
+		t.FailNow()
+	}
+	reader = bytes.NewReader(rawUser)
+	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestLogin(t *testing.T) {
@@ -743,4 +796,128 @@ func TestCreateSharing(t *testing.T) {
 
 func TestCreateSharingOfUnownedList(t *testing.T) {
 	// TODO: Testing that no one can create sharing for list that is not owned by himself
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+	log.Printf("Testing creating sharing for user %d", user.ID)
+	connectDatabase()
+
+	// Creating a list that WE DO NOT OWN
+	list, err := createListOffline("unowned list 1", user.ID+1)
+	if err != nil {
+		log.Printf("Failed to create list: %s", err)
+		t.FailNow()
+	}
+
+	// Now trying if we can share the list via the API
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	sharedWithUserId := 1234
+	sharedWith := data.ListShared{
+		ID:         0,
+		ListId:     list.ID,
+		SharedWith: int64(sharedWithUserId),
+	}
+	encodedShared, err := json.Marshal(sharedWith)
+	if err != nil {
+		log.Printf("Failed to encoded data: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(encodedShared)
+	req, _ := http.NewRequest("POST", "/v1/share/"+strconv.Itoa(int(list.ID)), reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	database.PrintSharingTable()
+	database.ResetShoppingListTable()
+	database.ResetSharedListTable()
+}
+
+func TestPushingOwnItem(t *testing.T) {
+	log.Print("Testing sharing one own item")
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	item := data.Item{
+		ID:   0,
+		Name: "new item",
+		Icon: "unknown",
+	}
+	encodedItem, err := json.Marshal(item)
+	if err != nil {
+		log.Printf("Failed to encoded item: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(encodedItem)
+	req, _ := http.NewRequest("POST", "/v1/item", reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	database.PrintItemTable()
+	database.ResetItemTable()
+}
+
+func TestPushingMultipleItems(t *testing.T) {
+	log.Print("Testing sharing of all own items")
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+	log.Printf("Testing creating sharing for user %d", user.ID)
+	connectDatabase()
+
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	item := data.Item{
+		ID:   0,
+		Name: "new item",
+		Icon: "unknown",
+	}
+	var multipleItems []data.Item
+	for i := 0; i < 3; i++ {
+		multipleItems = append(multipleItems, item)
+	}
+	encodedItem, err := json.Marshal(multipleItems)
+	if err != nil {
+		log.Printf("Failed to encoded items: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(encodedItem)
+	req, _ := http.NewRequest("POST", "/v1/items", reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	database.PrintItemTable()
+	database.ResetItemTable()
 }
