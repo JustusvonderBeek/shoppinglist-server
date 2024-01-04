@@ -56,6 +56,11 @@ type Token struct {
 
 func Setup(cfg configuration.Config) {
 	config = cfg
+	if tkns, err := readTokensFromDisk(); err != nil {
+		log.Printf("Failed to read tokens from disk: %s", err)
+	} else {
+		tokens = tkns
+	}
 }
 
 // ------------------------------------------------------------
@@ -80,6 +85,47 @@ func writeDefaultJWTSecretFile() {
 		log.Printf("Failed to store JWT secret to file: %s", err)
 	}
 	log.Printf("Stored default JWT secret file in: %s", finalJWTFile)
+}
+
+func storeTokensToDisk() error {
+	// Dont overwrite if already existing
+	pwd, _ := os.Getwd()
+	finalTokenPath := filepath.Join(pwd, "../resources/tokens.txt")
+
+	exists := true
+	if _, err := os.Stat(finalTokenPath); errors.Is(err, os.ErrNotExist) {
+		exists = false
+	}
+	file, err := os.OpenFile(finalTokenPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
+	if err != nil {
+		return err
+	}
+	for i, token := range tokens {
+		if i == 0 && !exists { // Only use this mode for the very first token written to the file
+			_, err := file.Write([]byte(token))
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		_, err := file.Write([]byte("," + token))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readTokensFromDisk() ([]string, error) {
+	pwd, _ := os.Getwd()
+	finalTokenPath := filepath.Join(pwd, "../resources/tokens.txt")
+	content, err := os.ReadFile(finalTokenPath)
+	if err != nil {
+		return nil, err
+	}
+	readTokens := strings.Split(string(content), ",")
+	log.Printf("Read %d tokens from disk", len(readTokens))
+	return readTokens, nil
 }
 
 func generateJWT(id int, username string) (string, error) {
@@ -113,6 +159,20 @@ func generateJWT(id int, username string) (string, error) {
 		return "", errors.New("token no longer valid")
 	}
 	return token.SignedString([]byte(jwtSecretFile.Secret))
+}
+
+func checkJWTTokenIssued(token string) error {
+	storedTokens, err := readTokensFromDisk()
+	if err != nil {
+		return errors.New("no stored tokens found")
+	}
+	allTokens := append(storedTokens, tokens...)
+	for _, storedTkn := range allTokens {
+		if storedTkn == token {
+			return nil
+		}
+	}
+	return errors.New("token not found")
 }
 
 func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
@@ -242,6 +302,11 @@ func Login(c *gin.Context) {
 		return
 	}
 	tokens = append(tokens, token)
+	// Store the token to disk, in case of failure and persistency
+	if err = storeTokensToDisk(); err != nil {
+		log.Printf("Failed to store tokens to disk: %s", err)
+	}
+
 	log.Print("User found and token generated")
 	// log.Printf("Sending token: %s", token)
 
@@ -314,7 +379,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 		}
 		// Checking if user in this form exists
 		// TODO: Find a way to extract the custom information from the token
-		parsedClaims, ok := token.Claims.(Claims)
+		parsedClaims, ok := token.Claims.(*Claims)
 		if !ok {
 			log.Print("Received token claims are in incorrect format!")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
@@ -331,9 +396,12 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
-
-		// if claims, ok := token.Claims.(jwt.RegisteredClaims); ok && token.Valid {
-		// TODO: Update checking token validity, include if we generated the token and if user exists
+		// Check if the token was issued
+		if err = checkJWTTokenIssued(reqToken); err != nil {
+			log.Printf("Error with token: %s", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
 		if token.Valid {
 			c.Set("userId", claims.Id)
 			c.Next()
