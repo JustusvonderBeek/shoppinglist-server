@@ -83,6 +83,11 @@ func addMultipleItems(c *gin.Context) {
 	c.JSON(http.StatusCreated, insertedItems)
 }
 
+// TODO:
+func removeItem(c *gin.Context) {
+
+}
+
 // ------------------------------------------------------------
 // Handling of lists
 // ------------------------------------------------------------
@@ -185,6 +190,71 @@ func postShoppingList(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, shoplist)
 }
 
+// TODO:
+func removeShoppingList(c *gin.Context) {
+	log.Print("Not implemented")
+}
+
+func postItemsInList(c *gin.Context) {
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	var mappings []data.ItemPerList
+	if err := c.BindJSON(&mappings); err != nil {
+		log.Printf("Failed to decode items in list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	listId := 0
+	// var dbMappings []data.ItemPerList
+	for i, item := range mappings {
+		// Check if the list is always the same
+		if i == 0 {
+			listId = int(item.ListId)
+			shoppinglist, err := database.GetShoppingList(item.ListId)
+			if err != nil {
+				log.Print("The list does not exist!")
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			if shoppinglist.CreatedBy != int64(userId) {
+				log.Print("The user does not own this list!")
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+		}
+		if item.ListId != int64(listId) {
+			log.Print("Not all items are in the same list!")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		_, err := database.GetItem(item.ID)
+		if err != nil {
+			log.Printf("Item %d does not exist!", item.ID)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		_, err = database.InsertItemToList(item)
+		if err != nil {
+			log.Printf("Failed to insert mapping: %s", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		// dbMappings = append(dbMappings, dbMapping)
+	}
+	// We don't need to update any mappings because the id itself is never used
+	c.JSON(http.StatusCreated, gin.H{"status": "created"})
+}
+
 // ------------------------------------------------------------
 // Handling of sharing
 // ------------------------------------------------------------
@@ -251,7 +321,18 @@ func unshareList() {
 // ------------------------------------------------------------
 
 func returnUnauth(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, gin.H{"status": "testing content"})
+	c.IndentedJSON(http.StatusOK, gin.H{"status": "testing-content"})
+}
+
+func returnPostTest(c *gin.Context) {
+	var item data.Item
+	err := c.BindJSON(&item)
+	if err != nil {
+		log.Print("Require item to be send for testing")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.IndentedJSON(http.StatusOK, gin.H{"status": "post-successful"})
 }
 
 // ------------------------------------------------------------
@@ -290,11 +371,15 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.POST("/item", addItem)
 		authorized.POST("/items", addMultipleItems)
 
+		// Handling the items per list
+		authorized.POST("/list/items", postItemsInList)
+
 		// Handling sharing a list
 		authorized.POST("/share/:id", shareList)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
+		authorized.POST("/test/auth", returnPostTest)
 	}
 
 	router.GET("/test/unauth", returnUnauth)
