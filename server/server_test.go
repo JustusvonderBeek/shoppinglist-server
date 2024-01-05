@@ -114,6 +114,11 @@ func TestSetupTesting(t *testing.T) {
 	// DeleteTestUser(t)
 }
 
+func TestShowUsers(t *testing.T) {
+	connectDatabase()
+	database.PrintUserTable("")
+}
+
 func CreateTestUser(t *testing.T) {
 	log.Print("Creating test user")
 	connectDatabase()
