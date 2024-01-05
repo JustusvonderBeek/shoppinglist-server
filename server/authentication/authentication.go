@@ -59,7 +59,13 @@ func Setup(cfg configuration.Config) {
 	if tkns, err := readTokensFromDisk(); err != nil {
 		log.Printf("Failed to read tokens from disk: %s", err)
 	} else {
-		tokens = tkns
+		validTokens, err := removeInvalidTokens(tkns)
+		if err != nil {
+			log.Printf("Tokens invalid")
+			return
+		}
+		tokens = validTokens
+		storeTokensToDisk(true)
 	}
 }
 
@@ -87,16 +93,22 @@ func writeDefaultJWTSecretFile() {
 	log.Printf("Stored default JWT secret file in: %s", finalJWTFile)
 }
 
-func storeTokensToDisk() error {
+func storeTokensToDisk(overwrite bool) error {
 	// Dont overwrite if already existing
 	pwd, _ := os.Getwd()
-	finalTokenPath := filepath.Join(pwd, "../resources/tokens.txt")
+	finalTokenPath := filepath.Join(pwd, "resources/tokens.txt")
 
 	exists := true
 	if _, err := os.Stat(finalTokenPath); errors.Is(err, os.ErrNotExist) {
 		exists = false
 	}
-	file, err := os.OpenFile(finalTokenPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
+	fileMode := os.O_CREATE | os.O_WRONLY
+	if overwrite {
+		fileMode = fileMode | os.O_TRUNC
+	} else {
+		fileMode = fileMode | os.O_APPEND
+	}
+	file, err := os.OpenFile(finalTokenPath, fileMode, 0660)
 	if err != nil {
 		return err
 	}
@@ -118,7 +130,7 @@ func storeTokensToDisk() error {
 
 func readTokensFromDisk() ([]string, error) {
 	pwd, _ := os.Getwd()
-	finalTokenPath := filepath.Join(pwd, "../resources/tokens.txt")
+	finalTokenPath := filepath.Join(pwd, "resources/tokens.txt")
 	content, err := os.ReadFile(finalTokenPath)
 	if err != nil {
 		return nil, err
@@ -126,6 +138,44 @@ func readTokensFromDisk() ([]string, error) {
 	readTokens := strings.Split(string(content), ",")
 	log.Printf("Read %d tokens from disk", len(readTokens))
 	return readTokens, nil
+}
+
+func removeInvalidTokens(tokens []string) ([]string, error) {
+	claims := Claims{}
+	var validTokens []string
+	for _, token := range tokens {
+		_, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (interface{}, error) {
+			_, ok := t.Method.(*jwt.SigningMethodHMAC)
+			if !ok {
+				return nil, errors.New("unauthorized")
+			}
+			pwd, _ := os.Getwd()
+			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+			data, err := os.ReadFile(finalJWTFile)
+			if err != nil {
+				log.Print("Failed to find JWT secret file")
+				return nil, err
+			}
+			var jwtSecret JWTSecretFile
+			if err = json.Unmarshal(data, &jwtSecret); err != nil {
+				log.Print("JWT secret file is in incorrect format")
+				return nil, err
+			}
+			if time.Now().After(jwtSecret.ValidUntil) {
+				log.Print("The given secret is no longer valid! Please renew the secret")
+				return nil, errors.New("token no longer valid")
+			}
+			secretKeyByte := []byte(jwtSecret.Secret)
+			return secretKeyByte, nil
+		})
+		if err != nil {
+			// log.Printf("Token no longer valid? %s", err)
+			continue
+		}
+		validTokens = append(validTokens, token)
+	}
+	log.Printf("Removed %d tokens", len(tokens)-len(validTokens))
+	return validTokens, nil
 }
 
 func generateJWT(id int, username string) (string, error) {
@@ -303,7 +353,7 @@ func Login(c *gin.Context) {
 	}
 	tokens = append(tokens, token)
 	// Store the token to disk, in case of failure and persistency
-	if err = storeTokensToDisk(); err != nil {
+	if err = storeTokensToDisk(false); err != nil {
 		log.Printf("Failed to store tokens to disk: %s", err)
 	}
 
