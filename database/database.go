@@ -99,11 +99,13 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		AllowNativePasswords: true,
 	}
 	var err error
-	db, err = sql.Open("mysql", mysqlCfg.FormatDSN())
+	configString := mysqlCfg.FormatDSN()
+	log.Printf("Config string: %s", configString)
+	db, err = sql.Open("mysql", configString)
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %s", err)
 	}
-	pingErr := db.Ping()
+	_, pingErr := db.Exec("select 42")
 	if pingErr != nil {
 		log.Fatalf("Database not responding: %s", pingErr)
 	}
