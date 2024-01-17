@@ -103,7 +103,7 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	}
 	var err error
 	configString := mysqlCfg.FormatDSN()
-	log.Printf("Config string: %s", configString)
+	// log.Printf("Config string: %s", configString)
 	db, err = sql.Open("mysql", configString)
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %s", err)
