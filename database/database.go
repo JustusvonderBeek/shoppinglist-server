@@ -27,20 +27,22 @@ var config DBConf
 var db *sql.DB
 
 type DBConf struct {
-	DBUser string
-	DBPass string
-	Addr   string
-	DBName string
+	DBUser      string
+	DBPass      string
+	Addr        string
+	NetworkType string
+	DBName      string
 }
 
 func createDefaultConfiguration(confFile string) {
 	// This method is only meant to create the file in the right format
 	// It is not meant to create a config file holding a working configuration
 	conf := DBConf{
-		DBUser: "",
-		DBPass: "",
-		Addr:   "127.0.0.1:3306",
-		DBName: "shoppinglist",
+		DBUser:      "",
+		DBPass:      "",
+		Addr:        "127.0.0.1:3306",
+		NetworkType: "tcp",
+		DBName:      "shoppinglist",
 	}
 	config = conf
 	storeConfiguration(confFile)
@@ -93,10 +95,11 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	mysqlCfg := mysql.Config{
 		User:                 config.DBUser,
 		Passwd:               config.DBPass,
-		Net:                  "tcp",
+		Net:                  config.NetworkType,
 		Addr:                 config.Addr,
 		DBName:               config.DBName,
 		AllowNativePasswords: true,
+		CheckConnLiveness:    true,
 	}
 	var err error
 	configString := mysqlCfg.FormatDSN()
