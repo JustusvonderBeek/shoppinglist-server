@@ -23,6 +23,11 @@ func connectDatabase() {
 	database.CheckDatabaseOnline(cfg)
 }
 
+func TestPrinting(t *testing.T) {
+	connectDatabase()
+	database.PrintShoppingListTable()
+}
+
 // ------------------------------------------------------------
 // Testing user creation and authentication
 // ------------------------------------------------------------
@@ -232,25 +237,23 @@ func TestModifyUserPassword(t *testing.T) {
 func TestCreatingList(t *testing.T) {
 	connectDatabase()
 	list := data.Shoppinglist{
-		ID:        0,
-		Name:      "Create List Name",
-		CreatedBy: 1337,
+		ListId:     0,
+		Name:       "Create List Name",
+		CreatedBy:  1337,
+		LastEdited: "2024-01-01T12:00:00Z",
+		Items:      []data.ItemWire{},
 	}
-	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	err := database.CreateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
-		log.Printf("Assigned list ID == 0!")
-		t.FailNow()
-	}
-	getList, err := database.GetShoppingList(created.ID)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
 	}
-	if getList.ID != created.ID {
+	if getList.CreatedBy != list.CreatedBy {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
@@ -262,40 +265,40 @@ func TestCreatingList(t *testing.T) {
 func TestModifyListName(t *testing.T) {
 	connectDatabase()
 	list := data.Shoppinglist{
-		ID:        0,
-		Name:      "Old List Name",
-		CreatedBy: 1337,
+		ListId:     0,
+		Name:       "Create List Name",
+		CreatedBy:  1337,
+		LastEdited: "2024-01-01T12:00:00Z",
+		Items:      []data.ItemWire{},
 	}
-	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	err := database.CreateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
-		log.Printf("Assigned list ID == 0!")
-		t.FailNow()
-	}
-	getList, err := database.GetShoppingList(created.ID)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
 	}
-	if getList.ID != created.ID {
+	if getList.ListId != list.ListId {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
-	updatedList, err := database.ModifyShoppingListName(created.ID, "New List Name")
+	updatedList := list
+	updatedList.Name = "New List Name"
+	err = database.CreateShoppingList(updatedList)
 	if err != nil {
 		log.Printf("Failed to modify shopping list name: %s", err)
 		t.FailNow()
 	}
-	if updatedList.Name == list.Name {
-		log.Print("List names still match after update!")
+	getList, err = database.GetShoppingList(updatedList.ListId, updatedList.CreatedBy)
+	if err != nil {
+		log.Printf("Failed to get list: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(created.ID)
-	if err != nil {
-		log.Printf("Failed to get modified list")
+	if getList.Name == updatedList.Name {
+		log.Print("List names still match after update!")
 		t.FailNow()
 	}
 	if getList.Name != "New List Name" {
@@ -309,36 +312,34 @@ func TestModifyListName(t *testing.T) {
 func TestDeletingList(t *testing.T) {
 	connectDatabase()
 	list := data.Shoppinglist{
-		ID:        0,
-		Name:      "Create List Name",
-		CreatedBy: 1337,
+		ListId:     0,
+		Name:       "Create List Name",
+		CreatedBy:  1337,
+		LastEdited: "2024-01-01T12:00:00Z",
+		Items:      []data.ItemWire{},
 	}
-	created, err := database.CreateShoppingList(list.Name, list.CreatedBy)
+	err := database.CreateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
-		log.Printf("Assigned list ID == 0!")
-		t.FailNow()
-	}
 	database.PrintShoppingListTable()
-	getList, err := database.GetShoppingList(created.ID)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
 	}
-	if getList.ID != created.ID {
+	if getList.ListId != list.ListId {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
-	err = database.DeleteShoppingList(created.ID)
+	err = database.DeleteShoppingList(list.ListId)
 	if err != nil {
 		log.Printf("Failed to delete shopping list: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(created.ID)
-	if err == nil || getList.ID != 0 {
+	getList, err = database.GetShoppingList(list.ListId, list.CreatedBy)
+	if err == nil || getList.ListId == list.ListId {
 		log.Printf("Can get delete list!")
 		t.FailNow()
 	}
@@ -523,21 +524,17 @@ func TestInsertItem(t *testing.T) {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	if created.ID == 0 {
-		log.Printf("Item ID (%d) not correct", created.ID)
-		t.FailNow()
-	}
-	if created.Name != item.Name || created.Icon != item.Icon {
-		log.Print("Information cannot be retrieved correctly")
+	if created == 0 {
+		log.Printf("Item ID (%d) not correct", created)
 		t.FailNow()
 	}
 	database.PrintItemTable()
-	getItem, err := database.GetItem(created.ID)
+	getItem, err := database.GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created.ID {
+	if getItem.ID != item.ID {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -561,12 +558,12 @@ func TestModifyItemName(t *testing.T) {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := database.GetItem(created.ID)
+	getItem, err := database.GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created.ID {
+	if getItem.ID != item.ID {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -574,7 +571,7 @@ func TestModifyItemName(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	newItem, err := database.ModifyItemName(created.ID, "New Item")
+	newItem, err := database.ModifyItemName(created, "New Item")
 	if err != nil {
 		log.Printf("Failed to modify item name: %s", err)
 		t.FailNow()
@@ -600,12 +597,12 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := database.GetItem(created.ID)
+	getItem, err := database.GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created.ID {
+	if getItem.ID != created {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -613,7 +610,7 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	newItem, err := database.ModifyItemIcon(created.ID, "New Icon")
+	newItem, err := database.ModifyItemIcon(created, "New Icon")
 	if err != nil {
 		log.Printf("Failed to modify item icon: %s", err)
 		t.FailNow()
@@ -640,12 +637,12 @@ func TestDeleteItem(t *testing.T) {
 		t.FailNow()
 	}
 	database.PrintItemTable()
-	getItem, err := database.GetItem(created.ID)
+	getItem, err := database.GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created.ID {
+	if getItem.ID != created {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -653,12 +650,12 @@ func TestDeleteItem(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	err = database.DeleteItem(created.ID)
+	err = database.DeleteItem(created)
 	if err != nil {
 		log.Printf("Failed to delete item: %s", err)
 		t.FailNow()
 	}
-	getItem, err = database.GetItem(created.ID)
+	getItem, err = database.GetItem(created)
 	if err == nil || getItem.ID != 0 {
 		log.Printf("Can still retrieve item!")
 		t.FailNow()
