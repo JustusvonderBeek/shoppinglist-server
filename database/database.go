@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -242,11 +243,12 @@ func ResetUserTable() {
 
 const shoppingListTable = "shoppinglist"
 
-func GetShoppingList(id int64) (data.Shoppinglist, error) {
-	query := "SELECT * FROM " + shoppingListTable + " WHERE id = ?"
-	row := db.QueryRow(query, id)
+func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
+	query := "SELECT * FROM " + shoppingListTable + " WHERE id = ? AND createdBy = ?"
+	row := db.QueryRow(query, id, createdBy)
+	var dbId int
 	var list data.Shoppinglist
-	if err := row.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err == sql.ErrNoRows {
+	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err == sql.ErrNoRows {
 		return data.Shoppinglist{}, err
 	}
 	return list, nil
@@ -261,8 +263,9 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	}
 	var lists []data.Shoppinglist
 	for rows.Next() {
+		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
@@ -295,8 +298,9 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	}
 	var lists []data.Shoppinglist
 	for rows.Next() {
+		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
@@ -305,49 +309,150 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	return lists, nil
 }
 
-func CreateShoppingList(name string, createdBy int64, lastEdited string) (data.Shoppinglist, error) {
-	log.Printf("Creating shopping list '%s' from %d", name, createdBy)
-	list := data.Shoppinglist{
-		ID:         0,
-		Name:       name,
-		CreatedBy:  createdBy,
-		LastEdited: lastEdited,
-	}
-	query := "INSERT INTO " + shoppingListTable + " (name, creatorId, lastEdited) VALUES (?, ?, ?)"
-	result, err := db.Exec(query, list.Name, list.CreatedBy, list.LastEdited)
+func execDB(query string, args []interface{}) (sql.Result, error) {
+	result, err := db.Exec(query, args...)
 	if err != nil {
-		log.Printf("Failed to create list into database: %s", err)
-		return data.Shoppinglist{}, err
+		return nil, err
 	}
-	list.ID, err = result.LastInsertId()
+	_, err = result.LastInsertId()
 	if err != nil {
-		log.Printf("Problem with ID during insertion of shopping list: %s", err)
-		return data.Shoppinglist{}, err
+		return nil, err
 	}
-	return list, err
+	return result, nil
 }
 
-func ModifyShoppingListName(id int64, name string) (data.Shoppinglist, error) {
-	log.Printf("Modifying list %d", id)
-	list, err := GetShoppingList(id)
-	if err != nil {
-		log.Printf("Failed to get list with ID %d", id)
-		return data.Shoppinglist{}, err
+func checkListCorrect(list data.Shoppinglist) error {
+	if list.CreatedBy == 0 {
+		return errors.New("invalid field created by")
 	}
-	list.Name = name
-	query := "UPDATE " + shoppingListTable + " SET name = ? WHERE id = ?"
-	result, err := db.Exec(query, list.Name, list.ID)
-	if err != nil {
-		log.Printf("Failed to update list name: %s", err)
-		return data.Shoppinglist{}, err
+	if list.Name == "" {
+		return errors.New("invalid field name")
 	}
-	list.ID, err = result.LastInsertId()
-	if err != nil {
-		log.Printf("Problem with ID during insertion of shopping list: %s", err)
-		return data.Shoppinglist{}, err
+	if lastEdit, err := time.Parse(time.RFC3339, list.LastEdited); err != nil {
+		return fmt.Errorf("invalid timestamp: %s", err)
+	} else if lastEdit.After(time.Now()) {
+		return errors.New("invalid field last edited. time is in future")
 	}
-	return list, err
+	return nil
 }
+
+func checkItemCorrect(item data.ItemWire) (data.Item, error) {
+	if item.Name == "" {
+		return data.Item{}, errors.New("invalid field name: is empty")
+	}
+	if item.Quantity <= 0 {
+		return data.Item{}, errors.New("invalid field quantity: <= 0")
+	}
+	converted := data.Item{
+		Name: item.Name,
+		Icon: item.Icon,
+	}
+	return converted, nil
+}
+
+func createShoppingListBase(list data.Shoppinglist) error {
+	if err := checkListCorrect(list); err != nil {
+		log.Printf("List not in correct format for insertion: %s", err)
+		return err
+	}
+	// Check if list exists and update / insert the values in this case
+	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
+	if _, err := GetShoppingList(list.ListId, list.CreatedBy); err == nil {
+		// Replace existing
+		query = "REPLACE INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
+	}
+	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy, list.LastEdited)
+	if err != nil {
+		return err
+	}
+	if _, err = result.LastInsertId(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func addItemsForShoppingList(list data.Shoppinglist) ([]int64, error) {
+	log.Print("Adding items in shopping list to database")
+	if len(list.Items) == 0 {
+		return []int64{}, nil
+	}
+	var itemIds []int64
+	for _, item := range list.Items {
+		conv, err := checkItemCorrect(item)
+		if err != nil {
+			log.Printf("Failed to insert item '%s': %s", item.Name, err)
+			return []int64{}, err
+		}
+		itemId, err := InsertItemStruct(conv)
+		if err != nil {
+			log.Printf("Failed to insert item '%s': %s", conv.Name, err)
+			return []int64{}, err
+		}
+		itemIds = append(itemIds, itemId)
+	}
+	return itemIds, nil
+}
+
+func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
+	log.Print("Adding items to shopping list")
+	if len(list.Items) == 0 || len(itemIds) == 0 {
+		return nil
+	}
+	if len(list.Items) != len(itemIds) {
+		return errors.New("length of items and ids does not match")
+	}
+	for i, item := range list.Items {
+		converted := data.ItemPerList{
+			ID:       0,
+			ListId:   list.ListId,
+			ItemId:   itemIds[i],
+			Quantity: item.Quantity,
+			Checked:  item.Checked,
+			AddedBy:  list.CreatedBy,
+		}
+		if _, err := InsertItemToList(converted); err != nil {
+			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Name)
+		}
+	}
+	return nil
+}
+
+func CreateShoppingList(list data.Shoppinglist) error {
+	log.Printf("Creating shopping list '%s' from %d", list.Name, list.CreatedBy)
+	if err := createShoppingListBase(list); err != nil {
+		return err
+	}
+	itemIds, err := addItemsForShoppingList(list)
+	if err != nil {
+		return err
+	}
+	if err := mapItemsIntoShoppingList(list, itemIds); err != nil {
+		return err
+	}
+	return nil
+}
+
+// func ModifyShoppingListName(id int64, name string) (data.Shoppinglist, error) {
+// 	log.Printf("Modifying list %d", id)
+// 	list, err := GetShoppingList(id)
+// 	if err != nil {
+// 		log.Printf("Failed to get list with ID %d", id)
+// 		return data.Shoppinglist{}, err
+// 	}
+// 	list.Name = name
+// 	query := "UPDATE " + shoppingListTable + " SET name = ? WHERE id = ?"
+// 	result, err := db.Exec(query, list.Name, list.ID)
+// 	if err != nil {
+// 		log.Printf("Failed to update list name: %s", err)
+// 		return data.Shoppinglist{}, err
+// 	}
+// 	list.ID, err = result.LastInsertId()
+// 	if err != nil {
+// 		log.Printf("Problem with ID during insertion of shopping list: %s", err)
+// 		return data.Shoppinglist{}, err
+// 	}
+// 	return list, err
+// }
 
 func DeleteShoppingList(id int64) error {
 	query := "DELETE FROM " + shoppingListTable + " WHERE id = ?"
@@ -659,28 +764,33 @@ func GetAllItemsFromName(name string) ([]data.Item, error) {
 	return items, nil
 }
 
-func InsertItem(name string, icon string) (data.Item, error) {
+func InsertItem(name string, icon string) (int64, error) {
 	item := data.Item{
-		ID:   0,
 		Name: name,
 		Icon: icon,
 	}
 	return InsertItemStruct(item)
 }
 
-func InsertItemStruct(item data.Item) (data.Item, error) {
+func InsertItemStruct(item data.Item) (int64, error) {
+	log.Printf("DEBUG: checking if item needs to be inserted or does exist")
+	selectQuery := "SELECT FROM " + itemTable + " WHERE name = ?"
+	row := db.QueryRow(selectQuery, item.Name)
+	var existingItem data.Item
+	if err := row.Scan(&existingItem.ID, &existingItem.Name, &existingItem.Icon); err == nil {
+		return existingItem.ID, nil
+	}
 	query := "INSERT INTO " + itemTable + " (name, icon) VALUES (?, ?)"
 	result, err := db.Exec(query, item.Name, item.Icon)
 	if err != nil {
-		log.Printf("Failed to insert item into database: %s", err)
-		return data.Item{}, err
+		return 0, err
 	}
-	item.ID, err = result.LastInsertId()
-	if err != nil || item.ID == 0 {
+	id, err := result.LastInsertId()
+	if err != nil || id == 0 {
 		log.Printf("Failed to insert item into database: %s", err)
-		return data.Item{}, err
+		return 0, err
 	}
-	return item, nil
+	return id, nil
 }
 
 func ModifyItemName(id int64, name string) (data.Item, error) {
@@ -780,8 +890,9 @@ func PrintShoppingListTable() {
 	defer rows.Close()
 	log.Print("------------- Shopping List Table -------------")
 	for rows.Next() {
+		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&list.ID, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
