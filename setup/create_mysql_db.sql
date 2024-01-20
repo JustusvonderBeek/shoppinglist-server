@@ -70,7 +70,7 @@ CREATE TABLE sharedList(
 
 CREATE TABLE itemsPerList (
     id          INT AUTO_INCREMENT  NOT NULL,
-    listId      INT                 NOT NULL,
+    listId      BIGINT              NOT NULL,
     itemId      INT                 NOT NULL,
     quantity    INT                 NOT NULL,
     checked     BOOLEAN             NOT NULL,
