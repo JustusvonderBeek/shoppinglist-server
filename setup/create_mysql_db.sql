@@ -54,8 +54,9 @@ CREATE TABLE items (
 
 CREATE TABLE shoppinglist(
     id          INT AUTO_INCREMENT  NOT NULL,
+    listId      BIGINT              NOT NULL,
     name        VARCHAR(256)        NOT NULL,
-    creatorId   BIGINT              NOT NULL,
+    createdBy   BIGINT              NOT NULL,
     lastEdited  VARCHAR(256)        NOT NULL,
     PRIMARY KEY (`id`)
 );
