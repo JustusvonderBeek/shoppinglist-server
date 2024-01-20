@@ -28,6 +28,10 @@ var IPWhitelist = map[string]bool{
 	"178.1.0.0":      true,
 }
 
+type IpWhiteList struct {
+	IPs []string `json:"ips"`
+}
+
 var config configuration.Config
 var tokens []string
 
@@ -56,6 +60,11 @@ type Token struct {
 
 func Setup(cfg configuration.Config) {
 	config = cfg
+	if ips, err := readIpWhitelistFromFile(); err != nil {
+		log.Printf("Failed to read ips from disk: %s", err)
+	} else if len(ips) > 0 {
+		IPWhitelist = ips
+	}
 	if tkns, err := readTokensFromDisk(); err != nil {
 		log.Printf("Failed to read tokens from disk: %s", err)
 	} else {
@@ -223,6 +232,25 @@ func checkJWTTokenIssued(token string) error {
 		}
 	}
 	return errors.New("token not found")
+}
+
+func readIpWhitelistFromFile() (map[string]bool, error) {
+	pwd, _ := os.Getwd()
+	finalTokenPath := filepath.Join(pwd, "resources/whitelisted_ips.json")
+	content, err := os.ReadFile(finalTokenPath)
+	if err != nil {
+		return nil, err
+	}
+	var ips IpWhiteList
+	if err = json.Unmarshal(content, &ips); err != nil {
+		return nil, err
+	}
+	log.Printf("Found IP Whitelist with %d IPs", len(ips.IPs))
+	whiteIps := make(map[string]bool, len(ips.IPs))
+	for _, ip := range ips.IPs {
+		whiteIps[ip] = true
+	}
+	return whiteIps, nil
 }
 
 func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
