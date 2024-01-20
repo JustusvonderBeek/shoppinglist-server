@@ -244,7 +244,7 @@ func ResetUserTable() {
 const shoppingListTable = "shoppinglist"
 
 func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
-	query := "SELECT * FROM " + shoppingListTable + " WHERE id = ? AND createdBy = ?"
+	query := "SELECT * FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
 	var list data.Shoppinglist
@@ -359,6 +359,7 @@ func createShoppingListBase(list data.Shoppinglist) error {
 	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
 	if _, err := GetShoppingList(list.ListId, list.CreatedBy); err == nil {
 		// Replace existing
+		log.Printf("List %d exists. Replacing...", list.ListId)
 		query = "REPLACE INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
 	}
 	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy, list.LastEdited)
@@ -372,7 +373,7 @@ func createShoppingListBase(list data.Shoppinglist) error {
 }
 
 func addItemsForShoppingList(list data.Shoppinglist) ([]int64, error) {
-	log.Print("Adding items in shopping list to database")
+	log.Printf("Adding (%d) items in shopping list to database", len(list.Items))
 	if len(list.Items) == 0 {
 		return []int64{}, nil
 	}
@@ -394,7 +395,7 @@ func addItemsForShoppingList(list data.Shoppinglist) ([]int64, error) {
 }
 
 func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
-	log.Print("Adding items to shopping list")
+	log.Printf("Adding (%d) items to shopping list", len(list.Items))
 	if len(list.Items) == 0 || len(itemIds) == 0 {
 		return nil
 	}
@@ -418,7 +419,7 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 }
 
 func CreateShoppingList(list data.Shoppinglist) error {
-	log.Printf("Creating shopping list '%s' from %d", list.Name, list.CreatedBy)
+	log.Printf("Creating shopping list '%s'/'%d from %d", list.Name, list.ListId, list.CreatedBy)
 	if err := createShoppingListBase(list); err != nil {
 		return err
 	}
@@ -773,11 +774,12 @@ func InsertItem(name string, icon string) (int64, error) {
 }
 
 func InsertItemStruct(item data.Item) (int64, error) {
-	log.Printf("DEBUG: checking if item needs to be inserted or does exist")
+	// log.Printf("DEBUG: checking if item needs to be inserted or does exist")
 	selectQuery := "SELECT FROM " + itemTable + " WHERE name = ?"
 	row := db.QueryRow(selectQuery, item.Name)
 	var existingItem data.Item
 	if err := row.Scan(&existingItem.ID, &existingItem.Name, &existingItem.Icon); err == nil {
+		log.Printf("DEBUG: Item (%d) existed...", existingItem.ID)
 		return existingItem.ID, nil
 	}
 	query := "INSERT INTO " + itemTable + " (name, icon) VALUES (?, ?)"
@@ -892,7 +894,7 @@ func PrintShoppingListTable() {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
