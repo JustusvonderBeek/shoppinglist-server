@@ -24,14 +24,6 @@ type Answer struct {
 // The list data structures
 // ------------------------------------------------------------
 
-type ShoppingListInteral struct {
-	ListId     int64
-	Name       string
-	CreatedBy  int64
-	LastEdited string
-	Items      []Item
-}
-
 type Shoppinglist struct {
 	ListId     int64
 	Name       string
