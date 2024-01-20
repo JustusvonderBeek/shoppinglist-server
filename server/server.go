@@ -13,79 +13,25 @@ import (
 )
 
 // ------------------------------------------------------------
-// Handling of items
+// Handling of user information
 // ------------------------------------------------------------
 
-func getAllItems(c *gin.Context) {
-	log.Printf("Trying to access all items")
-	items, err := database.GetAllItems()
+func updateUserinfo(c *gin.Context) {
+	var user data.User
+	err := c.BindJSON(&user)
 	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	c.IndentedJSON(http.StatusOK, items)
-	log.Printf("Send %d items back to requester", len(items))
-}
-
-func getItem(c *gin.Context) {
-	sId := c.Param("id")
-	id, err := strconv.Atoi(sId)
-	if err != nil {
-		log.Printf("Failed to parse given item id: %s", sId)
-		log.Printf("Err: %s", err)
-		return
-	}
-	log.Printf("Trying to access item: %d", id)
-	item, err := database.GetItem(int64(id))
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	c.IndentedJSON(http.StatusOK, item)
-	log.Print("Send item back to requester")
-}
-
-func addItem(c *gin.Context) {
-	var item data.Item
-	if err := c.BindJSON(&item); err != nil {
-		log.Printf("Item is in incorrect format: %v", c.Request.Body)
+		log.Printf("Failed to parse updated user information: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	item, err := database.InsertItemStruct(item)
-	if err != nil || item.ID < 0 {
+	// User already found in our database. Simply update this stuff
+	user, err = database.ModifyUserAccountName(user.ID, user.Username)
+	if err != nil {
+		log.Printf("Failed to insert user into database: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.IndentedJSON(http.StatusCreated, item)
-	log.Printf("Inserted item under ID %d", item.ID)
-}
-
-func addMultipleItems(c *gin.Context) {
-	var items []data.Item
-	if err := c.BindJSON(&items); err != nil {
-		log.Printf("Items not in correct format: %v", c.Request.Body)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	var insertedItems []data.Item
-	for _, item := range items {
-		// TODO: Implement check that no item with the same name is inserted twice
-		insertedItem, err := database.InsertItem(item.Name, item.Icon)
-		if err != nil {
-			log.Printf("Failed to insert item: %s", err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		insertedItems = append(insertedItems, insertedItem)
-	}
-	// This answer is relevant for the client regarding the Item ID
-	c.JSON(http.StatusCreated, insertedItems)
-}
-
-// TODO:
-func removeItem(c *gin.Context) {
-
+	c.JSON(http.StatusOK, user)
 }
 
 // ------------------------------------------------------------
@@ -134,20 +80,25 @@ func getShoppingList(c *gin.Context) {
 		log.Printf("Err: %s", err)
 		return
 	}
-	mapping, err := database.GetShoppingList(int64(id))
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	mapping, err := database.GetShoppingList(int64(id), int64(userId))
 	if err != nil {
 		log.Printf("Failed to get mapping for id %d: %s", id, err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	// TODO: Transform this mapping to a concrete item list
-	// raw, err := json.Marshal(mapping)
-	// if err != nil {
-	// 	log.Printf("Failed to convert raw data: %s", err)
-	// 	c.AbortWithStatus(http.StatusInternalServerError)
-	// 	return
-	// }
-	c.IndentedJSON(http.StatusOK, mapping)
+	c.JSON(http.StatusOK, mapping)
 }
 
 func postShoppingList(c *gin.Context) {
@@ -175,19 +126,13 @@ func postShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	shoplist, err := database.CreateShoppingList(list.Name, list.CreatedBy, list.LastEdited)
+	err = database.CreateShoppingList(list)
 	if err != nil {
-		log.Printf("Failed to insert list into server: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	// raw, err := json.Marshal(shoplist)
-	// if err != nil {
-	// 	log.Printf("Failed to convert list to JSON! %s", err)
-	// 	c.AbortWithStatus(http.StatusInternalServerError)
-	// 	return
-	// }
-	c.IndentedJSON(http.StatusCreated, shoplist)
+	// No more information is gained through the same data
+	c.Status(http.StatusCreated)
 }
 
 // TODO:
@@ -195,65 +140,65 @@ func removeShoppingList(c *gin.Context) {
 	log.Print("Not implemented")
 }
 
-func postItemsInList(c *gin.Context) {
-	stored, exists := c.Get("userId")
-	if !exists {
-		log.Printf("User is not correctly authenticated")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	var mappings []data.ItemPerList
-	if err := c.BindJSON(&mappings); err != nil {
-		log.Printf("Failed to decode items in list: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	listId := 0
-	// var dbMappings []data.ItemPerList
-	for i, item := range mappings {
-		// Check if the list is always the same
-		if i == 0 {
-			listId = int(item.ListId)
-			shoppinglist, err := database.GetShoppingList(item.ListId)
-			if err != nil {
-				log.Print("The list does not exist!")
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
-			if shoppinglist.CreatedBy != int64(userId) {
-				log.Print("The user does not own this list!")
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
-		}
-		if item.ListId != int64(listId) {
-			log.Print("Not all items are in the same list!")
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		_, err := database.GetItem(item.ID)
-		if err != nil {
-			log.Printf("Item %d does not exist!", item.ID)
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		_, err = database.InsertItemToList(item)
-		if err != nil {
-			log.Printf("Failed to insert mapping: %s", err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		// dbMappings = append(dbMappings, dbMapping)
-	}
-	// We don't need to update any mappings because the id itself is never used
-	c.JSON(http.StatusCreated, gin.H{"status": "created"})
-}
+// func postItemsInList(c *gin.Context) {
+// 	stored, exists := c.Get("userId")
+// 	if !exists {
+// 		log.Printf("User is not correctly authenticated")
+// 		c.AbortWithStatus(http.StatusUnauthorized)
+// 		return
+// 	}
+// 	userId, ok := stored.(int)
+// 	if !ok {
+// 		log.Print("Internal server error: stored value is not correct")
+// 		c.AbortWithStatus(http.StatusInternalServerError)
+// 		return
+// 	}
+// 	var mappings []data.ItemPerList
+// 	if err := c.BindJSON(&mappings); err != nil {
+// 		log.Printf("Failed to decode items in list: %s", err)
+// 		c.AbortWithStatus(http.StatusBadRequest)
+// 		return
+// 	}
+// 	listId := 0
+// 	// var dbMappings []data.ItemPerList
+// 	for i, item := range mappings {
+// 		// Check if the list is always the same
+// 		if i == 0 {
+// 			listId = int(item.ListId)
+// 			shoppinglist, err := database.GetShoppingList(item.ListId)
+// 			if err != nil {
+// 				log.Printf("The list %d does not exist!", listId)
+// 				c.AbortWithStatus(http.StatusBadRequest)
+// 				return
+// 			}
+// 			if shoppinglist.CreatedBy != int64(userId) {
+// 				log.Print("The user does not own this list!")
+// 				c.AbortWithStatus(http.StatusBadRequest)
+// 				return
+// 			}
+// 		}
+// 		if item.ListId != int64(listId) {
+// 			log.Print("Not all items are in the same list!")
+// 			c.AbortWithStatus(http.StatusBadRequest)
+// 			return
+// 		}
+// 		_, err := database.GetItem(item.ItemId)
+// 		if err != nil {
+// 			log.Printf("Item %d does not exist!", item.ItemId)
+// 			c.AbortWithStatus(http.StatusBadRequest)
+// 			return
+// 		}
+// 		_, err = database.InsertItemToList(item)
+// 		if err != nil {
+// 			log.Printf("Failed to insert mapping: %s", err)
+// 			c.AbortWithStatus(http.StatusInternalServerError)
+// 			return
+// 		}
+// 		// dbMappings = append(dbMappings, dbMapping)
+// 	}
+// 	// We don't need to update any mappings because the id itself is never used
+// 	c.JSON(http.StatusCreated, gin.H{"status": "created"})
+// }
 
 // ------------------------------------------------------------
 // Handling of sharing
@@ -266,19 +211,6 @@ func shareList(c *gin.Context) {
 		log.Printf("Failed to parse given list id: %s: %s", sId, err)
 		return
 	}
-	var shared data.ListShared
-	if err = c.BindJSON(&shared); err != nil {
-		log.Printf("Failed to bind given data: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	// Check if the user owns this list?
-	list, err := database.GetShoppingList(shared.ListId)
-	if err != nil {
-		log.Printf("Failed to retrieve list: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
 	stored, exists := c.Get("userId")
 	if !exists {
 		log.Printf("User is not correctly authenticated")
@@ -291,7 +223,20 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	if list.ID != int64(id) {
+	var shared data.ListShared
+	if err = c.BindJSON(&shared); err != nil {
+		log.Printf("Failed to bind given data: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Check if the user owns this list?
+	list, err := database.GetShoppingList(shared.ListId, int64(userId))
+	if err != nil {
+		log.Printf("Failed to retrieve list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if list.ListId != int64(id) {
 		log.Printf("IDs do not match!")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -358,21 +303,18 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	authorized := router.Group("/v1")
 	authorized.Use(authentication.AuthenticationMiddleware(cfg))
 	{
+		// Taking care of users which are registered but want to update their info
+		authorized.POST("/update/userinfo", updateUserinfo)
+
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
-		// authorized.GET("/list/:id", getShoppingList)
+		authorized.GET("/list/:id", getShoppingList)
 
+		// Includes both adding a new list and updating an existing list
 		authorized.POST("/list", postShoppingList)
 
-		// Handling the items
-		authorized.GET("/items", getAllItems)
-		// authorized.GET("/items/:id", getItem)
-
-		authorized.POST("/item", addItem)
-		authorized.POST("/items", addMultipleItems)
-
 		// Handling the items per list
-		authorized.POST("/list/items", postItemsInList)
+		// authorized.POST("/list/items", postItemsInList)
 
 		// Handling sharing a list
 		authorized.POST("/share/:id", shareList)
