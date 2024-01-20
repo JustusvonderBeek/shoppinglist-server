@@ -92,13 +92,33 @@ func getShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	mapping, err := database.GetShoppingList(int64(id), int64(userId))
+	list, err := database.GetShoppingList(int64(id), int64(userId))
 	if err != nil {
 		log.Printf("Failed to get mapping for id %d: %s", id, err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, mapping)
+	itemsInList, err := database.GetItemsInList(list.ListId)
+	if err != nil {
+		log.Printf("Failed to get item in list: %s", err)
+		c.JSON(http.StatusInternalServerError, list)
+		return
+	}
+	for _, item := range itemsInList {
+		dbItem, err := database.GetItem(item.ItemId)
+		if err != nil {
+			log.Printf("Failed to find item '%d' in database", item.ItemId)
+			continue
+		}
+		listItem := data.ItemWire{
+			Name:     dbItem.Name,
+			Icon:     dbItem.Icon,
+			Quantity: item.Quantity,
+			Checked:  item.Checked,
+		}
+		list.Items = append(list.Items, listItem)
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 func postShoppingList(c *gin.Context) {
