@@ -13,14 +13,31 @@ type User struct {
 }
 
 // ------------------------------------------------------------
+// The answer status structure
+// ------------------------------------------------------------
+
+type Answer struct {
+	Status string
+}
+
+// ------------------------------------------------------------
 // The list data structures
 // ------------------------------------------------------------
 
-type Shoppinglist struct {
-	ID         int64
+type ShoppingListInteral struct {
+	ListId     int64
 	Name       string
 	CreatedBy  int64
 	LastEdited string
+	Items      []Item
+}
+
+type Shoppinglist struct {
+	ListId     int64
+	Name       string
+	CreatedBy  int64
+	LastEdited string
+	Items      []ItemWire
 }
 
 type ListShared struct {
@@ -43,9 +60,16 @@ type ItemPerList struct {
 // ------------------------------------------------------------
 
 type Item struct {
-	ID   int64
+	ID   int64 // Only for interal reasons
 	Name string
 	Icon string
+}
+
+type ItemWire struct {
+	Name     string
+	Icon     string
+	Quantity int64
+	Checked  bool
 }
 
 // ------------------------------------------------------------
