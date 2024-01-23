@@ -255,7 +255,7 @@ func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
 }
 
 func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
-	query := "SELECT * FROM " + shoppingListTable + " WHERE creatorId = ?"
+	query := "SELECT * FROM " + shoppingListTable + " WHERE createdBy = ?"
 	rows, err := db.Query(query, id)
 	if err != nil {
 		log.Printf("Failed to retrieve any list for user %d: %s", id, err)
@@ -265,7 +265,7 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
@@ -512,7 +512,7 @@ func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
 }
 
 func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
-	query := "SELECT * FROM " + sharedListTable + " WHERE sharedWithId = ?"
+	query := "SELECT * FROM " + sharedListTable + " WHERE sharedWithId = ? OR sharedWithId = -1"
 	rows, err := db.Query(query, userId)
 	if err != nil {
 		log.Printf("Failed to query for lists that are shared with the user %d: %s", userId, err)
