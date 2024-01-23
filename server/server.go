@@ -55,6 +55,7 @@ func getShoppingListsForUser(c *gin.Context) {
 		return
 	}
 	log.Printf("Got %d lists for user itself", len(lists))
+
 	// Asking the database for all the lists that are shared with the current user
 	sharedInfo, err := database.GetSharedListForUserId(int64(id))
 	if err != nil {
@@ -69,6 +70,35 @@ func getShoppingListsForUser(c *gin.Context) {
 		return
 	}
 	lists = append(lists, sharedLists...)
+	// Asking DB to get the items in this list
+	for i, list := range lists {
+		itemsPerList, err := database.GetItemsInList(list.ListId)
+		if err != nil {
+			log.Printf("Failed to get items for list %d: %s", list.ListId, err)
+			lists[i].Items = []data.ItemWire{}
+			continue
+		}
+		if len(itemsPerList) == 0 {
+			lists[i].Items = []data.ItemWire{}
+			continue
+		}
+		// Unpack and convert into wire format
+		for _, item := range itemsPerList {
+			dbItem, err := database.GetItem(item.ItemId)
+			if err != nil {
+				log.Printf("Failed to get information for item %d in list", i)
+				continue
+			}
+			wireItem := data.ItemWire{
+				Name:     dbItem.Name,
+				Icon:     dbItem.Icon,
+				Quantity: item.Quantity,
+				Checked:  item.Checked,
+			}
+			lists[i].Items = append(lists[i].Items, wireItem)
+		}
+	}
+
 	c.JSON(http.StatusOK, lists)
 }
 
