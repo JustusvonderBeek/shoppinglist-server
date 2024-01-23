@@ -190,66 +190,6 @@ func removeShoppingList(c *gin.Context) {
 	log.Print("Not implemented")
 }
 
-// func postItemsInList(c *gin.Context) {
-// 	stored, exists := c.Get("userId")
-// 	if !exists {
-// 		log.Printf("User is not correctly authenticated")
-// 		c.AbortWithStatus(http.StatusUnauthorized)
-// 		return
-// 	}
-// 	userId, ok := stored.(int)
-// 	if !ok {
-// 		log.Print("Internal server error: stored value is not correct")
-// 		c.AbortWithStatus(http.StatusInternalServerError)
-// 		return
-// 	}
-// 	var mappings []data.ItemPerList
-// 	if err := c.BindJSON(&mappings); err != nil {
-// 		log.Printf("Failed to decode items in list: %s", err)
-// 		c.AbortWithStatus(http.StatusBadRequest)
-// 		return
-// 	}
-// 	listId := 0
-// 	// var dbMappings []data.ItemPerList
-// 	for i, item := range mappings {
-// 		// Check if the list is always the same
-// 		if i == 0 {
-// 			listId = int(item.ListId)
-// 			shoppinglist, err := database.GetShoppingList(item.ListId)
-// 			if err != nil {
-// 				log.Printf("The list %d does not exist!", listId)
-// 				c.AbortWithStatus(http.StatusBadRequest)
-// 				return
-// 			}
-// 			if shoppinglist.CreatedBy != int64(userId) {
-// 				log.Print("The user does not own this list!")
-// 				c.AbortWithStatus(http.StatusBadRequest)
-// 				return
-// 			}
-// 		}
-// 		if item.ListId != int64(listId) {
-// 			log.Print("Not all items are in the same list!")
-// 			c.AbortWithStatus(http.StatusBadRequest)
-// 			return
-// 		}
-// 		_, err := database.GetItem(item.ItemId)
-// 		if err != nil {
-// 			log.Printf("Item %d does not exist!", item.ItemId)
-// 			c.AbortWithStatus(http.StatusBadRequest)
-// 			return
-// 		}
-// 		_, err = database.InsertItemToList(item)
-// 		if err != nil {
-// 			log.Printf("Failed to insert mapping: %s", err)
-// 			c.AbortWithStatus(http.StatusInternalServerError)
-// 			return
-// 		}
-// 		// dbMappings = append(dbMappings, dbMapping)
-// 	}
-// 	// We don't need to update any mappings because the id itself is never used
-// 	c.JSON(http.StatusCreated, gin.H{"status": "created"})
-// }
-
 // ------------------------------------------------------------
 // Handling of sharing
 // ------------------------------------------------------------
@@ -306,7 +246,7 @@ func shareList(c *gin.Context) {
 }
 
 // TODO:
-func unshareList() {
+func unshareList(c *gin.Context) {
 	log.Print("Not implemented!")
 
 }
@@ -368,6 +308,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 		// Handling sharing a list
 		authorized.POST("/share/:id", shareList)
+		authorized.POST("/share/remove/:id", unshareList)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
