@@ -285,8 +285,9 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 		listIds = append(listIds, strconv.FormatInt(shared.ListId, 10))
 		// listIds = append(listIds, int(shared.ListId))
 	}
-	query := "SELECT * FROM " + shoppingListTable + " WHERE id IN (?" + strings.Repeat(",?", len(listIds)-1) + ")"
-	log.Printf("Query string: %s", query)
+	log.Printf("Searching for lists: %v", listIds...)
+	query := "SELECT * FROM " + shoppingListTable + " WHERE listId IN (?" + strings.Repeat(",?", len(listIds)-1) + ")"
+	// log.Printf("Query string: %s", query)
 	rows, err := db.Query(query, listIds...)
 	if err != nil {
 		sharedWithId := -1
