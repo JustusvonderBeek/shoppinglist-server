@@ -203,7 +203,7 @@ func TestUserCreation(t *testing.T) {
 	log.Print("Testing creating new user")
 	connectDatabase()
 
-	router := server.SetupRouter(cfg)
+	// router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 	c, r := gin.CreateTestContext(w)
 
@@ -218,12 +218,15 @@ func TestUserCreation(t *testing.T) {
 		t.FailNow()
 	}
 	reader := bytes.NewReader(rawUser)
+	authentication.Setup(cfg)
 	r.POST("/auth/create", authentication.CreateAccount)
+
 	c.Request, _ = http.NewRequest("POST", "/auth/create", reader)
 	// Set a custom IP address for the request
-	c.Request.Host = "192.168.1.33"
-	c.Request.Header.Set("X-Real-IP", "192.168.1.33")
-	router.ServeHTTP(w, c.Request)
+	c.Request.RemoteAddr = "192.168.1.33:41111"
+	c.Request.Header.Set("X-Real-Ip", "192.168.1.33:41111")
+	log.Printf("Client IP: %s", c.ClientIP())
+	r.ServeHTTP(w, c.Request)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -234,7 +237,7 @@ func TestUserCreation(t *testing.T) {
 	}
 	assert.NotEqual(t, 0, answeredUser.ID)
 	assert.Equal(t, answeredUser.Username, newUser.Username)
-	assert.Equal(t, "accepted", newUser.Password)
+	assert.Equal(t, "accepted", answeredUser.Password)
 
 	w = httptest.NewRecorder()
 	newUser.ID = answeredUser.ID
@@ -244,8 +247,9 @@ func TestUserCreation(t *testing.T) {
 		t.FailNow()
 	}
 	reader = bytes.NewReader(rawUser)
+	r.POST("/auth/login", authentication.Login)
 	req, _ := http.NewRequest("POST", "/auth/login", reader)
-	router.ServeHTTP(w, req)
+	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
