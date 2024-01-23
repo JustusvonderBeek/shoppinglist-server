@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -34,6 +35,10 @@ type IpWhiteList struct {
 
 var config configuration.Config
 var tokens []string
+var (
+	_, b, _, _ = runtime.Caller(0)
+	basepath   = filepath.Dir(b)
+)
 
 // ------------------------------------------------------------
 // The authentication and login data structures
@@ -104,8 +109,7 @@ func writeDefaultJWTSecretFile() {
 
 func storeTokensToDisk(overwrite bool) error {
 	// Dont overwrite if already existing
-	pwd, _ := os.Getwd()
-	finalTokenPath := filepath.Join(pwd, "resources/tokens.txt")
+	finalTokenPath := filepath.Join(basepath, "../../resources/tokens.txt")
 
 	exists := true
 	if _, err := os.Stat(finalTokenPath); errors.Is(err, os.ErrNotExist) {
@@ -138,8 +142,7 @@ func storeTokensToDisk(overwrite bool) error {
 }
 
 func readTokensFromDisk() ([]string, error) {
-	pwd, _ := os.Getwd()
-	finalTokenPath := filepath.Join(pwd, "resources/tokens.txt")
+	finalTokenPath := filepath.Join(basepath, "../../resources/tokens.txt")
 	content, err := os.ReadFile(finalTokenPath)
 	if err != nil {
 		return nil, err
@@ -235,8 +238,7 @@ func checkJWTTokenIssued(token string) error {
 }
 
 func readIpWhitelistFromFile() (map[string]bool, error) {
-	pwd, _ := os.Getwd()
-	finalTokenPath := filepath.Join(pwd, "resources/whitelisted_ips.json")
+	finalTokenPath := filepath.Join(basepath, "../../resources/whitelisted_ips.json")
 	content, err := os.ReadFile(finalTokenPath)
 	if err != nil {
 		return nil, err
@@ -264,7 +266,7 @@ func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
 		// log.Printf("Ip Range: %s", ipRange)
 		if !whitelist[ip] && !whitelist[ipRange] {
 			log.Printf("Unauthorized access from %s", ip)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "fuck you in the ass blyad"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "request from IP not allowed"})
 			return
 		}
 		c.Next()
