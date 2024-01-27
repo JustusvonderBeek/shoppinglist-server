@@ -420,7 +420,7 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 }
 
 func CreateShoppingList(list data.Shoppinglist) error {
-	log.Printf("Creating shopping list '%s'/'%d from %d", list.Name, list.ListId, list.CreatedBy)
+	log.Printf("Creating shopping list '%s' with id '%d' from %d", list.Name, list.ListId, list.CreatedBy)
 	if err := createShoppingListBase(list); err != nil {
 		return err
 	}
@@ -467,7 +467,7 @@ func DeleteShoppingList(id int64) error {
 }
 
 func DeleteShoppingListFrom(userId int64) error {
-	query := "DELETE FROM " + shoppingListTable + " WHERE creatorId = ?"
+	query := "DELETE FROM " + shoppingListTable + " WHERE createdBy = ?"
 	_, err := db.Exec(query, userId)
 	if err != nil {
 		log.Printf("Failed to delete shopping lists for user %d: %s", userId, err)
