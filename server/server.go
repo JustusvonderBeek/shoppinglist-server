@@ -294,11 +294,12 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	authorized.Use(authentication.AuthenticationMiddleware(cfg))
 	{
 		// Taking care of users which are registered but want to update their info
-		authorized.POST("/update/userinfo", updateUserinfo)
+		authorized.PUT("/update/userinfo", updateUserinfo)
 
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
 		authorized.GET("/list/:id", getShoppingList)
+		authorized.DELETE("/list/:id", removeShoppingList)
 
 		// Includes both adding a new list and updating an existing list
 		authorized.POST("/list", postShoppingList)
@@ -308,7 +309,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 		// Handling sharing a list
 		authorized.POST("/share/:id", shareList)
-		authorized.POST("/share/remove/:id", unshareList)
+		authorized.DELETE("/share/:id", unshareList)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
