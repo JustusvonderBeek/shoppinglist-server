@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -124,7 +125,9 @@ func TestShowUsers(t *testing.T) {
 
 func TestResetUserDatabase(t *testing.T) {
 	connectDatabase()
+	database.PrintUserTable("")
 	database.ResetUserTable()
+	database.PrintUserTable("")
 }
 
 func CreateTestUser(t *testing.T) {
@@ -254,10 +257,8 @@ func TestUserCreation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestLogin(t *testing.T) {
-	log.Print("Testing login function")
-	connectDatabase()
-
+func login(t *testing.T) {
+	// Expecting an offline user for this test
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 
@@ -269,7 +270,7 @@ func TestLogin(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/auth/login", reader)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var token authentication.Token
 	if json.Unmarshal(w.Body.Bytes(), &token) != nil {
@@ -280,9 +281,19 @@ func TestLogin(t *testing.T) {
 	log.Print("Logged in and stored jwt secret to file")
 }
 
+func TestLogin(t *testing.T) {
+	log.Print("Testing login function")
+	connectDatabase()
+	// Creating an offline user for this test
+	CreateTestUser(t)
+	login(t)
+	DeleteTestUser(t)
+}
+
 func TestLoginIncorrectUsername(t *testing.T) {
 	log.Print("Testing login with wrong username")
 	connectDatabase()
+	CreateTestUser(t)
 
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
@@ -298,11 +309,13 @@ func TestLoginIncorrectUsername(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 func TestLoginIncorrectPassword(t *testing.T) {
 	log.Print("Testing login with wrong password")
 	connectDatabase()
+	CreateTestUser(t)
 
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
@@ -317,11 +330,13 @@ func TestLoginIncorrectPassword(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 func TestLoginIncorrectId(t *testing.T) {
 	log.Print("Testing login with wrong password")
 	connectDatabase()
+	CreateTestUser(t)
 
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
@@ -336,11 +351,13 @@ func TestLoginIncorrectId(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 func TestAuthenticationTimeoutedToken(t *testing.T) {
 	log.Print("Testing login with token that timed out")
 	connectDatabase()
+	CreateTestUser(t)
 
 	testConfiguration := cfg
 	testConfiguration.JWTTimeout = 1
@@ -403,11 +420,13 @@ func TestAuthenticationTimeoutedToken(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 func TestAuthentcationWrongTokenSignature(t *testing.T) {
 	log.Print("Testing login with token that is invalid (wrong signature) wrong username, wrong id)")
 	connectDatabase()
+	CreateTestUser(t)
 
 	user, err := readUserFile()
 	if err != nil {
@@ -455,12 +474,13 @@ func TestAuthentcationWrongTokenSignature(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-
+	DeleteTestUser(t)
 }
 
 func TestAuthenticationModifiedToken(t *testing.T) {
 	log.Print("Testing login with token that was modified")
 	connectDatabase()
+	CreateTestUser(t)
 
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
@@ -490,11 +510,13 @@ func TestAuthenticationModifiedToken(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 func TestUnissuedToken(t *testing.T) {
 	log.Print("Testing login with unissued token")
 	connectDatabase()
+	CreateTestUser(t)
 
 	user, err := readUserFile()
 	if err != nil {
@@ -542,6 +564,7 @@ func TestUnissuedToken(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	DeleteTestUser(t)
 }
 
 // ------------------------------------------------------------
@@ -550,7 +573,7 @@ func TestUnissuedToken(t *testing.T) {
 
 func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 	list := data.Shoppinglist{
-		ListId:     0,
+		ListId:     rand.Int63(),
 		Name:       name,
 		CreatedBy:  userId,
 		LastEdited: time.Now().Format(time.RFC3339),
@@ -580,6 +603,9 @@ func createListSharing(listId int64, userId int64) (data.ListShared, error) {
 func TestCreatingList(t *testing.T) {
 	log.Print("Testing creating list")
 	connectDatabase()
+	CreateTestUser(t)
+	login(t)
+
 	// Creating with default configuration
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
@@ -591,14 +617,14 @@ func TestCreatingList(t *testing.T) {
 	}
 	listName := "test list"
 	list := data.Shoppinglist{
-		ListId:     0,
+		ListId:     rand.Int63(),
 		Name:       listName,
 		CreatedBy:  user.ID,
 		LastEdited: time.Now().Format(time.RFC3339),
 		Items: []data.ItemWire{
-			data.ItemWire{
+			{
 				Name:     "Item",
-				Icon:     "",
+				Icon:     "ic_item",
 				Quantity: 1,
 				Checked:  false,
 			},
@@ -623,30 +649,23 @@ func TestCreatingList(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
-	// // Parsing answer and expect everything the same except ID
-	// var onlineList data.Shoppinglist
-	// if err = json.Unmarshal(w.Body.Bytes(), &onlineList); err != nil {
-	// 	log.Printf("Expected JSON list, but parsing failed: %s", err)
-	// 	t.FailNow()
-	// }
-
-	// assert.NotEqual(t, 0, onlineList.ID)
-	// assert.Equal(t, list.Name, onlineList.Name)
-	// assert.Equal(t, list.CreatedBy, onlineList.CreatedBy)
-	// assert.Equal(t, list.LastEdited, onlineList.LastEdited)
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	// database.ResetShoppingListTable()
+	// Should already delete all mappings
+	DeleteTestUser(t)
 }
 
 func TestGetAllOwnLists(t *testing.T) {
+	log.Print("Testing if all own lists can be obtained")
+	connectDatabase()
+	CreateTestUser(t)
+
 	user, err := readUserFile()
 	if err != nil {
 		log.Printf("Cannot read user file: %s", err)
 		t.FailNow()
 	}
-	log.Printf("Testing getting all own lists for user %d", user.ID)
-	connectDatabase()
 
 	// Add two lists for our user behind the curtains
 	var offlineList []data.Shoppinglist
@@ -654,11 +673,13 @@ func TestGetAllOwnLists(t *testing.T) {
 		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID); err != nil {
 			log.Printf("Failed to create list: %s", err)
 		} else {
+			// TODO: Add items for this list
 			offlineList = append(offlineList, list)
 		}
 	}
 
 	// Now trying if we can get both lists via the API
+	login(t)
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
@@ -690,16 +711,19 @@ func TestGetAllOwnLists(t *testing.T) {
 
 	database.PrintShoppingListTable()
 	database.ResetShoppingListTable()
+	DeleteTestUser(t)
 }
 
 func TestGetAllLists(t *testing.T) {
+	log.Print("Testing if all lists can be obtained")
+	connectDatabase()
+	CreateTestUser(t)
+
 	user, err := readUserFile()
 	if err != nil {
 		log.Printf("Cannot read user file: %s", err)
 		t.FailNow()
 	}
-	log.Printf("Testing getting all lists for user %d", user.ID)
-	connectDatabase()
 
 	// Creating two own lists
 	var offlineList []data.Shoppinglist
@@ -727,6 +751,7 @@ func TestGetAllLists(t *testing.T) {
 	}
 
 	// Now trying if we can get both lists via the API
+	login(t)
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
@@ -759,20 +784,25 @@ func TestGetAllLists(t *testing.T) {
 	database.PrintShoppingListTable()
 	database.ResetShoppingListTable()
 	database.ResetSharedListTable()
+	DeleteTestUser(t)
 }
 
 func TestRemoveList(t *testing.T) {
 	// TODO:
+
+	assert.Fail(t, "Not implemented")
 }
 
 func TestCreateSharing(t *testing.T) {
+	log.Print("Testing if all lists can be obtained")
+	connectDatabase()
+	CreateTestUser(t)
+
 	user, err := readUserFile()
 	if err != nil {
 		log.Printf("Cannot read user file: %s", err)
 		t.FailNow()
 	}
-	log.Printf("Testing creating sharing for user %d", user.ID)
-	connectDatabase()
 
 	// Creating two own lists and share one with a random user
 	sharedWithUserId := 12345
@@ -788,6 +818,7 @@ func TestCreateSharing(t *testing.T) {
 	}
 
 	// Now trying if we can get both lists via the API
+	login(t)
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
@@ -824,17 +855,19 @@ func TestCreateSharing(t *testing.T) {
 	database.PrintShoppingListTable()
 	database.ResetShoppingListTable()
 	database.ResetSharedListTable()
+	DeleteTestUser(t)
 }
 
 func TestCreateSharingOfUnownedList(t *testing.T) {
-	// TODO: Testing that no one can create sharing for list that is not owned by himself
+	log.Print("Testing if all lists can be obtained")
+	connectDatabase()
+	CreateTestUser(t)
+
 	user, err := readUserFile()
 	if err != nil {
 		log.Printf("Cannot read user file: %s", err)
 		t.FailNow()
 	}
-	log.Printf("Testing creating sharing for user %d", user.ID)
-	connectDatabase()
 
 	// Creating a list that WE DO NOT OWN
 	list, err := createListOffline("unowned list 1", user.ID+1)
@@ -844,6 +877,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	}
 
 	// Now trying if we can share the list via the API
+	login(t)
 	router := server.SetupRouter(cfg)
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
@@ -874,82 +908,4 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	database.PrintSharingTable()
 	database.ResetShoppingListTable()
 	database.ResetSharedListTable()
-}
-
-func TestPushingOwnItem(t *testing.T) {
-	log.Print("Testing sharing one own item")
-	connectDatabase()
-
-	router := server.SetupRouter(cfg)
-	w := httptest.NewRecorder()
-	token, err := readJwtFromFile()
-	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
-		t.FailNow()
-	}
-	bearer := "Bearer " + token
-	item := data.Item{
-		ID:   0,
-		Name: "new item",
-		Icon: "unknown",
-	}
-	encodedItem, err := json.Marshal(item)
-	if err != nil {
-		log.Printf("Failed to encoded item: %s", err)
-		t.FailNow()
-	}
-	reader := bytes.NewReader(encodedItem)
-	req, _ := http.NewRequest("POST", "/v1/item", reader)
-	// Adding the authentication
-	req.Header.Add("Authorization", bearer)
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-
-	database.PrintItemTable()
-	database.ResetItemTable()
-}
-
-func TestPushingMultipleItems(t *testing.T) {
-	log.Print("Testing sharing of all own items")
-	user, err := readUserFile()
-	if err != nil {
-		log.Printf("Cannot read user file: %s", err)
-		t.FailNow()
-	}
-	log.Printf("Testing creating sharing for user %d", user.ID)
-	connectDatabase()
-
-	router := server.SetupRouter(cfg)
-	w := httptest.NewRecorder()
-	token, err := readJwtFromFile()
-	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
-		t.FailNow()
-	}
-	bearer := "Bearer " + token
-	item := data.Item{
-		ID:   0,
-		Name: "new item",
-		Icon: "unknown",
-	}
-	var multipleItems []data.Item
-	for i := 0; i < 3; i++ {
-		multipleItems = append(multipleItems, item)
-	}
-	encodedItem, err := json.Marshal(multipleItems)
-	if err != nil {
-		log.Printf("Failed to encoded items: %s", err)
-		t.FailNow()
-	}
-	reader := bytes.NewReader(encodedItem)
-	req, _ := http.NewRequest("POST", "/v1/items", reader)
-	// Adding the authentication
-	req.Header.Add("Authorization", bearer)
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-
-	database.PrintItemTable()
-	database.ResetItemTable()
 }
