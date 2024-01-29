@@ -594,7 +594,7 @@ func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 }
 
 func createListSharing(listId int64, userId int64) (data.ListShared, error) {
-	sharing, err := database.CreateSharedList(listId, userId)
+	sharing, err := database.CreateOrUpdateSharedList(listId, userId)
 	if err != nil {
 		return data.ListShared{}, err
 	}

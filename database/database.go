@@ -256,7 +256,7 @@ func GetShoppingListWithId(id int64, createdBy int64) (int, data.Shoppinglist, e
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
 	var list data.Shoppinglist
-	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err == sql.ErrNoRows {
+	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err == sql.ErrNoRows {
 		return 0, data.Shoppinglist{}, err
 	}
 	return dbId, list, nil
@@ -378,7 +378,7 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
 	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
-		log.Printf("List %d exists. Replacing...", list.ListId)
+		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
 		query = fmt.Sprintf("REPLACE INTO %s (id, listId, name, createdBy, lastEdited) VALUES (%d, ?, ?, ?, ?)", shoppingListTable, databaseListId)
 	}
 	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
@@ -511,6 +511,16 @@ func ResetShoppingListTable() {
 
 const sharedListTable = "sharedList"
 
+func GetSharedListFromUserAndListId(listId int64, sharedWith int64) (data.ListShared, error) {
+	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
+	row := db.QueryRow(query, listId)
+	var shared data.ListShared
+	if err := row.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err == sql.ErrNoRows {
+		return data.ListShared{}, err
+	}
+	return shared, nil
+}
+
 func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
 	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ?"
 	rows, err := db.Query(query, listId)
@@ -549,7 +559,12 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 	return list, nil
 }
 
-func CreateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
+func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
+	sharedExists, err := GetSharedListFromUserAndListId(listId, sharedWith)
+	if err == nil {
+		log.Printf("Shared of list %d for user %d exists", listId, sharedWith)
+		return sharedExists, nil
+	}
 	query := "INSERT INTO " + sharedListTable + " (listId, sharedWithId) VALUES (?, ?)"
 	shared := data.ListShared{
 		ID:         0,

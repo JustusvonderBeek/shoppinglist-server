@@ -43,6 +43,11 @@ type ListShared struct {
 	SharedWith int64
 }
 
+type ListSharedWire struct {
+	ListId     int64
+	SharedWith int64
+}
+
 type ItemPerList struct {
 	ID       int64
 	ListId   int64

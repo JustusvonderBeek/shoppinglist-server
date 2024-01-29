@@ -213,7 +213,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	var shared data.ListShared
+	var shared data.ListSharedWire
 	if err = c.BindJSON(&shared); err != nil {
 		log.Printf("Failed to bind given data: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -236,7 +236,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	listShared, err := database.CreateSharedList(shared.ListId, shared.SharedWith)
+	listShared, err := database.CreateOrUpdateSharedList(shared.ListId, shared.SharedWith)
 	if err != nil {
 		log.Printf("Failed to create sharing: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
