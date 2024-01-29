@@ -367,7 +367,7 @@ func checkListCorrect(list data.Shoppinglist) error {
 	if lastEdit, err := time.Parse(time.RFC3339, list.LastEdited); err != nil {
 		return fmt.Errorf("invalid timestamp: %s", err)
 	} else if lastEdit.Before(time.Now().Add(5 * time.Second).In(time.UTC)) {
-		return fmt.Errorf("invalid field last edited. time '%s' is in future", list.LastEdited)
+		return fmt.Errorf("invalid field last edited. time '%s' is in future. Now: %s", list.LastEdited, time.Now().GoString())
 	}
 	return nil
 }
