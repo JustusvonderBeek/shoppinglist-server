@@ -84,6 +84,14 @@ func storeConfiguration(confFile string) {
 
 // ------------------------------------------------------------
 
+func ResetDatabase() {
+	ResetUserTable()
+	ResetSharedListTable()
+	ResetItemTable()
+	ResetItemPerListTable()
+	ResetShoppingListTable()
+}
+
 func CheckDatabaseOnline(cfg configuration.Config) {
 	if config == (DBConf{}) {
 		log.Print("Configuration not initialized")
@@ -243,15 +251,20 @@ func ResetUserTable() {
 
 const shoppingListTable = "shoppinglist"
 
-func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
+func GetShoppingListWithId(id int64, createdBy int64) (int, data.Shoppinglist, error) {
 	query := "SELECT * FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
 	var list data.Shoppinglist
 	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err == sql.ErrNoRows {
-		return data.Shoppinglist{}, err
+		return 0, data.Shoppinglist{}, err
 	}
-	return list, nil
+	return dbId, list, nil
+}
+
+func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
+	_, list, err := GetShoppingListWithId(id, createdBy)
+	return list, err
 }
 
 func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
@@ -356,17 +369,17 @@ func checkItemCorrect(item data.ItemWire) (data.Item, error) {
 	return converted, nil
 }
 
-func createShoppingListBase(list data.Shoppinglist) error {
+func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	if err := checkListCorrect(list); err != nil {
 		log.Printf("List not in correct format for insertion: %s", err)
 		return err
 	}
 	// Check if list exists and update / insert the values in this case
 	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
-	if _, err := GetShoppingList(list.ListId, list.CreatedBy.ID); err == nil {
+	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
 		log.Printf("List %d exists. Replacing...", list.ListId)
-		query = "REPLACE INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
+		query = fmt.Sprintf("REPLACE INTO %s (id, listId, name, createdBy, lastEdited) VALUES (%d, ?, ?, ?, ?)", shoppingListTable, databaseListId)
 	}
 	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
 	if err != nil {
@@ -424,9 +437,9 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 	return nil
 }
 
-func CreateShoppingList(list data.Shoppinglist) error {
+func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
 	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Name, list.ListId, list.CreatedBy)
-	if err := createShoppingListBase(list); err != nil {
+	if err := createOrUpdateShoppingListBase(list); err != nil {
 		return err
 	}
 	itemIds, err := addItemsForShoppingList(list)

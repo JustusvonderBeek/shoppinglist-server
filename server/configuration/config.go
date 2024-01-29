@@ -6,6 +6,7 @@ type Config struct {
 
 	Logfile        string
 	DatabaseConfig string
+	ResetDatabase  bool
 	TLSCertificate string
 	TLSKeyfile     string
 	JWTSecretFile  string
