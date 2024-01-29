@@ -176,7 +176,7 @@ func postShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	err = database.CreateShoppingList(list)
+	err = database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return

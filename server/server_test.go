@@ -583,7 +583,7 @@ func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 		LastEdited: time.Now().Format(time.RFC3339),
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateShoppingList(list)
+	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		return data.Shoppinglist{}, err
 	}

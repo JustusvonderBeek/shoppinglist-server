@@ -247,7 +247,7 @@ func TestCreatingList(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateShoppingList(list)
+	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
@@ -279,7 +279,7 @@ func TestModifyListName(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateShoppingList(list)
+	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
@@ -295,7 +295,7 @@ func TestModifyListName(t *testing.T) {
 	}
 	updatedList := list
 	updatedList.Name = "New List Name"
-	err = database.CreateShoppingList(updatedList)
+	err = database.CreateOrUpdateShoppingList(updatedList)
 	if err != nil {
 		log.Printf("Failed to modify shopping list name: %s", err)
 		t.FailNow()
@@ -330,7 +330,7 @@ func TestDeletingList(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateShoppingList(list)
+	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
