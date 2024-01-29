@@ -323,7 +323,7 @@ func execDB(query string, args []interface{}) (sql.Result, error) {
 }
 
 func checkListCorrect(list data.Shoppinglist) error {
-	if list.CreatedBy == 0 {
+	if list.CreatedBy.ID == 0 {
 		return errors.New("invalid field created by")
 	}
 	if list.Name == "" {
@@ -358,7 +358,7 @@ func createShoppingListBase(list data.Shoppinglist) error {
 	}
 	// Check if list exists and update / insert the values in this case
 	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
-	if _, err := GetShoppingList(list.ListId, list.CreatedBy); err == nil {
+	if _, err := GetShoppingList(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
 		log.Printf("List %d exists. Replacing...", list.ListId)
 		query = "REPLACE INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
@@ -410,7 +410,7 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 			ItemId:   itemIds[i],
 			Quantity: item.Quantity,
 			Checked:  item.Checked,
-			AddedBy:  list.CreatedBy,
+			AddedBy:  list.CreatedBy.ID,
 		}
 		if _, err := InsertItemToList(converted); err != nil {
 			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Name)

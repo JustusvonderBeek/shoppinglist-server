@@ -171,7 +171,7 @@ func postShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	if userId != int(list.CreatedBy) || list.CreatedBy == 0 {
+	if userId != int(list.CreatedBy.ID) || list.CreatedBy.ID == 0 {
 		log.Print("The logged in user and the created by are not equal")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -231,7 +231,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if list.CreatedBy != int64(userId) {
+	if list.CreatedBy.ID != int64(userId) {
 		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return

@@ -572,10 +572,14 @@ func TestUnissuedToken(t *testing.T) {
 // ------------------------------------------------------------
 
 func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
+	creator := data.ListCreator{
+		ID:   userId,
+		Name: "Testuser",
+	}
 	list := data.Shoppinglist{
 		ListId:     rand.Int63(),
 		Name:       name,
-		CreatedBy:  userId,
+		CreatedBy:  creator,
 		LastEdited: time.Now().Format(time.RFC3339),
 		Items:      []data.ItemWire{},
 	}
@@ -583,7 +587,7 @@ func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 	if err != nil {
 		return data.Shoppinglist{}, err
 	}
-	if list.ListId == 0 || list.Name != name || list.CreatedBy != userId {
+	if list.ListId == 0 || list.Name != name || list.CreatedBy.ID != userId {
 		return data.Shoppinglist{}, errors.New("list was incorrectly stored")
 	}
 	return list, nil
@@ -616,10 +620,14 @@ func TestCreatingList(t *testing.T) {
 		t.FailNow()
 	}
 	listName := "test list"
+	creator := data.ListCreator{
+		ID:   user.ID,
+		Name: user.Username,
+	}
 	list := data.Shoppinglist{
 		ListId:     rand.Int63(),
 		Name:       listName,
-		CreatedBy:  user.ID,
+		CreatedBy:  creator,
 		LastEdited: time.Now().Format(time.RFC3339),
 		Items: []data.ItemWire{
 			{

@@ -24,10 +24,15 @@ type Answer struct {
 // The list data structures
 // ------------------------------------------------------------
 
+type ListCreator struct {
+	ID   int64
+	Name string
+}
+
 type Shoppinglist struct {
 	ListId     int64
 	Name       string
-	CreatedBy  int64
+	CreatedBy  ListCreator
 	LastEdited string
 	Items      []ItemWire
 }
