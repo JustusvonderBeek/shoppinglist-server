@@ -142,6 +142,18 @@ func GetUser(id int64) (data.User, error) {
 	return user, nil
 }
 
+func GetUserInWireFormat(id int64) (data.UserWire, error) {
+	user, err := GetUser(id)
+	if err != nil {
+		return data.UserWire{}, err
+	}
+	userWire := data.UserWire{
+		ID:       user.ID,
+		Username: user.Username,
+	}
+	return userWire, nil
+}
+
 func CheckUserExists(id int64) error {
 	log.Printf("Checking if user exists")
 	_, err := GetUser(id)
@@ -319,10 +331,15 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
+		creatorInfo, err := GetUserInWireFormat(list.CreatedBy.ID)
+		if err != nil {
+			log.Printf("Failed to find info of user that created the list")
+		}
+		list.CreatedBy.Name = creatorInfo.Username
 		lists = append(lists, list)
 	}
 	return lists, nil
@@ -340,6 +357,10 @@ func execDB(query string, args []interface{}) (sql.Result, error) {
 	return result, nil
 }
 
+func inTimeSpan(start, end, check time.Time) bool {
+	return check.After(start) && check.Before(end)
+}
+
 func checkListCorrect(list data.Shoppinglist) error {
 	if list.CreatedBy.ID == 0 {
 		return errors.New("invalid field created by")
@@ -349,7 +370,7 @@ func checkListCorrect(list data.Shoppinglist) error {
 	}
 	if lastEdit, err := time.Parse(time.RFC3339, list.LastEdited); err != nil {
 		return fmt.Errorf("invalid timestamp: %s", err)
-	} else if lastEdit.After(time.Now()) {
+	} else if inTimeSpan(time.Now().Add(-time.Second), time.Now().Add(time.Second), lastEdit) {
 		return errors.New("invalid field last edited. time is in future")
 	}
 	return nil

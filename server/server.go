@@ -34,6 +34,24 @@ func updateUserinfo(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+func getUserInfos(c *gin.Context) {
+	sUserId := c.Param("userId")
+	queriedUserId, err := strconv.Atoi(sUserId)
+	if err != nil {
+		log.Printf("Failed to parse given item id: %s", sUserId)
+		log.Printf("Err: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	user, err := database.GetUserInWireFormat(int64(queriedUserId))
+	if err != nil {
+		log.Printf("Queried user %d does not exist", queriedUserId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
 // ------------------------------------------------------------
 // Handling of lists
 // ------------------------------------------------------------
@@ -294,7 +312,8 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	authorized.Use(authentication.AuthenticationMiddleware(cfg))
 	{
 		// Taking care of users which are registered but want to update their info
-		authorized.PUT("/update/userinfo", updateUserinfo)
+		authorized.PUT("/userinfo/:userId", updateUserinfo)
+		authorized.GET("/userinfo/:userId", getUserInfos)
 
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists

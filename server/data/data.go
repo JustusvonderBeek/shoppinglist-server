@@ -12,6 +12,11 @@ type User struct {
 	Password string
 }
 
+type UserWire struct {
+	ID       int64
+	Username string
+}
+
 // ------------------------------------------------------------
 // The answer status structure
 // ------------------------------------------------------------
