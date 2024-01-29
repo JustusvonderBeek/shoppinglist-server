@@ -265,10 +265,15 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
+		user, err := GetUser(list.CreatedBy.ID)
+		if err != nil {
+			return []data.Shoppinglist{}, err
+		}
+		list.CreatedBy.Name = user.Username
 		lists = append(lists, list)
 	}
 	return lists, nil
@@ -363,7 +368,7 @@ func createShoppingListBase(list data.Shoppinglist) error {
 		log.Printf("List %d exists. Replacing...", list.ListId)
 		query = "REPLACE INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
 	}
-	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy, list.LastEdited)
+	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
 	if err != nil {
 		return err
 	}
@@ -420,7 +425,7 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 }
 
 func CreateShoppingList(list data.Shoppinglist) error {
-	log.Printf("Creating shopping list '%s' with id '%d' from %d", list.Name, list.ListId, list.CreatedBy)
+	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Name, list.ListId, list.CreatedBy)
 	if err := createShoppingListBase(list); err != nil {
 		return err
 	}
@@ -895,7 +900,7 @@ func PrintShoppingListTable() {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
