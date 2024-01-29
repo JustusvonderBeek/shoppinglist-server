@@ -357,10 +357,6 @@ func execDB(query string, args []interface{}) (sql.Result, error) {
 	return result, nil
 }
 
-func inTimeSpan(start, end, check time.Time) bool {
-	return check.After(start) && check.Before(end)
-}
-
 func checkListCorrect(list data.Shoppinglist) error {
 	if list.CreatedBy.ID == 0 {
 		return errors.New("invalid field created by")
@@ -370,8 +366,8 @@ func checkListCorrect(list data.Shoppinglist) error {
 	}
 	if lastEdit, err := time.Parse(time.RFC3339, list.LastEdited); err != nil {
 		return fmt.Errorf("invalid timestamp: %s", err)
-	} else if inTimeSpan(time.Now().Add(-time.Second), time.Now().Add(time.Second), lastEdit) {
-		return errors.New("invalid field last edited. time is in future")
+	} else if lastEdit.Before(time.Now().Add(5 * time.Second)) {
+		return fmt.Errorf("invalid field last edited. time '%s' is in future", list.LastEdited)
 	}
 	return nil
 }
