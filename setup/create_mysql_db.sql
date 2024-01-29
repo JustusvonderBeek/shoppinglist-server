@@ -63,7 +63,7 @@ CREATE TABLE shoppinglist(
 
 CREATE TABLE sharedList(
     id              INT AUTO_INCREMENT  NOT NULL,
-    listId          INT                 NOT NULL,
+    listId          BIGINT              NOT NULL,
     sharedWithId    BIGINT              NOT NULL,
     PRIMARY KEY (`id`)
 );
