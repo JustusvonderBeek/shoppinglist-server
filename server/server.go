@@ -232,7 +232,7 @@ func shareList(c *gin.Context) {
 		return
 	}
 	if list.CreatedBy.ID != int64(userId) {
-		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy)
+		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

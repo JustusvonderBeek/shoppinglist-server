@@ -236,10 +236,14 @@ func TestModifyUserPassword(t *testing.T) {
 
 func TestCreatingList(t *testing.T) {
 	connectDatabase()
+	creator := data.ListCreator{
+		ID:   1337,
+		Name: "List Creator",
+	}
 	list := data.Shoppinglist{
 		ListId:     0,
 		Name:       "Create List Name",
-		CreatedBy:  1337,
+		CreatedBy:  creator,
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
@@ -248,7 +252,7 @@ func TestCreatingList(t *testing.T) {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -264,10 +268,14 @@ func TestCreatingList(t *testing.T) {
 
 func TestModifyListName(t *testing.T) {
 	connectDatabase()
+	creator := data.ListCreator{
+		ID:   1337,
+		Name: "List Creator",
+	}
 	list := data.Shoppinglist{
 		ListId:     0,
 		Name:       "Create List Name",
-		CreatedBy:  1337,
+		CreatedBy:  creator,
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
@@ -276,7 +284,7 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -292,7 +300,7 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to modify shopping list name: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(updatedList.ListId, updatedList.CreatedBy)
+	getList, err = database.GetShoppingList(updatedList.ListId, updatedList.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get list: %s", err)
 		t.FailNow()
@@ -311,10 +319,14 @@ func TestModifyListName(t *testing.T) {
 
 func TestDeletingList(t *testing.T) {
 	connectDatabase()
+	creator := data.ListCreator{
+		ID:   1337,
+		Name: "List Creator",
+	}
 	list := data.Shoppinglist{
 		ListId:     0,
 		Name:       "Create List Name",
-		CreatedBy:  1337,
+		CreatedBy:  creator,
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
@@ -324,7 +336,7 @@ func TestDeletingList(t *testing.T) {
 		t.FailNow()
 	}
 	database.PrintShoppingListTable()
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy)
+	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -338,7 +350,7 @@ func TestDeletingList(t *testing.T) {
 		log.Printf("Failed to delete shopping list: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(list.ListId, list.CreatedBy)
+	getList, err = database.GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err == nil || getList.ListId == list.ListId {
 		log.Printf("Can get delete list!")
 		t.FailNow()
