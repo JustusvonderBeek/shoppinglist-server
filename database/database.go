@@ -578,7 +578,7 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 
 func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
 	sharedExists, err := GetSharedListFromUserAndListId(listId, sharedWith)
-	if err == nil {
+	if err == nil && sharedExists.SharedWith != 0 {
 		log.Printf("Shared of list %d for user %d exists", listId, sharedWith)
 		return sharedExists, nil
 	}
