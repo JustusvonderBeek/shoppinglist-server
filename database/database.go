@@ -533,7 +533,7 @@ func GetSharedListFromUserAndListId(listId int64, sharedWith int64) (data.ListSh
 	row := db.QueryRow(query, listId)
 	var shared data.ListShared
 	if err := row.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err == sql.ErrNoRows {
-		return data.ListShared{}, err
+		return data.ListShared{ListId: -1}, err
 	}
 	return shared, nil
 }
@@ -578,7 +578,7 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 
 func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
 	sharedExists, err := GetSharedListFromUserAndListId(listId, sharedWith)
-	if err == nil && sharedExists.SharedWith != 0 {
+	if err == nil && sharedExists.ListId != -1 {
 		log.Printf("Shared of list %d for user %d exists", listId, sharedWith)
 		return sharedExists, nil
 	}
