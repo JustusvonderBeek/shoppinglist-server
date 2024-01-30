@@ -528,14 +528,21 @@ func ResetShoppingListTable() {
 
 const sharedListTable = "sharedList"
 
-func GetSharedListFromUserAndListId(listId int64, sharedWith int64) (data.ListShared, error) {
+func GetSharedListFromUserAndListId(listId int64, sharedWith int64) ([]data.ListShared, error) {
 	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
-	row := db.QueryRow(query, listId)
-	var shared data.ListShared
-	if err := row.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err == sql.ErrNoRows {
-		return data.ListShared{ListId: -1}, err
+	rows, err := db.Query(query, listId)
+	if err != nil {
+		return []data.ListShared{}, err
 	}
-	return shared, nil
+	var sharedLists []data.ListShared
+	for rows.Next() {
+		var shared data.ListShared
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err == sql.ErrNoRows {
+			return []data.ListShared{}, err
+		}
+		sharedLists = append(sharedLists, shared)
+	}
+	return sharedLists, nil
 }
 
 func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
@@ -578,9 +585,9 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 
 func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
 	sharedExists, err := GetSharedListFromUserAndListId(listId, sharedWith)
-	if err == nil && sharedExists.ListId != -1 {
-		log.Printf("Shared of list %d for user %d exists", listId, sharedWith)
-		return sharedExists, nil
+	if err == nil && len(sharedExists) > 0 {
+		log.Printf("Shared of list %d for user %d exists", listId, sharedExists[0].SharedWith)
+		return sharedExists[0], nil
 	}
 	query := "INSERT INTO " + sharedListTable + " (listId, sharedWithId) VALUES (?, ?)"
 	shared := data.ListShared{
