@@ -530,7 +530,7 @@ const sharedListTable = "sharedList"
 
 func GetSharedListFromUserAndListId(listId int64, sharedWith int64) ([]data.ListShared, error) {
 	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
-	rows, err := db.Query(query, listId)
+	rows, err := db.Query(query, listId, sharedWith)
 	if err != nil {
 		return []data.ListShared{}, err
 	}
