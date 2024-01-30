@@ -558,7 +558,7 @@ func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
 }
 
 func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
-	query := "SELECT * FROM " + sharedListTable + " WHERE sharedWithId = ? OR sharedWithId = -1"
+	query := "SELECT * FROM " + sharedListTable + " WHERE sharedWithId IN (?, -1)"
 	rows, err := db.Query(query, userId)
 	if err != nil {
 		log.Printf("Failed to query for lists that are shared with the user %d: %s", userId, err)
