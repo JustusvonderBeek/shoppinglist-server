@@ -296,6 +296,11 @@ func GetShoppingListWithId(id int64, createdBy int64) (int, data.Shoppinglist, e
 	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err == sql.ErrNoRows {
 		return 0, data.Shoppinglist{}, err
 	}
+	user, err := GetUser(list.CreatedBy.ID)
+	if err != nil {
+		return 0, data.Shoppinglist{}, err
+	}
+	list.CreatedBy.Name = user.Username
 	return dbId, list, nil
 }
 
