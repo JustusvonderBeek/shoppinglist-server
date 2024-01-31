@@ -52,6 +52,18 @@ func getUserInfos(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+func getMatchingUsers(c *gin.Context) {
+	sUsername := c.Param("name")
+	users, err := database.GetUserFromMatchingUsername(sUsername)
+	if err != nil {
+		log.Printf("Failed to retrieve matching users: %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Found %d matching users", len(users))
+	c.JSON(http.StatusOK, users)
+}
+
 // ------------------------------------------------------------
 // Handling of lists
 // ------------------------------------------------------------
@@ -205,7 +217,44 @@ func postShoppingList(c *gin.Context) {
 
 // TODO:
 func removeShoppingList(c *gin.Context) {
-	log.Print("Not implemented")
+	sId := c.Param("id")
+	listId, err := strconv.Atoi(sId)
+	if err != nil {
+		log.Printf("Failed to parse given listId: %s", sId)
+		log.Printf("Err: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	if err != nil {
+		log.Printf("Failed to get mapping for listId %d: %s", listId, err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	if int(list.CreatedBy.ID) != userId {
+		log.Printf("Cannot delete list: User %d did not create list %d", userId, list.ListId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.DeleteShoppingList(int64(listId)); err != nil {
+		log.Printf("Failed to delete list %d", listId)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Delete list %d", listId)
+	c.Status(http.StatusOK)
 }
 
 // ------------------------------------------------------------
@@ -314,6 +363,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		// Taking care of users which are registered but want to update their info
 		authorized.PUT("/userinfo/:userId", updateUserinfo)
 		authorized.GET("/userinfo/:userId", getUserInfos)
+		authorized.GET("/users/:name", getMatchingUsers)
 
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
