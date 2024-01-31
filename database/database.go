@@ -154,6 +154,31 @@ func GetUserInWireFormat(id int64) (data.UserWire, error) {
 	return userWire, nil
 }
 
+func GetUserFromMatchingUsername(name string) ([]data.ListCreator, error) {
+	query := "SELECT * FROM " + userTable + " WHERE INSTR(username, '" + name + "') > 0"
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to query database for users: %s", err)
+		return []data.ListCreator{}, err
+	}
+	defer rows.Close()
+	// Looping through data, assigning the columns to the given struct
+	var users []data.ListCreator
+	for rows.Next() {
+		var user data.ListCreator
+		var password string
+		if err := rows.Scan(&user.ID, &user.Name, &password); err != nil {
+			return []data.ListCreator{}, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("Failed to retrieve users from database: %s", err)
+		return nil, err
+	}
+	return users, nil
+}
+
 func CheckUserExists(id int64) error {
 	log.Printf("Checking if user exists")
 	_, err := GetUser(id)
@@ -408,11 +433,11 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	return nil
 }
 
-func addItemsForShoppingList(list data.Shoppinglist) ([]int64, error) {
+func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, error) {
 	log.Printf("Adding (%d) items in shopping list to database", len(list.Items))
-	if len(list.Items) == 0 {
-		return []int64{}, nil
-	}
+	// if len(list.Items) == 0 {
+	// 	return []int64{}, nil
+	// }
 	var itemIds []int64
 	for _, item := range list.Items {
 		conv, err := checkItemCorrect(item)
@@ -426,6 +451,21 @@ func addItemsForShoppingList(list data.Shoppinglist) ([]int64, error) {
 			return []int64{}, err
 		}
 		itemIds = append(itemIds, itemId)
+	}
+	// Remove all items that are not in the request
+	itemsInList, err := GetItemsInList(list.ListId)
+	if err != nil {
+		return []int64{}, err
+	}
+	existingIds := make(map[int64]bool)
+	for _, item := range itemIds {
+		existingIds[item] = true
+	}
+	for _, itemInList := range itemsInList {
+		if !existingIds[itemInList.ItemId] {
+			log.Printf("Removing %d from list", itemInList.ItemId)
+			DeleteItemInList(itemInList.ItemId, list.ListId)
+		}
 	}
 	return itemIds, nil
 }
@@ -459,7 +499,7 @@ func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
 	if err := createOrUpdateShoppingListBase(list); err != nil {
 		return err
 	}
-	itemIds, err := addItemsForShoppingList(list)
+	itemIds, err := addOrRemoveItemsInShoppingList(list)
 	if err != nil {
 		return err
 	}
@@ -492,13 +532,17 @@ func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
 // }
 
 func DeleteShoppingList(id int64) error {
-	query := "DELETE FROM " + shoppingListTable + " WHERE id = ?"
+	query := "DELETE FROM " + shoppingListTable + " WHERE listId = ?"
 	_, err := db.Exec(query, id)
 	if err != nil {
 		log.Printf("Failed to delete shopping list with id %d", id)
 		return err
 	}
-	return nil
+	if err := DeleteSharingOfList(id); err != nil {
+		log.Printf("Failed to delete sharing of list %d", id)
+		return err
+	}
+	return DeleteAllItemsInList(id)
 }
 
 func DeleteShoppingListFrom(userId int64) error {
