@@ -423,16 +423,26 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	}
 	// Check if list exists and update / insert the values in this case
 	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
+	replacing := false
+	var result sql.Result
 	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
+		replacing = true
 		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
-		query = fmt.Sprintf("REPLACE INTO %s (id, listId, name, createdBy, lastEdited) VALUES (%d, ?, ?, ?, ?)", shoppingListTable, databaseListId)
+		query = fmt.Sprintf("UPDATE %s SET lastEdited = ? WHERE id = ?", shoppingListTable)
+		result, err = db.Exec(query, list.LastEdited, databaseListId)
+		if err != nil {
+			return err
+		}
 	}
-	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
-	if err != nil {
-		return err
+	if !replacing {
+		var err error
+		result, err = db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
+		if err != nil {
+			return err
+		}
 	}
-	if _, err = result.LastInsertId(); err != nil {
+	if _, err := result.LastInsertId(); err != nil {
 		return err
 	}
 	return nil
