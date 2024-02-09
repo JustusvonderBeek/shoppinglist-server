@@ -312,10 +312,54 @@ func shareList(c *gin.Context) {
 	c.JSON(http.StatusCreated, listShared)
 }
 
-// TODO:
 func unshareList(c *gin.Context) {
-	log.Print("Not implemented!")
-
+	sId := c.Param("id")
+	id, err := strconv.Atoi(sId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", sId, err)
+		return
+	}
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	var unshare data.ListSharedWire
+	if err := c.BindJSON(&unshare); err != nil {
+		log.Print("Failed to deserialize share object")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if unshare.ListId != int64(id) {
+		log.Print("Given list and unshare list do not match")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Check if the user owns this list?
+	list, err := database.GetShoppingList(unshare.ListId, int64(userId))
+	if err != nil {
+		log.Printf("Failed to retrieve list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if list.CreatedBy.ID != int64(userId) {
+		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.DeleteSharingForUser(unshare.ListId, unshare.SharedWith); err != nil {
+		log.Printf("Failed to delete sharing %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusOK)
 }
 
 // ------------------------------------------------------------
