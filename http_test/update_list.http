@@ -1,0 +1,236 @@
+
+# Creating a new user, login, create a new list and share the list with all
+@password = Password123
+@username = Testuser Laptop
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/create
+Content-Type: application/json
+{
+    "ID" : 0,
+    "Username" : "{{username}}",
+    "Password" : "{{password}}"
+}
+
+?? status == 201
+
+@userId = {{response.parsedBody.ID}}
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:14:47 GMT
+content-length: 86
+connection: close
+###
+
+# Login
+
+@userId = 860707998
+@username = Testuser Laptop
+@password = Password123
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/login
+Content-Type: application/json
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:00 GMT
+content-length: 219
+connection: close
+###
+# Create list
+
+@listname = Testlist
+@itemName = Testitem
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/list
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+{
+    "ListId" : 1,
+    "Name" : "{{listname}}",
+    "CreatedBy": {
+        "ID": {{userId}},
+        "Name": "{{username}}"
+    },
+    "LastEdited": "2024-02-19T16:17:45Z",
+    "Items": [
+        {
+            "Name": "{{itemName}}",
+            "Icon": "",
+            "Quantity": 1,
+            "Checked": false
+        }
+    ]
+}
+
+?? status == 201
+
+HTTP/1.1 201  - Created
+date: Mon, 19 Feb 2024 17:16:00 GMT
+content-length: 0
+connection: close
+###
+# Login
+
+@userId = 860707998
+@username = Testuser Laptop
+@password = Password123
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/login
+Content-Type: application/json
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:00 GMT
+content-length: 219
+connection: close
+###
+# Get all lists for user
+
+# @noRejectUnauthorized
+GET https://localhost:46152/v1/lists/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+?? status == 200
+
+{{response}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:01 GMT
+content-length: 191
+connection: close
+###
+
+# Login
+
+@userId = 860707998
+@username = Testuser Laptop
+@password = Password123
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/login
+Content-Type: application/json
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:01 GMT
+content-length: 219
+connection: close
+###
+# Create list
+
+@listname = Testlist
+@itemName = Testitem
+@itemName2 = Second Testitem
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/list
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+{
+    "ListId" : 1,
+    "Name" : "{{listname}}",
+    "CreatedBy": {
+        "ID": {{userId}},
+        "Name": "{{username}}"
+    },
+    "LastEdited": "2024-02-19T16:17:45Z",
+    "Items": [
+        {
+            "Name": "{{itemName}}",
+            "Icon": "",
+            "Quantity": 1,
+            "Checked": false
+        },
+        {
+            "Name": "{{itemName2}}",
+            "Icon": "",
+            "Quantity": 1,
+            "Checked": false
+        }
+    ]
+}
+
+?? status == 201
+
+HTTP/1.1 201  - Created
+date: Mon, 19 Feb 2024 17:16:01 GMT
+content-length: 0
+connection: close
+###
+# Login
+
+@userId = 860707998
+@username = Testuser Laptop
+@password = Password123
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/login
+Content-Type: application/json
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:02 GMT
+content-length: 219
+connection: close
+###
+# Get all lists for user
+
+# @noRejectUnauthorized
+GET https://localhost:46152/v1/lists/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+?? status == 200
+
+{{response}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Mon, 19 Feb 2024 17:16:02 GMT
+content-length: 257
+connection: close
