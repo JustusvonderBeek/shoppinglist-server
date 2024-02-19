@@ -467,21 +467,25 @@ func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, error) {
 		}
 		itemIds = append(itemIds, itemId)
 	}
-	// Remove all items that are not in the request
-	itemsInList, err := GetItemsInList(list.ListId)
-	if err != nil {
-		return []int64{}, err
-	}
-	existingIds := make(map[int64]bool)
-	for _, item := range itemIds {
-		existingIds[item] = true
-	}
-	for _, itemInList := range itemsInList {
-		if !existingIds[itemInList.ItemId] {
-			log.Printf("Removing %d from list", itemInList.ItemId)
-			DeleteItemInList(itemInList.ItemId, list.ListId)
-		}
-	}
+	// // Remove all items that are not in the request
+	// if err := DeleteAllItemsInList(list.ListId); err != nil {
+	// 	log.Printf("Failed to remove items from list %d: %s", list.ListId, err)
+	// 	return []int64{}, err
+	// }
+	// itemsInList, err := GetItemsInList(list.ListId)
+	// if err != nil {
+	// 	return []int64{}, err
+	// }
+	// existingIds := make(map[int64]bool)
+	// for _, item := range itemIds {
+	// 	existingIds[item] = true
+	// }
+	// for _, itemInList := range itemsInList {
+	// 	if !existingIds[itemInList.ItemId] {
+	// 		log.Printf("Removing %d from list", itemInList.ItemId)
+	// 		DeleteItemInList(itemInList.ItemId, list.ListId)
+	// 	}
+	// }
 	return itemIds, nil
 }
 
@@ -492,6 +496,10 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 	}
 	if len(list.Items) != len(itemIds) {
 		return errors.New("length of items and ids does not match")
+	}
+	if err := DeleteAllItemsInList(list.ListId); err != nil {
+		log.Printf("Failed to remove items from list %d for update: %s", list.ListId, err)
+		return err
 	}
 	for i, item := range list.Items {
 		converted := data.ItemPerList{
@@ -892,11 +900,11 @@ func InsertItem(name string, icon string) (int64, error) {
 
 func InsertItemStruct(item data.Item) (int64, error) {
 	// log.Printf("DEBUG: checking if item needs to be inserted or does exist")
-	selectQuery := "SELECT FROM " + itemTable + " WHERE name = '?'"
-	row := db.QueryRow(selectQuery, item.Name)
+	selectQuery := "SELECT * FROM " + itemTable + " WHERE name = ?"
+	row := db.QueryRow(selectQuery, strings.TrimSpace(item.Name))
 	var existingItem data.Item
 	if err := row.Scan(&existingItem.ID, &existingItem.Name, &existingItem.Icon); err == nil {
-		log.Printf("DEBUG: Item (%d) existed...", existingItem.ID)
+		log.Printf("DEBUG: Item (%s) existed (%d)...", existingItem.Name, existingItem.ID)
 		return existingItem.ID, nil
 	}
 	query := "INSERT INTO " + itemTable + " (name, icon) VALUES (?, ?)"
