@@ -208,6 +208,7 @@ func postShoppingList(c *gin.Context) {
 	}
 	err = database.CreateOrUpdateShoppingList(list)
 	if err != nil {
+		log.Printf("Failed to create or update list: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
