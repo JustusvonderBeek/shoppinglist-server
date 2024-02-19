@@ -396,14 +396,19 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
 		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
-		query = fmt.Sprintf("REPLACE INTO %s (id, listId, name, createdBy, lastEdited) VALUES (%d, ?, ?, ?, ?)", shoppingListTable, databaseListId)
-	}
-	result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
-	if err != nil {
-		return err
-	}
-	if _, err = result.LastInsertId(); err != nil {
-		return err
+		query = fmt.Sprintf("REPLACE INTO %s (id, listId, name, lastEdited) VALUES (%d, ?, ?, ?)", shoppingListTable, databaseListId)
+		_, err := db.Exec(query, list.ListId, list.Name, list.LastEdited)
+		if err != nil {
+			return err
+		}
+	} else {
+		result, err := db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
+		if err != nil {
+			return err
+		}
+		if _, err = result.LastInsertId(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -833,7 +838,7 @@ func InsertItem(name string, icon string) (int64, error) {
 
 func InsertItemStruct(item data.Item) (int64, error) {
 	// log.Printf("DEBUG: checking if item needs to be inserted or does exist")
-	selectQuery := "SELECT FROM " + itemTable + " WHERE name = ?"
+	selectQuery := "SELECT FROM " + itemTable + " WHERE name = '?'"
 	row := db.QueryRow(selectQuery, item.Name)
 	var existingItem data.Item
 	if err := row.Scan(&existingItem.ID, &existingItem.Name, &existingItem.Icon); err == nil {
