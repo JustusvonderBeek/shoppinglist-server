@@ -133,7 +133,7 @@ func TestResetUserDatabase(t *testing.T) {
 func CreateTestUser(t *testing.T) {
 	log.Print("Creating test user")
 	connectDatabase()
-	user, err := database.CreateUserAccount(USERNAME, PASSWORD)
+	user, err := database.CreateUserAccountInDatabase(USERNAME, PASSWORD)
 	if err != nil {
 		log.Printf("Failed to create user: %s", err)
 		t.FailNow()
@@ -711,7 +711,8 @@ func TestGetAllOwnLists(t *testing.T) {
 
 	assert.Equal(t, 2, len(allOwnLists))
 	for i := 0; i < 2; i++ {
-		assert.Equal(t, user.ID, allOwnLists[i].CreatedBy)
+		assert.Equal(t, user.ID, allOwnLists[i].CreatedBy.ID)
+		assert.Equal(t, user.Username, allOwnLists[i].CreatedBy.Name)
 		assert.Equal(t, offlineList[i].LastEdited, allOwnLists[i].LastEdited)
 		assert.Equal(t, offlineList[i].Name, allOwnLists[i].Name)
 		assert.Equal(t, offlineList[i].ListId, allOwnLists[i].ListId)
