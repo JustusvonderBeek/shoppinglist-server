@@ -1,5 +1,7 @@
 package data
 
+import "time"
+
 // Helping file containing all data structures
 
 // ------------------------------------------------------------
@@ -40,8 +42,8 @@ type Shoppinglist struct {
 	ListId     int64
 	Name       string
 	CreatedBy  ListCreator
-	Created    string
-	LastEdited string
+	Created    time.Time
+	LastEdited time.Time
 	Items      []ItemWire
 }
 
