@@ -249,7 +249,7 @@ func removeShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if err := database.DeleteShoppingList(int64(listId)); err != nil {
+	if err := database.DeleteShoppingList(int64(listId), int64(userId)); err != nil {
 		log.Printf("Failed to delete list %d", listId)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
