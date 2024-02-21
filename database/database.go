@@ -109,6 +109,7 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 		DBName:               config.DBName,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+		ParseTime:            true,
 	}
 	var err error
 	configString := mysqlCfg.FormatDSN()
@@ -136,7 +137,7 @@ func GetUser(id int64) (data.User, error) {
 	query := "SELECT * FROM " + userTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var user data.User
-	if err := row.Scan(&user.ID, &user.Username, &user.Password); err == sql.ErrNoRows {
+	if err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err == sql.ErrNoRows {
 		return data.User{}, err
 	}
 	return user, nil
@@ -185,9 +186,7 @@ func CheckUserExists(id int64) error {
 	return err
 }
 
-func CreateUserAccount(username string, passwd string) (data.User, error) {
-	log.Printf("Creating new user account: %s", username)
-	// Creating the struct we are going to insert first
+func createNewUserId() int64 {
 	userId := random.Int31()
 	for {
 		err := CheckUserExists(int64(userId))
@@ -198,21 +197,41 @@ func CreateUserAccount(username string, passwd string) (data.User, error) {
 			break
 		}
 	}
-	// Hashing the password
+	return int64(userId)
+}
+
+func createUser(username string, passwd string) (data.User, error) {
+	userId := createNewUserId()
 	hashedPw, err := argon2id.CreateHash(passwd, argon2id.DefaultParams)
 	if err != nil {
-		log.Printf("Failed to hash password: %s", err)
 		return data.User{}, err
 	}
-	newUser := data.User{
-		ID:       int64(userId),
-		Username: username,
-		Password: hashedPw,
+	if username == "" || passwd == "" {
+		return data.User{}, errors.New("invalid username or password")
 	}
-	log.Printf("Inserting %v", newUser)
+	created := time.Now().Local().Format(time.RFC3339)
+	newUser := data.User{
+		ID:        int64(userId),
+		Username:  username,
+		Password:  hashedPw,
+		Created:   created,
+		LastLogin: created,
+	}
+	return newUser, nil
+}
+
+func CreateUserAccountInDatabase(username string, passwd string) (data.User, error) {
+	log.Printf("Creating new user account: %s", username)
+	// Creating the struct we are going to insert first
+	newUser, err := createUser(username, passwd)
+	if err != nil {
+		log.Printf("Failed to create new user: %s", err)
+		return data.User{}, err
+	}
+	log.Printf("Inserting new user: %v", newUser)
 	// Insert the newly created user into the database
-	query := "INSERT INTO " + userTable + " (id, username, passwd) VALUES (?, ?, ?)"
-	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Password)
+	query := "INSERT INTO " + userTable + " (id, username, passwd, created, lastLogin) VALUES (?, ?, ?, ?, ?)"
+	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
@@ -260,12 +279,16 @@ func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
 }
 
 func DeleteUserAccount(id int64) error {
-	_, err := db.Exec("DELETE FROM shoppers WHERE id = ?", id)
+	query := "DELETE FROM " + userTable + " WHERE id = ?"
+	_, err := db.Exec(query, id)
 	if err != nil {
-		log.Printf("Failed to delete user with id %d", id)
+		log.Printf("Failed to delete user with id %d: %s", id, err)
 		return err
 	}
-	DeleteAllSharingForUser(id)
+	err = DeleteAllSharingForUser(id)
+	if err != nil {
+		return err
+	}
 	return DeleteShoppingListFrom(id)
 }
 
@@ -999,7 +1022,7 @@ func PrintUserTable(tableName string) {
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
 		var user data.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Password); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err != nil {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
 		log.Printf("%v", user)
