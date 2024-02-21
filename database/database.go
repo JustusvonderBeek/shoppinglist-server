@@ -316,11 +316,12 @@ func GetShoppingListWithId(id int64, createdBy int64) (int, data.Shoppinglist, e
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
 	var list data.Shoppinglist
-	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err == sql.ErrNoRows {
+	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err == sql.ErrNoRows {
 		return 0, data.Shoppinglist{}, err
 	}
-	user, err := GetUser(list.CreatedBy.ID)
+	user, err := GetUser(createdBy)
 	if err != nil {
+		log.Printf("User not found: %s", err)
 		return 0, data.Shoppinglist{}, err
 	}
 	list.CreatedBy.Name = user.Username
@@ -343,7 +344,7 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
@@ -398,18 +399,6 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	return lists, nil
 }
 
-func execDB(query string, args []interface{}) (sql.Result, error) {
-	result, err := db.Exec(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	_, err = result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 func checkListCorrect(list data.Shoppinglist) error {
 	if list.CreatedBy.ID == 0 {
 		return errors.New("invalid field created by")
@@ -417,9 +406,7 @@ func checkListCorrect(list data.Shoppinglist) error {
 	if list.Name == "" {
 		return errors.New("invalid field name")
 	}
-	if lastEdit, err := time.Parse(time.RFC3339, list.LastEdited); err != nil {
-		return fmt.Errorf("invalid timestamp: %s", err)
-	} else if lastEdit.After(time.Now().Add(5 * time.Second).In(time.UTC)) {
+	if list.LastEdited.After(time.Now().UTC().Add(5 * time.Second)) {
 		return fmt.Errorf("invalid field last edited. time '%s' is in future. Now: %s", list.LastEdited, time.Now().GoString())
 	}
 	return nil
@@ -445,22 +432,22 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 		return err
 	}
 	// Check if list exists and update / insert the values in this case
-	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, lastEdited) VALUES (?, ?, ?, ?)"
+	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, created, lastEdited) VALUES (?, ?, ?, ?, ?)"
 	replacing := false
 	var result sql.Result
 	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
 		replacing = true
 		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
-		query = fmt.Sprintf("UPDATE %s SET lastEdited = ? WHERE id = ?", shoppingListTable)
-		result, err = db.Exec(query, list.LastEdited, databaseListId)
+		query = fmt.Sprintf("UPDATE %s SET name = ?, lastEdited = ? WHERE id = ?", shoppingListTable)
+		result, err = db.Exec(query, list.Name, list.LastEdited, databaseListId)
 		if err != nil {
 			return err
 		}
 	}
 	if !replacing {
 		var err error
-		result, err = db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.LastEdited)
+		result, err = db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.Created, list.LastEdited)
 		if err != nil {
 			return err
 		}
@@ -577,14 +564,14 @@ func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
 // 	return list, err
 // }
 
-func DeleteShoppingList(id int64) error {
-	query := "DELETE FROM " + shoppingListTable + " WHERE listId = ?"
-	_, err := db.Exec(query, id)
+func DeleteShoppingList(id int64, createdBy int64) error {
+	query := "DELETE FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
+	_, err := db.Exec(query, id, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete shopping list with id %d", id)
 		return err
 	}
-	if err := DeleteSharingOfList(id); err != nil {
+	if err := DeleteSharingOfList(id, createdBy); err != nil {
 		log.Printf("Failed to delete sharing of list %d", id)
 		return err
 	}
@@ -698,9 +685,9 @@ func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, 
 	return shared, nil
 }
 
-func DeleteSharingOfList(listId int64) error {
-	query := "DELETE FROM " + sharedListTable + " WHERE listId = ?"
-	_, err := db.Exec(query, listId)
+func DeleteSharingOfList(listId int64, createdBy int64) error {
+	query := "DELETE FROM " + sharedListTable + " WHERE listId = ? AND createdBy = ?"
+	_, err := db.Exec(query, listId, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete sharing of list %d: %s", listId, err)
 		return err
