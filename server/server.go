@@ -304,7 +304,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	listShared, err := database.CreateOrUpdateSharedList(shared.ListId, shared.SharedWith)
+	listShared, err := database.CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
 	if err != nil {
 		log.Printf("Failed to create sharing: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -355,7 +355,7 @@ func unshareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if err := database.DeleteSharingForUser(unshare.ListId, unshare.SharedWith); err != nil {
+	if err := database.DeleteSharingForUser(unshare.ListId, unshare.CreatedBy, unshare.SharedWith); err != nil {
 		log.Printf("Failed to delete sharing %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
