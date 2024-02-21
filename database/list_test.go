@@ -21,9 +21,9 @@ func createUserDb(name string) (data.User, error) {
 	return user, nil
 }
 
-func createListBase(name string, id int64) data.Shoppinglist {
+func createListBase(name string, createdBy int64) data.Shoppinglist {
 	creator := data.ListCreator{
-		ID:   id,
+		ID:   createdBy,
 		Name: "List Creator",
 	}
 	created := time.Now().Local()
