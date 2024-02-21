@@ -18,14 +18,14 @@ Content-Type: application/json
 
 HTTP/1.1 201  - Created
 content-type: application/json; charset=utf-8
-date: Mon, 19 Feb 2024 17:14:47 GMT
-content-length: 86
+date: Wed, 21 Feb 2024 13:36:58 GMT
+content-length: 87
 connection: close
 ###
 
 # Login
 
-@userId = 860707998
+@userId = 478294346
 @username = Testuser Laptop
 @password = Password123
 
@@ -44,7 +44,7 @@ Content-Type: application/json
 
 HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
-date: Mon, 19 Feb 2024 17:16:00 GMT
+date: Wed, 21 Feb 2024 13:08:41 GMT
 content-length: 219
 connection: close
 ###
@@ -79,7 +79,7 @@ Authorization: Bearer {{jwtToken}}
 ?? status == 201
 
 HTTP/1.1 201  - Created
-date: Mon, 19 Feb 2024 17:16:00 GMT
+date: Wed, 21 Feb 2024 13:08:47 GMT
 content-length: 0
 connection: close
 ###
@@ -211,12 +211,6 @@ Content-Type: application/json
 @jwtToken={{response.parsedBody.token}}
 
 ?? status == 200
-
-HTTP/1.1 200  - OK
-content-type: application/json; charset=utf-8
-date: Mon, 19 Feb 2024 17:16:02 GMT
-content-length: 219
-connection: close
 ###
 # Get all lists for user
 
@@ -233,4 +227,55 @@ HTTP/1.1 200  - OK
 content-type: application/json; charset=utf-8
 date: Mon, 19 Feb 2024 17:16:02 GMT
 content-length: 257
+connection: close
+###
+# Login
+
+@userId = 478294346
+@username = Testuser Laptop
+@password = Password123
+
+# @noRejectUnauthorized
+POST https://localhost:46152/auth/login
+Content-Type: application/json
+{
+    "id" : {{userId}},
+    "username" : "{{username}}",
+    "password" : "{{password}}"
+}
+
+@jwtToken={{response.parsedBody.token}}
+
+?? status == 200
+
+###
+# Share created list
+
+@shareUserId = 1843408568
+@shareListId = 1
+
+# @noRejectUnauthorized
+POST https://localhost:46152/v1/share/{{shareListId}}
+Content-Type: application/json
+Authorization: Bearer {{jwtToken}}
+
+{
+    "ListId" : {{shareListId}},
+    "SharedWith" : {{shareUserId}}
+}
+
+?? status == 201
+
+{{response}}
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Wed, 21 Feb 2024 13:18:58 GMT
+content-length: 219
+connection: close
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Wed, 21 Feb 2024 13:18:58 GMT
+content-length: 44
 connection: close
