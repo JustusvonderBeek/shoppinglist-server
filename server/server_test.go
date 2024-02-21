@@ -580,7 +580,7 @@ func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 		ListId:     rand.Int63(),
 		Name:       name,
 		CreatedBy:  creator,
-		LastEdited: time.Now().Format(time.RFC3339),
+		LastEdited: time.Now().Local(),
 		Items:      []data.ItemWire{},
 	}
 	err := database.CreateOrUpdateShoppingList(list)
@@ -593,8 +593,8 @@ func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 	return list, nil
 }
 
-func createListSharing(listId int64, userId int64) (data.ListShared, error) {
-	sharing, err := database.CreateOrUpdateSharedList(listId, userId)
+func createListSharing(listId int64, createdBy int64, userId int64) (data.ListShared, error) {
+	sharing, err := database.CreateOrUpdateSharedList(listId, createdBy, userId)
 	if err != nil {
 		return data.ListShared{}, err
 	}
@@ -628,7 +628,7 @@ func TestCreatingList(t *testing.T) {
 		ListId:     rand.Int63(),
 		Name:       listName,
 		CreatedBy:  creator,
-		LastEdited: time.Now().Format(time.RFC3339),
+		LastEdited: time.Now().Local(),
 		Items: []data.ItemWire{
 			{
 				Name:     "Item",
@@ -753,7 +753,7 @@ func TestGetAllLists(t *testing.T) {
 		}
 		offlineList = append(offlineList, list)
 		// Create the sharing
-		if _, err = createListSharing(list.ListId, user.ID); err != nil {
+		if _, err = createListSharing(list.ListId, list.CreatedBy.ID, user.ID); err != nil {
 			log.Printf("Failed to create sharing: %s", err)
 			t.FailNow()
 		}

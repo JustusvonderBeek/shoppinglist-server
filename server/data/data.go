@@ -52,7 +52,7 @@ type ListShared struct {
 	ListId     int64
 	CreatedBy  int64
 	SharedWith int64
-	Created    string
+	Created    time.Time
 }
 
 type ListSharedWire struct {
