@@ -7,9 +7,11 @@ package data
 // ------------------------------------------------------------
 
 type User struct {
-	ID       int64
-	Username string
-	Password string
+	ID        int64
+	Username  string
+	Password  string
+	Created   string
+	LastLogin string
 }
 
 type UserWire struct {
@@ -38,6 +40,7 @@ type Shoppinglist struct {
 	ListId     int64
 	Name       string
 	CreatedBy  ListCreator
+	Created    string
 	LastEdited string
 	Items      []ItemWire
 }
@@ -45,21 +48,25 @@ type Shoppinglist struct {
 type ListShared struct {
 	ID         int64
 	ListId     int64
+	CreatedBy  int64
 	SharedWith int64
+	Created    string
 }
 
 type ListSharedWire struct {
 	ListId     int64
+	CreatedBy  int64
 	SharedWith int64
 }
 
 type ItemPerList struct {
-	ID       int64
-	ListId   int64
-	ItemId   int64
-	Quantity int64
-	Checked  bool
-	AddedBy  int64
+	ID        int64
+	ListId    int64
+	ItemId    int64
+	Quantity  int64
+	Checked   bool
+	CreatedBy int64
+	AddedBy   int64
 }
 
 // ------------------------------------------------------------
