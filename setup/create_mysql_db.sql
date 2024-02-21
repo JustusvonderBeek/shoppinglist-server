@@ -60,7 +60,7 @@ CREATE TABLE shoppinglist(
     name        VARCHAR(256)        NOT NULL,
     createdBy   BIGINT              NOT NULL,
     created     DATETIME            NOT NULL,
-    lastEdited  VARCHAR(256)        NOT NULL,
+    lastEdited  DATETIME            NOT NULL,
     PRIMARY KEY (`id`)
 );
 
