@@ -1,13 +1,10 @@
-package database_test
+package database
 
 import (
 	"log"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/alexedwards/argon2id"
-	"shop.cloudsheeptech.com/database"
 	"shop.cloudsheeptech.com/server/configuration"
 	"shop.cloudsheeptech.com/server/data"
 )
@@ -20,215 +17,17 @@ func connectDatabase() {
 	cfg := configuration.Config{
 		DatabaseConfig: "../resources/db.json",
 	}
-	database.CheckDatabaseOnline(cfg)
+	CheckDatabaseOnline(cfg)
 }
 
 func TestPrinting(t *testing.T) {
 	connectDatabase()
-	database.PrintShoppingListTable()
+	PrintShoppingListTable()
 }
 
 // ------------------------------------------------------------
-// Testing user creation and authentication
+// Testing the user in : user_test
 // ------------------------------------------------------------
-
-func TestInsertUser(t *testing.T) {
-	connectDatabase()
-	user := data.User{
-		ID:       12,
-		Username: strconv.Itoa(32),
-		Password: "Biene Maja",
-	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
-	if err != nil {
-		log.Printf("Password and hash do not match: %s", err)
-		t.FailNow()
-	}
-	if createdUser.Username != user.Username || !match {
-		log.Printf("User not correctly inserted")
-		t.FailNow()
-	}
-	log.Print("InsertUser successfully completed")
-	database.PrintUserTable("shoppers")
-	database.ResetUserTable()
-}
-
-func TestDeletingUser(t *testing.T) {
-	connectDatabase()
-	user := data.User{
-		ID:       0,
-		Username: "Delete User Test",
-		Password: "Biene Maja",
-	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
-	if err != nil {
-		log.Printf("Password and hash do not match: %s", err)
-		t.FailNow()
-	}
-	if createdUser.Username != user.Username || !match {
-		log.Printf("User not correctly inserted")
-		t.FailNow()
-	}
-	database.PrintUserTable("shoppers")
-	err = database.DeleteUserAccount(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to delete user with id %d from database", createdUser.ID)
-		t.FailNow()
-	}
-	deletedUser, err := database.GetUser(createdUser.ID)
-	if err == nil || deletedUser.ID != 0 {
-		log.Print("Could retrieve user from database after deleting!")
-		t.FailNow()
-	}
-	log.Print("DeleteUser successfully completed")
-	database.PrintUserTable("shoppers")
-	database.ResetUserTable()
-}
-
-func TestUserLogin(t *testing.T) {
-	connectDatabase()
-	user := data.User{
-		ID:       12,
-		Username: "Test User Login",
-		Password: "Secure Password 123",
-	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	match, err := argon2id.ComparePasswordAndHash(user.Password, createdUser.Password)
-	if err != nil {
-		log.Printf("Password and hash do not match: %s", err)
-		t.FailNow()
-	}
-	if createdUser.Username != user.Username || !match {
-		log.Printf("User not correctly inserted")
-		t.FailNow()
-	}
-	database.PrintUserTable("shoppers")
-	checkLoginUser, err := database.GetUser(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to get newly created user for login check: %s", err)
-		t.FailNow()
-	}
-	match, err = argon2id.ComparePasswordAndHash(user.Password, checkLoginUser.Password)
-	if err != nil {
-		log.Printf("Failed to compare password and hash: %s", err)
-		t.FailNow()
-	}
-	if !match {
-		log.Print("Password and hash do not match even though they should!")
-		t.FailNow()
-	}
-	match, _ = argon2id.ComparePasswordAndHash("Secure Password 12", checkLoginUser.Password)
-	if match {
-		log.Print("Passwords match even though they should not!")
-		t.FailNow()
-	}
-	log.Print("TestLoginUser successfully completed")
-	database.ResetUserTable()
-}
-
-func TestModifyUsername(t *testing.T) {
-	connectDatabase()
-	user := data.User{
-		ID:       12,
-		Username: "Test User modify",
-		Password: "Biene Maja",
-	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	checkOldUsername, err := database.GetUser(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to get newly created user for modify check: %s", err)
-		t.FailNow()
-	}
-	if checkOldUsername.Username != user.Username {
-		log.Print("Usernames do not match before checking!")
-		t.FailNow()
-	}
-	updatedUsername, err := database.ModifyUserAccountName(createdUser.ID, user.Username+" - Updated")
-	if err != nil {
-		log.Printf("Failed to update username: %s", err)
-		t.FailNow()
-	}
-	database.PrintUserTable("shoppers")
-	if updatedUsername.Username == checkOldUsername.Username {
-		log.Print("The updated username is still the same!")
-		t.FailNow()
-	}
-	checkNewUsername, err := database.GetUser(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to get updated user: %s", err)
-		t.FailNow()
-	}
-	if checkNewUsername.Username != user.Username+" - Updated" {
-		log.Print("Usernames do not match!")
-		t.FailNow()
-	}
-	log.Print("TestModifyUsername successfully completed")
-	database.ResetUserTable()
-}
-
-func TestModifyUserPassword(t *testing.T) {
-	connectDatabase()
-	user := data.User{
-		ID:       12,
-		Username: "Test User modify",
-		Password: "Old Password",
-	}
-	createdUser, err := database.CreateUserAccount(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		t.FailNow()
-	}
-	checkOldPassword, err := database.GetUser(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to get newly created user for modify check: %s", err)
-		t.FailNow()
-	}
-	if checkOldPassword.Password != createdUser.Password {
-		log.Print("Password do not match before update!")
-		t.FailNow()
-	}
-	updatedUser, err := database.ModifyUserAccountPassword(createdUser.ID, "New Password")
-	if err != nil {
-		log.Printf("Failed to update password: %s", err)
-		t.FailNow()
-	}
-	database.PrintUserTable("shoppers")
-	match, err := argon2id.ComparePasswordAndHash("New Password", updatedUser.Password)
-	if err != nil || !match {
-		log.Print("The password was not correctly updated!")
-		t.FailNow()
-	}
-	checkNewPassword, err := database.GetUser(createdUser.ID)
-	if err != nil {
-		log.Printf("Failed to get updated user: %s", err)
-		t.FailNow()
-	}
-	match, err = argon2id.ComparePasswordAndHash("New Password", checkNewPassword.Password)
-	if err != nil || !match {
-		log.Print("The password was not correctly updated!")
-		t.FailNow()
-	}
-	log.Print("TestModifyUserPassword successfully completed")
-	database.ResetUserTable()
-}
 
 // ------------------------------------------------------------
 // Testing data handling
@@ -247,12 +46,12 @@ func TestCreatingList(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateOrUpdateShoppingList(list)
+	err := CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -261,9 +60,9 @@ func TestCreatingList(t *testing.T) {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
-	database.PrintShoppingListTable()
+	PrintShoppingListTable()
 	log.Print("TestCreatingList successfully completed")
-	database.ResetShoppingListTable()
+	ResetShoppingListTable()
 }
 
 func TestModifyListName(t *testing.T) {
@@ -279,12 +78,12 @@ func TestModifyListName(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateOrUpdateShoppingList(list)
+	err := CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -295,12 +94,12 @@ func TestModifyListName(t *testing.T) {
 	}
 	updatedList := list
 	updatedList.Name = "New List Name"
-	err = database.CreateOrUpdateShoppingList(updatedList)
+	err = CreateOrUpdateShoppingList(updatedList)
 	if err != nil {
 		log.Printf("Failed to modify shopping list name: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(updatedList.ListId, updatedList.CreatedBy.ID)
+	getList, err = GetShoppingList(updatedList.ListId, updatedList.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get list: %s", err)
 		t.FailNow()
@@ -314,7 +113,7 @@ func TestModifyListName(t *testing.T) {
 		t.FailNow()
 	}
 	log.Print("TestModifyListName successfully completed")
-	database.ResetShoppingListTable()
+	ResetShoppingListTable()
 }
 
 func TestDeletingList(t *testing.T) {
@@ -330,13 +129,13 @@ func TestDeletingList(t *testing.T) {
 		LastEdited: "2024-01-01T12:00:00Z",
 		Items:      []data.ItemWire{},
 	}
-	err := database.CreateOrUpdateShoppingList(list)
+	err := CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	database.PrintShoppingListTable()
-	getList, err := database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	PrintShoppingListTable()
+	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -345,19 +144,19 @@ func TestDeletingList(t *testing.T) {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
-	err = database.DeleteShoppingList(list.ListId)
+	err = DeleteShoppingList(list.ListId)
 	if err != nil {
 		log.Printf("Failed to delete shopping list: %s", err)
 		t.FailNow()
 	}
-	getList, err = database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err = GetShoppingList(list.ListId, list.CreatedBy.ID)
 	if err == nil || getList.ListId == list.ListId {
 		log.Printf("Can get delete list!")
 		t.FailNow()
 	}
-	database.PrintShoppingListTable()
+	PrintShoppingListTable()
 	log.Print("TestDeletingList successfully completed")
-	database.ResetShoppingListTable()
+	ResetShoppingListTable()
 }
 
 // TODO: Extracting useful information for application
@@ -371,7 +170,7 @@ func TestInsertMapping(t *testing.T) {
 		Checked:  false,
 		AddedBy:  1234,
 	}
-	created, err := database.InsertItemToList(mapping)
+	created, err := InsertItemToList(mapping)
 	if err != nil {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		t.FailNow()
@@ -380,7 +179,7 @@ func TestInsertMapping(t *testing.T) {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
-	getMapping, err := database.GetItemsInList(mapping.ListId)
+	getMapping, err := GetItemsInList(mapping.ListId)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -389,9 +188,9 @@ func TestInsertMapping(t *testing.T) {
 		log.Printf("The list is longer than expected")
 		t.FailNow()
 	}
-	database.PrintItemPerListTable()
+	PrintItemPerListTable()
 	log.Print("InsertMapping successfully completed")
-	database.ResetItemPerListTable()
+	ResetItemPerListTable()
 }
 
 func TestDeleteMapping(t *testing.T) {
@@ -404,7 +203,7 @@ func TestDeleteMapping(t *testing.T) {
 		Checked:  false,
 		AddedBy:  1234,
 	}
-	created, err := database.InsertItemToList(mapping)
+	created, err := InsertItemToList(mapping)
 	if err != nil {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		t.FailNow()
@@ -413,7 +212,7 @@ func TestDeleteMapping(t *testing.T) {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
-	getMapping, err := database.GetItemsInList(mapping.ListId)
+	getMapping, err := GetItemsInList(mapping.ListId)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -422,13 +221,13 @@ func TestDeleteMapping(t *testing.T) {
 		log.Printf("The list is longer than expected")
 		t.FailNow()
 	}
-	database.PrintItemPerListTable()
-	err = database.DeleteItemInList(created.ItemId, created.ListId)
+	PrintItemPerListTable()
+	err = DeleteItemInList(created.ItemId, created.ListId)
 	if err != nil {
 		log.Printf("Failed to delete mapping")
 		t.FailNow()
 	}
-	getMapping, err = database.GetItemsInList(mapping.ListId)
+	getMapping, err = GetItemsInList(mapping.ListId)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -437,9 +236,9 @@ func TestDeleteMapping(t *testing.T) {
 		log.Printf("The list is longer than expected")
 		t.FailNow()
 	}
-	database.PrintItemPerListTable()
+	PrintItemPerListTable()
 	log.Print("DeleteMapping successfully completed")
-	database.ResetItemPerListTable()
+	ResetItemPerListTable()
 }
 
 // ------------------------------------------------------------
@@ -453,24 +252,24 @@ func TestGetAllItems(t *testing.T) {
 		Name: "New Item",
 		Icon: "Abc",
 	}
-	_, err := database.InsertItemStruct(item)
+	_, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item for testing")
 		t.FailNow()
 	}
-	items, err := database.GetAllItems()
+	items, err := GetAllItems()
 	if err != nil {
 		log.Print("Failed to get all items from database")
 		t.FailNow()
 	}
 	if len(items) != 1 {
 		log.Printf("The number of all items (%d) does not match the expected (1)!", len(items))
-		database.ResetItemTable()
+		ResetItemTable()
 		t.FailNow()
 	}
 	log.Printf("All items: %v", items)
 	log.Print("GetAllItems successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
 
 func TestGetAllItemsFromName(t *testing.T) {
@@ -480,37 +279,37 @@ func TestGetAllItemsFromName(t *testing.T) {
 		Name: "New Item A",
 		Icon: "Abc",
 	}
-	_, err := database.InsertItemStruct(item)
+	_, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item for testing")
 		t.FailNow()
 	}
-	database.PrintItemTable()
-	items, err := database.GetAllItemsFromName(strings.Split(item.Name, " ")[0])
+	PrintItemTable()
+	items, err := GetAllItemsFromName(strings.Split(item.Name, " ")[0])
 	if err != nil {
 		log.Print("Failed to get items from database")
 		t.FailNow()
 	}
 	if len(items) != 1 {
 		log.Printf("The number of all items (%d) does not match the expected (1)!", len(items))
-		database.ResetItemTable()
+		ResetItemTable()
 		t.FailNow()
 	}
 	log.Printf("All items: %v", items)
-	items, err = database.GetAllItemsFromName("Not contained")
+	items, err = GetAllItemsFromName("Not contained")
 	if err != nil {
 		log.Print("Failed to get items from database")
 		t.FailNow()
 	}
 	if len(items) != 0 {
 		log.Printf("The number of all items (%d) does not match the expected (0)!", len(items))
-		database.ResetItemTable()
+		ResetItemTable()
 		t.FailNow()
 	}
 	log.Printf("All items: %v", items)
 	// Testing a SQL injection attack
 	item.Name = "') > 0; INSERT INTO items (name, icon) VALUES ('abc', 'abc'); --"
-	items, err = database.GetAllItemsFromName(item.Name)
+	items, err = GetAllItemsFromName(item.Name)
 	if err == nil {
 		log.Print("Executed injection attack!")
 		t.FailNow()
@@ -519,9 +318,9 @@ func TestGetAllItemsFromName(t *testing.T) {
 		log.Print("Got items for query")
 		t.FailNow()
 	}
-	database.PrintItemTable()
+	PrintItemTable()
 	log.Print("GetAllItems successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
 
 func TestInsertItem(t *testing.T) {
@@ -531,7 +330,7 @@ func TestInsertItem(t *testing.T) {
 		Name: "New Item",
 		Icon: "Abc",
 	}
-	created, err := database.InsertItemStruct(item)
+	created, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item")
 		t.FailNow()
@@ -540,8 +339,8 @@ func TestInsertItem(t *testing.T) {
 		log.Printf("Item ID (%d) not correct", created)
 		t.FailNow()
 	}
-	database.PrintItemTable()
-	getItem, err := database.GetItem(created)
+	PrintItemTable()
+	getItem, err := GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -555,7 +354,7 @@ func TestInsertItem(t *testing.T) {
 		t.FailNow()
 	}
 	log.Print("InsertItem successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
 
 func TestModifyItemName(t *testing.T) {
@@ -565,12 +364,12 @@ func TestModifyItemName(t *testing.T) {
 		Name: "Old Item",
 		Icon: "Abc",
 	}
-	created, err := database.InsertItemStruct(item)
+	created, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := database.GetItem(created)
+	getItem, err := GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -583,7 +382,7 @@ func TestModifyItemName(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	newItem, err := database.ModifyItemName(created, "New Item")
+	newItem, err := ModifyItemName(created, "New Item")
 	if err != nil {
 		log.Printf("Failed to modify item name: %s", err)
 		t.FailNow()
@@ -592,9 +391,9 @@ func TestModifyItemName(t *testing.T) {
 		log.Print("Name information not correctly stored")
 		t.FailNow()
 	}
-	database.PrintItemTable()
+	PrintItemTable()
 	log.Print("ModifyItemName successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
 
 func TestModifyItemIcon(t *testing.T) {
@@ -604,12 +403,12 @@ func TestModifyItemIcon(t *testing.T) {
 		Name: "Old Item",
 		Icon: "Abc",
 	}
-	created, err := database.InsertItemStruct(item)
+	created, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := database.GetItem(created)
+	getItem, err := GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -622,7 +421,7 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	newItem, err := database.ModifyItemIcon(created, "New Icon")
+	newItem, err := ModifyItemIcon(created, "New Icon")
 	if err != nil {
 		log.Printf("Failed to modify item icon: %s", err)
 		t.FailNow()
@@ -631,9 +430,9 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Print("Icon information not correctly stored")
 		t.FailNow()
 	}
-	database.PrintItemTable()
+	PrintItemTable()
 	log.Print("ModifyItemIcon successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
 
 func TestDeleteItem(t *testing.T) {
@@ -643,13 +442,13 @@ func TestDeleteItem(t *testing.T) {
 		Name: "New Item",
 		Icon: "Abc",
 	}
-	created, err := database.InsertItemStruct(item)
+	created, err := InsertItemStruct(item)
 	if err != nil {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	database.PrintItemTable()
-	getItem, err := database.GetItem(created)
+	PrintItemTable()
+	getItem, err := GetItem(created)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -662,17 +461,17 @@ func TestDeleteItem(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	err = database.DeleteItem(created)
+	err = DeleteItem(created)
 	if err != nil {
 		log.Printf("Failed to delete item: %s", err)
 		t.FailNow()
 	}
-	getItem, err = database.GetItem(created)
+	getItem, err = GetItem(created)
 	if err == nil || getItem.ID != 0 {
 		log.Printf("Can still retrieve item!")
 		t.FailNow()
 	}
-	database.PrintItemTable()
+	PrintItemTable()
 	log.Print("DeleteItem successfully completed")
-	database.ResetItemTable()
+	ResetItemTable()
 }
