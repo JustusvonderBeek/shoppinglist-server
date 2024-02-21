@@ -561,16 +561,16 @@ func ResetShoppingListTable() {
 
 const sharedListTable = "sharedList"
 
-func GetSharedListFromUserAndListId(listId int64, sharedWith int64) ([]data.ListShared, error) {
-	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
-	rows, err := db.Query(query, listId, sharedWith)
+func GetSharedListFromUserAndListId(listId int64, createdBy int64, sharedWith int64) ([]data.ListShared, error) {
+	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
+	rows, err := db.Query(query, listId, createdBy, sharedWith)
 	if err != nil {
 		return []data.ListShared{}, err
 	}
 	var sharedLists []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err == sql.ErrNoRows {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err == sql.ErrNoRows {
 			return []data.ListShared{}, err
 		}
 		sharedLists = append(sharedLists, shared)
@@ -583,12 +583,12 @@ func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
 	rows, err := db.Query(query, listId)
 	if err != nil {
 		log.Printf("Failed to query for users that get shared list %d: %s", listId, err)
-		return []data.ListShared{}, nil
+		return []data.ListShared{}, err
 	}
 	var list []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err != nil {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
 			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
 			return []data.ListShared{}, err
 		}
@@ -616,19 +616,41 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 	return list, nil
 }
 
-func CreateOrUpdateSharedList(listId int64, sharedWith int64) (data.ListShared, error) {
-	sharedExists, err := GetSharedListFromUserAndListId(listId, sharedWith)
+func CheckUserAndListExist(listId int64, createdBy int64, sharedWith int64) error {
+	_, err := GetUser(createdBy)
+	if err != nil {
+		return err
+	}
+	_, err = GetUser(sharedWith)
+	if err != nil {
+		return err
+	}
+	_, err = GetShoppingList(listId, createdBy)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CreateOrUpdateSharedList(listId int64, createdBy int64, sharedWith int64) (data.ListShared, error) {
+	sharedExists, err := GetSharedListFromUserAndListId(listId, createdBy, sharedWith)
 	if err == nil && len(sharedExists) > 0 {
 		log.Printf("Shared of list %d for user %d exists", listId, sharedExists[0].SharedWith)
 		return sharedExists[0], nil
 	}
-	query := "INSERT INTO " + sharedListTable + " (listId, sharedWithId) VALUES (?, ?)"
+	if err := CheckUserAndListExist(listId, createdBy, sharedWith); err != nil {
+		log.Printf("User or list does not exist: %s", err)
+		return data.ListShared{}, err
+	}
+	query := "INSERT INTO " + sharedListTable + " (listId, createdBy, sharedWithId, created) VALUES (?, ?, ?, ?)"
 	shared := data.ListShared{
 		ID:         0,
 		ListId:     listId,
+		CreatedBy:  createdBy,
 		SharedWith: sharedWith,
+		Created:    time.Now().Local(),
 	}
-	result, err := db.Exec(query, shared.ListId, shared.SharedWith)
+	result, err := db.Exec(query, shared.ListId, shared.CreatedBy, shared.SharedWith, shared.Created)
 	if err != nil {
 		log.Printf("Failed to insert sharing into database: %s", err)
 		return data.ListShared{}, err
@@ -651,9 +673,9 @@ func DeleteSharingOfList(listId int64, createdBy int64) error {
 	return nil
 }
 
-func DeleteSharingForUser(listId int64, userId int64) error {
-	query := "DELETE FROM " + sharedListTable + " WHERE listId = ? AND sharedWithId = ?"
-	_, err := db.Exec(query, listId, userId)
+func DeleteSharingForUser(listId int64, createdBy int64, userId int64) error {
+	query := "DELETE FROM " + sharedListTable + " WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
+	_, err := db.Exec(query, listId, createdBy, userId)
 	if err != nil {
 		log.Printf("Failed to delete sharing for user %d of list %d: %s", userId, listId, err)
 		return err
@@ -1067,7 +1089,7 @@ func PrintSharingTable() {
 	log.Print("------------- Sharing Table -------------")
 	for rows.Next() {
 		var sharing data.ListShared
-		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.SharedWith); err != nil {
+		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.CreatedBy, &sharing.SharedWith, &sharing.Created); err != nil {
 			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
 		}
 		log.Printf("%v", sharing)
