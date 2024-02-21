@@ -38,10 +38,12 @@ CREATE TABLE shoppers (
     id          BIGINT       NOT NULL,
     username    VARCHAR(256) NOT NULL,
     passwd      VARCHAR(512) NOT NULL,
+    created     DATETIME     NOT NULL,
+    lastLogin   DATETIME     NOT NULL,
     PRIMARY KEY (`id`)
 );
 
--- Table for Items that can be shopped. Shared among all users
+-- Table for Items that can be shopped. Shared among all users because currently only shared via name
 
 CREATE TABLE items (
     id      INT AUTO_INCREMENT  NOT NULL,
@@ -57,6 +59,7 @@ CREATE TABLE shoppinglist(
     listId      BIGINT              NOT NULL,
     name        VARCHAR(256)        NOT NULL,
     createdBy   BIGINT              NOT NULL,
+    created     DATETIME            NOT NULL,
     lastEdited  VARCHAR(256)        NOT NULL,
     PRIMARY KEY (`id`)
 );
@@ -64,7 +67,9 @@ CREATE TABLE shoppinglist(
 CREATE TABLE sharedList(
     id              INT AUTO_INCREMENT  NOT NULL,
     listId          BIGINT              NOT NULL,
+    createdBy       BIGINT              NOT NULL,
     sharedWithId    BIGINT              NOT NULL,
+    created         DATETIME            NOT NULL,
     PRIMARY KEY (`id`)
 );
 
@@ -74,6 +79,7 @@ CREATE TABLE itemsPerList (
     itemId      INT                 NOT NULL,
     quantity    INT                 NOT NULL,
     checked     BOOLEAN             NOT NULL,
+    createdBy   BIGINT              NOT NULL,
     addedBy     BIGINT              NOT NULL,
     PRIMARY KEY (`id`)
 );
