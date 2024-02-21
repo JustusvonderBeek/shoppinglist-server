@@ -321,7 +321,7 @@ func CreateAccount(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	loginUser, err := database.CreateUserAccount(user.Username, user.Password)
+	loginUser, err := database.CreateUserAccountInDatabase(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to create user: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
