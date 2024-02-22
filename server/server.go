@@ -102,7 +102,7 @@ func getShoppingListsForUser(c *gin.Context) {
 	lists = append(lists, sharedLists...)
 	// Asking DB to get the items in this list
 	for i, list := range lists {
-		itemsPerList, err := database.GetItemsInList(list.ListId)
+		itemsPerList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
 		if err != nil {
 			log.Printf("Failed to get items for list %d: %s", list.ListId, err)
 			lists[i].Items = []data.ItemWire{}
@@ -124,6 +124,7 @@ func getShoppingListsForUser(c *gin.Context) {
 				Icon:     dbItem.Icon,
 				Quantity: item.Quantity,
 				Checked:  item.Checked,
+				AddedBy:  item.AddedBy,
 			}
 			lists[i].Items = append(lists[i].Items, wireItem)
 		}
@@ -158,7 +159,7 @@ func getShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	itemsInList, err := database.GetItemsInList(list.ListId)
+	itemsInList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get item in list: %s", err)
 		c.JSON(http.StatusInternalServerError, list)
