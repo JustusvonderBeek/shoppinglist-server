@@ -168,7 +168,9 @@ func GetUserFromMatchingUsername(name string) ([]data.ListCreator, error) {
 	for rows.Next() {
 		var user data.ListCreator
 		var password string
-		if err := rows.Scan(&user.ID, &user.Name, &password); err != nil {
+		var created time.Time
+		var lastLogin time.Time
+		if err := rows.Scan(&user.ID, &user.Name, &password, &created, &lastLogin); err != nil {
 			return []data.ListCreator{}, err
 		}
 		users = append(users, user)
@@ -461,26 +463,28 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	return nil
 }
 
-func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, error) {
+func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, []int64, error) {
 	log.Printf("Adding (%d) items in shopping list to database", len(list.Items))
 	var itemIds []int64
+	var addedBy []int64
 	for _, item := range list.Items {
 		conv, err := checkItemCorrect(item)
 		if err != nil {
 			log.Printf("Failed to insert item '%s': %s", item.Name, err)
-			return []int64{}, err
+			return []int64{}, []int64{}, err
 		}
 		itemId, err := InsertItemStruct(conv)
 		if err != nil {
 			log.Printf("Failed to insert item '%s': %s", conv.Name, err)
-			return []int64{}, err
+			return []int64{}, []int64{}, err
 		}
 		itemIds = append(itemIds, itemId)
+		addedBy = append(addedBy, item.AddedBy)
 	}
-	return itemIds, nil
+	return itemIds, addedBy, nil
 }
 
-func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
+func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64, addedBy []int64) error {
 	log.Printf("Adding (%d) items to shopping list", len(list.Items))
 	if len(list.Items) == 0 || len(itemIds) == 0 {
 		return nil
@@ -488,18 +492,19 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64) error {
 	if len(list.Items) != len(itemIds) {
 		return errors.New("length of items and ids does not match")
 	}
-	if err := DeleteAllItemsInList(list.ListId); err != nil {
+	if err := DeleteAllItemsInList(list.ListId, list.CreatedBy.ID); err != nil {
 		log.Printf("Failed to remove items from list %d for update: %s", list.ListId, err)
 		return err
 	}
 	for i, item := range list.Items {
 		converted := data.ItemPerList{
-			ID:       0,
-			ListId:   list.ListId,
-			ItemId:   itemIds[i],
-			Quantity: item.Quantity,
-			Checked:  item.Checked,
-			AddedBy:  list.CreatedBy.ID,
+			ID:        0,
+			ListId:    list.ListId,
+			ItemId:    itemIds[i],
+			Quantity:  item.Quantity,
+			Checked:   item.Checked,
+			CreatedBy: list.CreatedBy.ID,
+			AddedBy:   addedBy[i],
 		}
 		if _, err := InsertOrUpdateItemInList(converted); err != nil {
 			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Name)
@@ -513,11 +518,11 @@ func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
 	if err := createOrUpdateShoppingListBase(list); err != nil {
 		return err
 	}
-	itemIds, err := addOrRemoveItemsInShoppingList(list)
+	itemIds, addedBy, err := addOrRemoveItemsInShoppingList(list)
 	if err != nil {
 		return err
 	}
-	if err := mapItemsIntoShoppingList(list, itemIds); err != nil {
+	if err := mapItemsIntoShoppingList(list, itemIds, addedBy); err != nil {
 		return err
 	}
 	return nil
@@ -534,7 +539,7 @@ func DeleteShoppingList(id int64, createdBy int64) error {
 		log.Printf("Failed to delete sharing of list %d", id)
 		return err
 	}
-	return DeleteAllItemsInList(id)
+	return DeleteAllItemsInList(id, createdBy)
 }
 
 func DeleteShoppingListFrom(userId int64) error {
@@ -745,10 +750,10 @@ func GetListsOfItem(itemId int64) ([]data.ItemPerList, error) {
 }
 
 // Returns the items in a specific list
-func GetItemsInList(listId int64) ([]data.ItemPerList, error) {
+func GetItemsInList(listId int64, createdBy int64) ([]data.ItemPerList, error) {
 	var list []data.ItemPerList
-	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ?"
-	rows, err := db.Query(query, listId)
+	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ? AND createdBy = ?"
+	rows, err := db.Query(query, listId, createdBy)
 	if err != nil {
 		log.Printf("Failed to query for items contained in list %d: %s", listId, err)
 		return []data.ItemPerList{}, nil
@@ -814,9 +819,9 @@ func DeleteItemInAllLists(itemId int64) error {
 	return nil
 }
 
-func DeleteAllItemsInList(listId int64) error {
-	query := "DELETE FROM " + itemPerListTable + " WHERE listId = ?"
-	_, err := db.Exec(query, listId)
+func DeleteAllItemsInList(listId int64, createdBy int64) error {
+	query := "DELETE FROM " + itemPerListTable + " WHERE listId = ? AND createdBy = ?"
+	_, err := db.Exec(query, listId, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete list %d: %s", listId, err)
 		return err
