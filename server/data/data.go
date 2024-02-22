@@ -86,6 +86,7 @@ type ItemWire struct {
 	Icon     string
 	Quantity int64
 	Checked  bool
+	AddedBy  int64
 }
 
 // ------------------------------------------------------------
