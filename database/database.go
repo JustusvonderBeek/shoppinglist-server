@@ -364,13 +364,16 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 		return []data.Shoppinglist{}, nil
 	}
 	// Extract the list ids so we can query them
-	listIds := make([]interface{}, len(sharedLists))
+	// Join the IDs followed by the createdBy to make a fitting query
+	// log.Printf("Shared list: %v", sharedLists)
+	listIds := make([]interface{}, 0)
 	for _, shared := range sharedLists {
 		listIds = append(listIds, strconv.FormatInt(shared.ListId, 10))
+		listIds = append(listIds, strconv.FormatInt(shared.CreatedBy, 10))
 		// listIds = append(listIds, int(shared.ListId))
 	}
-	log.Printf("Searching for lists: %v", listIds...)
-	query := "SELECT * FROM " + shoppingListTable + " WHERE listId IN (?" + strings.Repeat(",?", len(listIds)-1) + ")"
+	// log.Printf("Searching for %d lists: %v", len(listIds), listIds)
+	query := "SELECT * FROM " + shoppingListTable + " WHERE (listId, createdBy) IN ((?,?)" + strings.Repeat(",(?,?)", len(sharedLists)-1) + ")"
 	// log.Printf("Query string: %s", query)
 	rows, err := db.Query(query, listIds...)
 	if err != nil {
@@ -385,7 +388,7 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.Shoppinglist{}, err
 		}
@@ -607,7 +610,7 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 	var list []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.SharedWith); err != nil {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
 			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
 			return []data.ListShared{}, err
 		}
@@ -619,15 +622,15 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 func CheckUserAndListExist(listId int64, createdBy int64, sharedWith int64) error {
 	_, err := GetUser(createdBy)
 	if err != nil {
-		return err
+		return errors.New("list owner does not exist")
 	}
 	_, err = GetUser(sharedWith)
 	if err != nil {
-		return err
+		return errors.New("shared with user does not exist")
 	}
 	_, err = GetShoppingList(listId, createdBy)
 	if err != nil {
-		return err
+		return errors.New("shared list does not exist")
 	}
 	return nil
 }
@@ -1032,7 +1035,7 @@ func PrintShoppingListTable() {
 	for rows.Next() {
 		var dbId int64
 		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.LastEdited); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
