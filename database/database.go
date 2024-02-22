@@ -211,7 +211,8 @@ func createUser(username string, passwd string) (data.User, error) {
 	if username == "" || passwd == "" {
 		return data.User{}, errors.New("invalid username or password")
 	}
-	created := time.Now().Local().Format(time.RFC3339)
+	// created := time.Now().Local().Format(time.RFC3339)
+	created := time.Now().UTC().Format(time.RFC3339)
 	newUser := data.User{
 		ID:        int64(userId),
 		Username:  username,
