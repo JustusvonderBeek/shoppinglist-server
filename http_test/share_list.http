@@ -14,10 +14,16 @@ Content-Type: application/json
 ?? status == 201
 
 @userId = {{response.parsedBody.ID}}
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Thu, 22 Feb 2024 14:47:14 GMT
+content-length: 177
+connection: close
 ###
 # Login
 
-@userId = 478294346
+@userId = 1704291720
 @username = Testuser Laptop
 @password = Password123
 
@@ -33,12 +39,18 @@ Content-Type: application/json
 @jwtToken={{response.parsedBody.token}}
 
 ?? status == 200
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Thu, 22 Feb 2024 14:47:30 GMT
+content-length: 220
+connection: close
 ###
 # Create list
 
-@listname = Testlist
-@itemName = Testitem
-@itemName2 = Second Testitem
+@listname = Shared Test List 2
+@itemName = Shared Test Item 2
+@itemName2 = Second Testitem 222
 
 # @noRejectUnauthorized
 POST https://localhost:46152/v1/list
@@ -52,28 +64,37 @@ Authorization: Bearer {{jwtToken}}
         "ID": {{userId}},
         "Name": "{{username}}"
     },
-    "LastEdited": "2024-02-19T16:17:45Z",
+    "Created": "2024-02-21T16:17:45Z",
+    "LastEdited": "2024-02-22T10:17:45Z",
     "Items": [
         {
             "Name": "{{itemName}}",
             "Icon": "",
             "Quantity": 1,
-            "Checked": false
+            "Checked": false,
+            "AddedBy" : {{userId}}
         },
         {
             "Name": "{{itemName2}}",
             "Icon": "",
             "Quantity": 1,
-            "Checked": false
+            "Checked": false,
+            "AddedBy": {{userId}}
         }
     ]
 }
 
 ?? status == 201
+
+HTTP/1.1 201  - Created
+date: Thu, 22 Feb 2024 14:47:30 GMT
+content-length: 0
+connection: close
 ###
 # Share created list
 
-@shareUserId = 1843408568
+@userId = 1704291720
+@shareUserId = 269481484
 @shareListId = 1
 
 # @noRejectUnauthorized
@@ -83,9 +104,17 @@ Authorization: Bearer {{jwtToken}}
 
 {
     "ListId" : {{shareListId}},
-    "SharedWith" : {{shareUserId}}
+    "CreatedBy" : {{userId}},
+    "SharedWith" : {{shareUserId}},
+    "Created" : "2024-02-21T16:17:45Z"
 }
 
 ?? status == 201
 
 {{response}}
+
+HTTP/1.1 201  - Created
+content-type: application/json; charset=utf-8
+date: Thu, 22 Feb 2024 14:06:18 GMT
+content-length: 114
+connection: close
