@@ -216,7 +216,6 @@ func postShoppingList(c *gin.Context) {
 	c.Status(http.StatusCreated)
 }
 
-// TODO:
 func removeShoppingList(c *gin.Context) {
 	sId := c.Param("id")
 	listId, err := strconv.Atoi(sId)
@@ -307,7 +306,7 @@ func shareList(c *gin.Context) {
 	listShared, err := database.CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
 	if err != nil {
 		log.Printf("Failed to create sharing: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	c.JSON(http.StatusCreated, listShared)
