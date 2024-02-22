@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -574,13 +575,15 @@ func TestUnissuedToken(t *testing.T) {
 func createListOffline(name string, userId int64) (data.Shoppinglist, error) {
 	creator := data.ListCreator{
 		ID:   userId,
-		Name: "Testuser",
+		Name: USERNAME,
 	}
+	timeNow := time.Now().UTC()
 	list := data.Shoppinglist{
 		ListId:     rand.Int63(),
 		Name:       name,
 		CreatedBy:  creator,
-		LastEdited: time.Now().Local(),
+		Created:    timeNow,
+		LastEdited: timeNow,
 		Items:      []data.ItemWire{},
 	}
 	err := database.CreateOrUpdateShoppingList(list)
@@ -624,11 +627,13 @@ func TestCreatingList(t *testing.T) {
 		ID:   user.ID,
 		Name: user.Username,
 	}
+	timeNow := time.Now().UTC()
 	list := data.Shoppinglist{
 		ListId:     rand.Int63(),
 		Name:       listName,
 		CreatedBy:  creator,
-		LastEdited: time.Now().Local(),
+		Created:    timeNow,
+		LastEdited: timeNow,
 		Items: []data.ItemWire{
 			{
 				Name:     "Item",
@@ -659,9 +664,15 @@ func TestCreatingList(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	database.PrintShoppingListTable()
-	// database.ResetShoppingListTable()
+	database.ResetShoppingListTable()
+	database.ResetItemTable()
+	database.ResetItemPerListTable()
 	// Should already delete all mappings
 	DeleteTestUser(t)
+}
+
+func roundTime(t time.Time) time.Time {
+	return t.Round(time.Duration(time.Second))
 }
 
 func TestGetAllOwnLists(t *testing.T) {
@@ -696,7 +707,7 @@ func TestGetAllOwnLists(t *testing.T) {
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
-	req, _ := http.NewRequest("GET", "/v1/lists/"+strconv.Itoa(int(user.ID)), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.ID), nil)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -713,7 +724,8 @@ func TestGetAllOwnLists(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, user.ID, allOwnLists[i].CreatedBy.ID)
 		assert.Equal(t, user.Username, allOwnLists[i].CreatedBy.Name)
-		assert.Equal(t, offlineList[i].LastEdited, allOwnLists[i].LastEdited)
+		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allOwnLists[i].LastEdited).Format(time.RFC3339))
+		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allOwnLists[i].Created).Format(time.RFC3339))
 		assert.Equal(t, offlineList[i].Name, allOwnLists[i].Name)
 		assert.Equal(t, offlineList[i].ListId, allOwnLists[i].ListId)
 	}
@@ -726,8 +738,21 @@ func TestGetAllOwnLists(t *testing.T) {
 func TestGetAllLists(t *testing.T) {
 	log.Print("Testing if all lists can be obtained")
 	connectDatabase()
-	CreateTestUser(t)
 
+	CreateTestUser(t)
+	sharedByUser1, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+	CreateTestUser(t)
+	sharedByUser2, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+
+	CreateTestUser(t)
 	user, err := readUserFile()
 	if err != nil {
 		log.Printf("Cannot read user file: %s", err)
@@ -746,7 +771,11 @@ func TestGetAllLists(t *testing.T) {
 	}
 	// Creating two shared lists from two different IDs
 	for i := 0; i < 2; i++ {
-		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), int64(i+1))
+		sharedByUser := sharedByUser1
+		if i > 1 {
+			sharedByUser = sharedByUser2
+		}
+		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), sharedByUser.ID)
 		if err != nil {
 			log.Printf("Failed to created shared list: %s", err)
 			t.FailNow()
@@ -769,7 +798,7 @@ func TestGetAllLists(t *testing.T) {
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
-	req, _ := http.NewRequest("GET", "/v1/lists/"+strconv.Itoa(int(user.ID)), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.ID), nil)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -785,7 +814,8 @@ func TestGetAllLists(t *testing.T) {
 	assert.Equal(t, 4, len(allLists))
 	for i := 0; i < 4; i++ {
 		assert.Equal(t, offlineList[i].CreatedBy, allLists[i].CreatedBy)
-		assert.Equal(t, offlineList[i].LastEdited, allLists[i].LastEdited)
+		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allLists[i].LastEdited).Format(time.RFC3339))
+		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allLists[i].Created).Format(time.RFC3339))
 		assert.Equal(t, offlineList[i].Name, allLists[i].Name)
 		assert.Equal(t, offlineList[i].ListId, allLists[i].ListId)
 	}
@@ -797,12 +827,81 @@ func TestGetAllLists(t *testing.T) {
 }
 
 func TestRemoveList(t *testing.T) {
-	// TODO:
+	log.Print("Testing if all lists can be removed")
+	connectDatabase()
+	CreateTestUser(t)
+	login(t)
 
-	assert.Fail(t, "Not implemented")
+	// Creating with default configuration
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+	listName := "test list"
+	creator := data.ListCreator{
+		ID:   user.ID,
+		Name: user.Username,
+	}
+	timeNow := time.Now().UTC()
+	list := data.Shoppinglist{
+		ListId:     rand.Int63(),
+		Name:       listName,
+		CreatedBy:  creator,
+		Created:    timeNow,
+		LastEdited: timeNow,
+		Items: []data.ItemWire{
+			{
+				Name:     "Item",
+				Icon:     "ic_item",
+				Quantity: 1,
+				Checked:  false,
+			},
+		},
+	}
+	jsonList, err := json.Marshal(list)
+	if err != nil {
+		log.Printf("Failed to encode list. Error in test")
+		t.FailNow()
+	}
+	reader := bytes.NewReader(jsonList)
+	// Load authentication token
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	req, _ := http.NewRequest("POST", "/v1/list", reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// Now delete this list
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("DELETE", fmt.Sprintf("/v1/list/%d", list.ListId), nil)
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Check if the list was really deleted
+	_, err = database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	assert.NotNil(t, err)
+
+	database.PrintShoppingListTable()
+	database.ResetShoppingListTable()
+	database.ResetItemTable()
+	database.ResetItemPerListTable()
+	DeleteTestUser(t)
 }
 
-func TestCreateSharing(t *testing.T) {
+func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	log.Print("Testing if all lists can be obtained")
 	connectDatabase()
 	CreateTestUser(t)
@@ -839,7 +938,9 @@ func TestCreateSharing(t *testing.T) {
 	sharedWith := data.ListShared{
 		ID:         0,
 		ListId:     offlineList[0].ListId,
+		CreatedBy:  user.ID,
 		SharedWith: int64(sharedWithUserId),
+		Created:    time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
 	if err != nil {
@@ -847,7 +948,77 @@ func TestCreateSharing(t *testing.T) {
 		t.FailNow()
 	}
 	reader := bytes.NewReader(encodedShared)
-	req, _ := http.NewRequest("POST", "/v1/share/"+strconv.Itoa(int(offlineList[0].ListId)), reader)
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/v1/share/%d", offlineList[0].ListId), reader)
+	// Adding the authentication
+	req.Header.Add("Authorization", bearer)
+	router.ServeHTTP(w, req)
+
+	// we did not create the shared with user and expect this to fail therefore
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	database.PrintShoppingListTable()
+	database.ResetShoppingListTable()
+	database.ResetSharedListTable()
+	database.ResetItemPerListTable()
+	database.ResetItemTable()
+	DeleteTestUser(t)
+}
+
+func TestCreateSharing(t *testing.T) {
+	log.Print("Testing if all lists can be obtained")
+	connectDatabase()
+
+	CreateTestUser(t)
+	sharedWithUser, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+
+	CreateTestUser(t)
+	user, err := readUserFile()
+	if err != nil {
+		log.Printf("Cannot read user file: %s", err)
+		t.FailNow()
+	}
+
+	// Creating two own lists and share one with a random user
+	sharedWithUserId := sharedWithUser.ID
+	var offlineList []data.Shoppinglist
+	for i := 0; i < 2; i++ {
+		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID)
+		if err != nil {
+			log.Printf("Failed to create list: %s", err)
+			t.FailNow()
+		} else {
+			offlineList = append(offlineList, list)
+		}
+	}
+
+	// Now trying if we can get both lists via the API
+	login(t)
+	router := server.SetupRouter(cfg)
+	w := httptest.NewRecorder()
+	token, err := readJwtFromFile()
+	if err != nil {
+		log.Printf("Failed to read JWT file: %s", err)
+		t.FailNow()
+	}
+	bearer := "Bearer " + token
+	sharedWith := data.ListShared{
+		ID:         0,
+		ListId:     offlineList[0].ListId,
+		CreatedBy:  user.ID,
+		SharedWith: int64(sharedWithUserId),
+		Created:    time.Now().UTC(),
+	}
+	encodedShared, err := json.Marshal(sharedWith)
+	if err != nil {
+		log.Printf("Failed to encoded data: %s", err)
+		t.FailNow()
+	}
+	reader := bytes.NewReader(encodedShared)
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/v1/share/%d", offlineList[0].ListId), reader)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -899,7 +1070,9 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	sharedWith := data.ListShared{
 		ID:         0,
 		ListId:     list.ListId,
+		CreatedBy:  user.ID,
 		SharedWith: int64(sharedWithUserId),
+		Created:    time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
 	if err != nil {
@@ -907,7 +1080,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 		t.FailNow()
 	}
 	reader := bytes.NewReader(encodedShared)
-	req, _ := http.NewRequest("POST", "/v1/share/"+strconv.Itoa(int(list.ListId)), reader)
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/v1/share/%d", list.ListId), reader)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
