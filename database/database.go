@@ -212,7 +212,7 @@ func createUser(username string, passwd string) (data.User, error) {
 		return data.User{}, errors.New("invalid username or password")
 	}
 	// created := time.Now().Local().Format(time.RFC3339)
-	created := time.Now().UTC().Format(time.RFC3339)
+	created := time.Now().UTC().Format(time.DateTime)
 	newUser := data.User{
 		ID:        int64(userId),
 		Username:  username,
@@ -231,7 +231,8 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 		log.Printf("Failed to create new user: %s", err)
 		return data.User{}, err
 	}
-	log.Printf("Inserting new user: %v", newUser)
+	// log.Printf("Inserting new user: %v", newUser)
+	log.Printf("Creating new user %d: %s", newUser.ID, username)
 	// Insert the newly created user into the database
 	query := "INSERT INTO " + userTable + " (id, username, passwd, created, lastLogin) VALUES (?, ?, ?, ?, ?)"
 	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
@@ -239,7 +240,30 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
 	}
+	newUser, err = GetUser(newUser.ID)
+	if err != nil {
+		log.Printf("Failed to create new user: %s", err)
+		return data.User{}, err
+	}
+	// log.Printf("Debug: %v", newUser)
 	return newUser, nil
+}
+
+func ModifyLastLogin(id int64) (data.User, error) {
+	log.Printf("Updating the last login time to now")
+	_, err := GetUser(id)
+	if err != nil {
+		log.Printf("User %d not found", id)
+		return data.User{}, err
+	}
+	query := fmt.Sprintf("UPDATE %s SET lastLogin = current_timestamp() WHERE id = ?", userTable)
+	_, err = db.Exec(query, id)
+	if err != nil {
+		log.Printf("Failed to update last login: %s", err)
+		return data.User{}, err
+	}
+	user, _ := GetUser(id)
+	return user, nil
 }
 
 func ModifyUserAccountName(id int64, username string) (data.User, error) {
