@@ -334,7 +334,7 @@ func CreateAccount(c *gin.Context) {
 }
 
 func DeleteAccount(c *gin.Context) {
-	sId := c.Param("id")
+	sId := c.Param("userId")
 	id, err := strconv.Atoi(sId)
 	if err != nil {
 		log.Printf("Failed to parse given userId: %s: %s", sId, err)
