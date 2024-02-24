@@ -409,6 +409,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.PUT("/userinfo/:userId", updateUserinfo)
 		authorized.GET("/userinfo/:userId", getUserInfos)
 		authorized.GET("/users/:name", getMatchingUsers)
+		authorized.DELETE("/users/:userId", authentication.DeleteAccount)
 
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists

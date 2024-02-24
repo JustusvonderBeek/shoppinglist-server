@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -330,6 +331,38 @@ func CreateAccount(c *gin.Context) {
 	// Dont include hashed password information in answer
 	loginUser.Password = "accepted"
 	c.IndentedJSON(http.StatusCreated, loginUser)
+}
+
+func DeleteAccount(c *gin.Context) {
+	sId := c.Param("id")
+	id, err := strconv.Atoi(sId)
+	if err != nil {
+		log.Printf("Failed to parse given userId: %s: %s", sId, err)
+		return
+	}
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if userId != id {
+		log.Printf("Authenticated user is not user that should be deleted!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.DeleteUserAccount(int64(userId)); err != nil {
+		log.Printf("Failed to delete user account")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusOK)
 }
 
 // ------------------------------------------------------------
