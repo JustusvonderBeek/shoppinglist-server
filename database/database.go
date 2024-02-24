@@ -766,7 +766,7 @@ func ResetSharedListTable() {
 const itemPerListTable = "itemsPerList"
 
 func IsItemInList(listId int64, createdBy int64, itemId int64) (int64, error) {
-	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ? AND itemID = ? AND createdBy = ?"
+	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ? AND itemId = ? AND createdBy = ?"
 	row := db.QueryRow(query, listId, itemId, createdBy)
 	var dbId int
 	var mapping data.ItemPerList
