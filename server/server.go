@@ -254,8 +254,8 @@ func postShoppingList(c *gin.Context) {
 }
 
 func removeShoppingList(c *gin.Context) {
-	sId := c.Param("id")
-	listId, err := strconv.Atoi(sId)
+	listIdS := c.Param("id")
+	listId, err := strconv.Atoi(listIdS)
 	if err != nil {
 		log.Printf("Failed to parse given listId: %s", listIdS)
 		log.Printf("Err: %s", err)
@@ -299,8 +299,8 @@ func removeShoppingList(c *gin.Context) {
 // ------------------------------------------------------------
 
 func shareList(c *gin.Context) {
-	sId := c.Param("id")
-	id, err := strconv.Atoi(sId)
+	listIdS := c.Param("id")
+	listId, err := strconv.Atoi(listIdS)
 	if err != nil {
 		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
 		return
@@ -350,8 +350,8 @@ func shareList(c *gin.Context) {
 }
 
 func unshareList(c *gin.Context) {
-	sId := c.Param("id")
-	id, err := strconv.Atoi(sId)
+	listIdS := c.Param("id")
+	listId, err := strconv.Atoi(listIdS)
 	if err != nil {
 		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
 		return
