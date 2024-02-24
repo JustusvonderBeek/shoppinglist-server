@@ -134,10 +134,15 @@ func getShoppingListsForUser(c *gin.Context) {
 }
 
 func getShoppingList(c *gin.Context) {
-	sId := c.Param("id")
-	id, err := strconv.Atoi(sId)
+	listIdS := c.Query("listId")
+	if listIdS == "" {
+		log.Printf("Expected listId parameter but did not get anything")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	listId, err := strconv.Atoi(listIdS)
 	if err != nil {
-		log.Printf("Failed to parse given item id: %s", sId)
+		log.Printf("Failed to parse given listId: %s", listIdS)
 		log.Printf("Err: %s", err)
 		return
 	}
@@ -153,9 +158,36 @@ func getShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	list, err := database.GetShoppingList(int64(id), int64(userId))
+	createdByS := c.Query("createdBy")
+	listIsFromCreator := false
+	if createdByS == "" {
+		// log.Printf("Expected createdBy parameter but did not get one")
+		// c.AbortWithStatus(http.StatusBadRequest)
+		// return
+		// If no parameter is given expect the userId to be the creator
+		listIsFromCreator = true
+	}
+	var createdBy int
+	if !listIsFromCreator {
+		createdBy, err = strconv.Atoi(createdByS)
+		if err != nil {
+			log.Printf("Given createdBy in incorrect format")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		// Check if the user actually has access to this list
+		if err := database.IsListSharedWithUser(int64(listId), int64(createdBy), int64(userId)); err != nil {
+			log.Printf("User %d is not owner of list %d but list is not shared", userId, listId)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+	}
+	if listIsFromCreator {
+		createdBy = userId
+	}
+	list, err := database.GetShoppingList(int64(listId), int64(createdBy))
 	if err != nil {
-		log.Printf("Failed to get mapping for id %d: %s", id, err)
+		log.Printf("Failed to get mapping for id %d: %s", listId, err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
@@ -225,7 +257,7 @@ func removeShoppingList(c *gin.Context) {
 	sId := c.Param("id")
 	listId, err := strconv.Atoi(sId)
 	if err != nil {
-		log.Printf("Failed to parse given listId: %s", sId)
+		log.Printf("Failed to parse given listId: %s", listIdS)
 		log.Printf("Err: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -270,7 +302,7 @@ func shareList(c *gin.Context) {
 	sId := c.Param("id")
 	id, err := strconv.Atoi(sId)
 	if err != nil {
-		log.Printf("Failed to parse given list id: %s: %s", sId, err)
+		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
 		return
 	}
 	stored, exists := c.Get("userId")
@@ -298,7 +330,7 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if list.ListId != int64(id) {
+	if list.ListId != int64(listId) {
 		log.Printf("IDs do not match!")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -321,7 +353,7 @@ func unshareList(c *gin.Context) {
 	sId := c.Param("id")
 	id, err := strconv.Atoi(sId)
 	if err != nil {
-		log.Printf("Failed to parse given list id: %s: %s", sId, err)
+		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
 		return
 	}
 	stored, exists := c.Get("userId")
@@ -342,7 +374,7 @@ func unshareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if unshare.ListId != int64(id) {
+	if unshare.ListId != int64(listId) {
 		log.Print("Given list and unshare list do not match")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -417,8 +449,8 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
-		authorized.GET("/list/:id", getShoppingList)
-		authorized.DELETE("/list/:id", removeShoppingList)
+		authorized.GET("/list", getShoppingList)
+		authorized.DELETE("/list", removeShoppingList)
 
 		// Includes both adding a new list and updating an existing list
 		authorized.POST("/list", postShoppingList)
