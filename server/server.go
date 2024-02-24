@@ -208,6 +208,7 @@ func getShoppingList(c *gin.Context) {
 			Icon:     dbItem.Icon,
 			Quantity: item.Quantity,
 			Checked:  item.Checked,
+			AddedBy:  item.AddedBy,
 		}
 		list.Items = append(list.Items, listItem)
 	}
