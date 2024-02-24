@@ -649,6 +649,28 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 	return list, nil
 }
 
+func IsListSharedWithUser(listId int64, createdBy int64, userId int64) error {
+	query := fmt.Sprintf("SELECT * FROM %s WHERE listId = ? and createdBy = ? AND (sharedWithId = -1 OR sharedWithId = ?)", sharedListTable)
+	rows, err := db.Query(query, listId, createdBy, userId)
+	if err != nil {
+		log.Printf("The list %d is not shared with the user %d: %s", listId, userId, err)
+		return err
+	}
+	counter := 1
+	for rows.Next() {
+		if counter > 1 {
+			log.Printf("Expected only a single shared row but got more than one!")
+		}
+		var shared data.ListShared
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
+			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
+			return err
+		}
+		counter += 1
+	}
+	return nil
+}
+
 func CheckUserAndListExist(listId int64, createdBy int64, sharedWith int64) error {
 	_, err := GetUser(createdBy)
 	if err != nil {

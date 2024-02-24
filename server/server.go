@@ -202,10 +202,14 @@ func postShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
+	// Check if the requesting user is the owner or the list is shared
 	if userId != int(list.CreatedBy.ID) || list.CreatedBy.ID == 0 {
 		log.Print("The logged in user and the created by are not equal")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+		if err := database.IsListSharedWithUser(list.ListId, list.CreatedBy.ID, int64(userId)); err != nil {
+			log.Printf("List is not shared with the requesting user")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
 	}
 	err = database.CreateOrUpdateShoppingList(list)
 	if err != nil {
