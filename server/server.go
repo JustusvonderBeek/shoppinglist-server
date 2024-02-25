@@ -60,8 +60,27 @@ func getMatchingUsers(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
+	stored, exists := c.Get("userId")
+	if !exists {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	userId, ok := stored.(int)
+	if !ok {
+		log.Print("Internal server error: stored value is not correct")
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	// Remove the user itself
+	finalUsers := make([]data.ListCreator, 0)
+	for _, user := range users {
+		if user.ID != int64(userId) {
+			finalUsers = append(finalUsers, user)
+		}
+	}
 	log.Printf("Found %d matching users", len(users))
-	c.JSON(http.StatusOK, users)
+	c.JSON(http.StatusOK, finalUsers)
 }
 
 // ------------------------------------------------------------
@@ -255,12 +274,16 @@ func postShoppingList(c *gin.Context) {
 }
 
 func removeShoppingList(c *gin.Context) {
-	listIdS := c.Param("id")
+	listIdS := c.Query("listId")
+	if listIdS == "" {
+		log.Printf("Expected listId parameter but did not get anything")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	listId, err := strconv.Atoi(listIdS)
 	if err != nil {
 		log.Printf("Failed to parse given listId: %s", listIdS)
 		log.Printf("Err: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	stored, exists := c.Get("userId")
