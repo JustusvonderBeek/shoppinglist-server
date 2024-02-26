@@ -274,7 +274,7 @@ func postShoppingList(c *gin.Context) {
 }
 
 func removeShoppingList(c *gin.Context) {
-	listIdS := c.Query("listId")
+	listIdS := c.Param("listId")
 	if listIdS == "" {
 		log.Printf("Expected listId parameter but did not get anything")
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -301,12 +301,12 @@ func removeShoppingList(c *gin.Context) {
 	list, err := database.GetShoppingList(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("Failed to get mapping for listId %d: %s", listId, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 	if int(list.CreatedBy.ID) != userId {
 		log.Printf("Cannot delete list: User %d did not create list %d", userId, list.ListId)
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 	if err := database.DeleteShoppingList(int64(listId), int64(userId)); err != nil {
@@ -474,7 +474,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		// Handling the lists itself
 		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
 		authorized.GET("/list", getShoppingList)
-		authorized.DELETE("/list", removeShoppingList)
+		authorized.DELETE("/list/:listId", removeShoppingList)
 
 		// Includes both adding a new list and updating an existing list
 		authorized.POST("/list", postShoppingList)
