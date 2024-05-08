@@ -1,0 +1,29 @@
+version: '3.1'
+
+services:
+  mariadb:
+    image: mariadb:11.3.2
+    restart: always
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      # This volume is only mounted and meant to be used for the initialization
+      # The internal name seems to be important
+      # Format: path on host:internal name
+      - ./compose-db-setup:/docker-entrypoint-initdb.d
+    environment:
+      - MARIADB_ROOT_USER=root_user
+      - MARIADB_ROOT_PASSWORD=<root_password>
+      - MARIADB_USER=user
+      - MARIADB_PASSWORD=<password>
+
+  application:
+    image: shop-server
+    restart: always
+    ports:
+      - "46152:46152"
+
+volumes:
+  db-data:
+  
