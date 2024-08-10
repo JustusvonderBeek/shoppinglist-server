@@ -44,8 +44,8 @@ func TestCreatingList(t *testing.T) {
 		log.Printf("Failed to create user: %s", err)
 		t.FailNow()
 	}
-	list := createListBase("list base", user.ID)
-	list.CreatedBy.ID = user.ID
+	list := createListBase("list base", user.OnlineID)
+	list.CreatedBy.ID = user.OnlineID
 	err = CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
@@ -74,8 +74,8 @@ func TestUpdatingList(t *testing.T) {
 		t.FailNow()
 	}
 	for i := 0; i < 3; i++ {
-		list := createListBase("list base 1", user.ID)
-		list.CreatedBy.ID = user.ID
+		list := createListBase("list base 1", user.OnlineID)
+		list.CreatedBy.ID = user.OnlineID
 		err = CreateOrUpdateShoppingList(list)
 		if err != nil {
 			log.Printf("Failed to create new list: %s", err)
@@ -91,7 +91,7 @@ func TestUpdatingList(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	lists, err := GetShoppingListsFromUserId(user.ID)
+	lists, err := GetShoppingListsFromUserId(user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get lists for user: %s", err)
 		t.FailNow()
@@ -112,7 +112,7 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to create user: %s", err)
 		t.FailNow()
 	}
-	list := createListBase("base list", user.ID)
+	list := createListBase("base list", user.OnlineID)
 	err = CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
@@ -161,7 +161,7 @@ func TestDeletingList(t *testing.T) {
 		log.Printf("Failed to create user: %s", err)
 		t.FailNow()
 	}
-	list := createListBase("list base", user.ID)
+	list := createListBase("list base", user.OnlineID)
 	err = CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create new list: %s", err)
@@ -177,7 +177,7 @@ func TestDeletingList(t *testing.T) {
 		log.Printf("IDs do not match")
 		t.FailNow()
 	}
-	err = DeleteShoppingList(list.ListId, user.ID)
+	err = DeleteShoppingList(list.ListId, user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to delete shopping list: %s", err)
 		t.FailNow()

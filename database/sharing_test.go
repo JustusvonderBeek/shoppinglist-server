@@ -31,15 +31,15 @@ func TestCreateSharing(t *testing.T) {
 		log.Printf("Failed to create shared user: %s", err)
 		t.FailNow()
 	}
-	listBase := createListBase("test", user.ID)
+	listBase := createListBase("test", user.OnlineID)
 	err = CreateOrUpdateShoppingList(listBase)
 	if err != nil {
 		log.Printf("Failed to create list for sharing: %s", err)
 		t.FailNow()
 	}
 	shared := createDefaultSharing()
-	shared.CreatedBy = user.ID
-	shared.SharedWith = sharedUser.ID
+	shared.CreatedBy = user.OnlineID
+	shared.SharedWith = sharedUser.OnlineID
 	sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
 	if err != nil {
 		log.Printf("Failed to create list sharing")
@@ -98,15 +98,15 @@ func TestCreatingMultipleSharings(t *testing.T) {
 		log.Printf("Failed to create shared user: %s", err)
 		t.FailNow()
 	}
-	listBase := createListBase("test", user.ID)
+	listBase := createListBase("test", user.OnlineID)
 	err = CreateOrUpdateShoppingList(listBase)
 	if err != nil {
 		log.Printf("Failed to create list for sharing: %s", err)
 		t.FailNow()
 	}
 	shared := createDefaultSharing()
-	shared.CreatedBy = user.ID
-	shared.SharedWith = sharedUser.ID
+	shared.CreatedBy = user.OnlineID
+	shared.SharedWith = sharedUser.OnlineID
 	for i := 0; i < 3; i++ {
 		sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
 		if err != nil {
@@ -159,15 +159,15 @@ func TestDeleteSharing(t *testing.T) {
 		log.Printf("Failed to create shared user: %s", err)
 		t.FailNow()
 	}
-	listBase := createListBase("test", user.ID)
+	listBase := createListBase("test", user.OnlineID)
 	err = CreateOrUpdateShoppingList(listBase)
 	if err != nil {
 		log.Printf("Failed to create list for sharing: %s", err)
 		t.FailNow()
 	}
 	shared := createDefaultSharing()
-	shared.CreatedBy = user.ID
-	shared.SharedWith = sharedUser.ID
+	shared.CreatedBy = user.OnlineID
+	shared.SharedWith = sharedUser.OnlineID
 	_, err = CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
 	if err != nil {
 		log.Printf("Failed to create list sharing")

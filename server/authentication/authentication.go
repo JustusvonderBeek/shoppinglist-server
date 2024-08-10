@@ -312,7 +312,7 @@ func CreateAccount(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if user.ID != 0 {
+	if user.OnlineID != 0 {
 		log.Print("Given user has ID already set!")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -330,7 +330,7 @@ func CreateAccount(c *gin.Context) {
 	}
 	// Dont include hashed password information in answer
 	loginUser.Password = "accepted"
-	c.IndentedJSON(http.StatusCreated, loginUser)
+	c.JSON(http.StatusCreated, loginUser)
 }
 
 func DeleteAccount(c *gin.Context) {
@@ -382,14 +382,14 @@ func Login(c *gin.Context) {
 		return
 	}
 	// database.PrintUserTable("shoppers")
-	dbUser, err := database.GetUser(int64(user.ID))
+	dbUser, err := database.GetUser(int64(user.OnlineID))
 	if err != nil {
 		log.Printf("User not found!")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 	// Username and ID must match
-	if dbUser.ID != user.ID || dbUser.Username != user.Username {
+	if dbUser.OnlineID != user.OnlineID || dbUser.Username != user.Username {
 		log.Print("The stored user does not match the user trying to log in!")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
@@ -402,13 +402,13 @@ func Login(c *gin.Context) {
 		return
 	}
 	if !match {
-		log.Printf("The given password is incorrect for user %d", user.ID)
+		log.Printf("The given password is incorrect for user %d", user.OnlineID)
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
 	// Generate a new token that is valid for a few minutes to make a few requests
-	token, err := generateJWT(int(user.ID), user.Username)
+	token, err := generateJWT(int(user.OnlineID), user.Username)
 	if err != nil {
 		log.Printf("Failed to generate JWT token: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)

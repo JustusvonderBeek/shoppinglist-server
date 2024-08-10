@@ -25,7 +25,7 @@ func updateUserinfo(c *gin.Context) {
 		return
 	}
 	// User already found in our database. Simply update this stuff
-	user, err = database.ModifyUserAccountName(user.ID, user.Username)
+	user, err = database.ModifyUserAccountName(user.OnlineID, user.Username)
 	if err != nil {
 		log.Printf("Failed to insert user into database: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)

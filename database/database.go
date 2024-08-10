@@ -137,7 +137,7 @@ func GetUser(id int64) (data.User, error) {
 	query := "SELECT * FROM " + userTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var user data.User
-	if err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err == sql.ErrNoRows {
+	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err == sql.ErrNoRows {
 		return data.User{}, err
 	}
 	return user, nil
@@ -149,7 +149,7 @@ func GetUserInWireFormat(id int64) (data.UserWire, error) {
 		return data.UserWire{}, err
 	}
 	userWire := data.UserWire{
-		ID:       user.ID,
+		ID:       user.OnlineID,
 		Username: user.Username,
 	}
 	return userWire, nil
@@ -214,7 +214,7 @@ func createUser(username string, passwd string) (data.User, error) {
 	// created := time.Now().Local().Format(time.RFC3339)
 	created := time.Now().UTC().Format(time.DateTime)
 	newUser := data.User{
-		ID:        int64(userId),
+		OnlineID:  int64(userId),
 		Username:  username,
 		Password:  hashedPw,
 		Created:   created,
@@ -232,15 +232,15 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 		return data.User{}, err
 	}
 	// log.Printf("Inserting new user: %v", newUser)
-	log.Printf("Creating new user %d: %s", newUser.ID, username)
+	log.Printf("Creating new user %d: %s", newUser.OnlineID, username)
 	// Insert the newly created user into the database
 	query := "INSERT INTO " + userTable + " (id, username, passwd, created, lastLogin) VALUES (?, ?, ?, ?, ?)"
-	_, err = db.Exec(query, newUser.ID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
+	_, err = db.Exec(query, newUser.OnlineID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
 	}
-	newUser, err = GetUser(newUser.ID)
+	newUser, err = GetUser(newUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to create new user: %s", err)
 		return data.User{}, err
@@ -275,7 +275,7 @@ func ModifyUserAccountName(id int64, username string) (data.User, error) {
 	}
 	user.Username = username
 	query := "UPDATE " + userTable + " SET username = ? WHERE id = ?"
-	_, err = db.Exec(query, user.Username, user.ID)
+	_, err = db.Exec(query, user.Username, user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to update user with ID %d", id)
 		return data.User{}, err
@@ -297,7 +297,7 @@ func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
 	}
 	user.Password = hashedPw
 	query := "UPDATE " + userTable + " SET passwd = ? WHERE id = ?"
-	_, err = db.Exec(query, user.Password, user.ID)
+	_, err = db.Exec(query, user.Password, user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to update user with ID %d", id)
 		return data.User{}, err
@@ -1067,7 +1067,7 @@ func PrintUserTable(tableName string) {
 	log.Print("------------- User Table -------------")
 	for rows.Next() {
 		var user data.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err != nil {
+		if err := rows.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err != nil {
 			log.Printf("Failed to print table: %s: %s", tableName, err)
 		}
 		log.Printf("%v", user)

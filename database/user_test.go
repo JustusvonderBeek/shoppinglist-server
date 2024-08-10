@@ -59,7 +59,7 @@ func TestCreatingIncorrectUser(t *testing.T) {
 		log.Printf("Expected error but got none")
 		t.FailNow()
 	}
-	if user.ID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
+	if user.OnlineID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
 		log.Printf("Expected empty user but got: %v", user)
 		t.FailNow()
 	}
@@ -68,7 +68,7 @@ func TestCreatingIncorrectUser(t *testing.T) {
 		log.Printf("Expected error but got none")
 		t.FailNow()
 	}
-	if user.ID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
+	if user.OnlineID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
 		log.Printf("Expected empty user but got: %v", user)
 		t.FailNow()
 	}
@@ -107,13 +107,13 @@ func TestDeletingUser(t *testing.T) {
 		t.FailNow()
 	}
 	PrintUserTable("shoppers")
-	err = DeleteUserAccount(createdUser.ID)
+	err = DeleteUserAccount(createdUser.OnlineID)
 	if err != nil {
-		log.Printf("Failed to delete user with id %d from database", createdUser.ID)
+		log.Printf("Failed to delete user with id %d from database", createdUser.OnlineID)
 		t.FailNow()
 	}
-	deletedUser, err := GetUser(createdUser.ID)
-	if err == nil || deletedUser.ID != 0 {
+	deletedUser, err := GetUser(createdUser.OnlineID)
+	if err == nil || deletedUser.OnlineID != 0 {
 		log.Print("Could retrieve user from database after deleting!")
 		t.FailNow()
 	}
@@ -141,7 +141,7 @@ func TestUserLogin(t *testing.T) {
 		t.FailNow()
 	}
 	PrintUserTable("shoppers")
-	checkLoginUser, err := GetUser(createdUser.ID)
+	checkLoginUser, err := GetUser(createdUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get newly created user for login check: %s", err)
 		t.FailNow()
@@ -173,7 +173,7 @@ func TestModifyUsername(t *testing.T) {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	checkOldUsername, err := GetUser(createdUser.ID)
+	checkOldUsername, err := GetUser(createdUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get newly created user for modify check: %s", err)
 		t.FailNow()
@@ -182,7 +182,7 @@ func TestModifyUsername(t *testing.T) {
 		log.Print("Usernames do not match before checking!")
 		t.FailNow()
 	}
-	updatedUsername, err := ModifyUserAccountName(createdUser.ID, user.Username+" - Updated")
+	updatedUsername, err := ModifyUserAccountName(createdUser.OnlineID, user.Username+" - Updated")
 	if err != nil {
 		log.Printf("Failed to update username: %s", err)
 		t.FailNow()
@@ -192,7 +192,7 @@ func TestModifyUsername(t *testing.T) {
 		log.Print("The updated username is still the same!")
 		t.FailNow()
 	}
-	checkNewUsername, err := GetUser(createdUser.ID)
+	checkNewUsername, err := GetUser(createdUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get updated user: %s", err)
 		t.FailNow()
@@ -214,7 +214,7 @@ func TestModifyUserPassword(t *testing.T) {
 		log.Printf("Failed to insert user into database: %s", err)
 		t.FailNow()
 	}
-	checkOldPassword, err := GetUser(createdUser.ID)
+	checkOldPassword, err := GetUser(createdUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get newly created user for modify check: %s", err)
 		t.FailNow()
@@ -223,7 +223,7 @@ func TestModifyUserPassword(t *testing.T) {
 		log.Print("Password do not match before update!")
 		t.FailNow()
 	}
-	updatedUser, err := ModifyUserAccountPassword(createdUser.ID, "New Password")
+	updatedUser, err := ModifyUserAccountPassword(createdUser.OnlineID, "New Password")
 	if err != nil {
 		log.Printf("Failed to update password: %s", err)
 		t.FailNow()
@@ -234,7 +234,7 @@ func TestModifyUserPassword(t *testing.T) {
 		log.Print("The password was not correctly updated!")
 		t.FailNow()
 	}
-	checkNewPassword, err := GetUser(createdUser.ID)
+	checkNewPassword, err := GetUser(createdUser.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get updated user: %s", err)
 		t.FailNow()

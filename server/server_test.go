@@ -139,7 +139,7 @@ func CreateTestUser(t *testing.T) {
 		log.Printf("Failed to create user: %s", err)
 		t.FailNow()
 	}
-	if user.ID == 0 {
+	if user.OnlineID == 0 {
 		log.Printf("Failed to create user: %s", "user id == 0")
 		t.FailNow()
 	}
@@ -160,7 +160,7 @@ func DeleteTestUser(t *testing.T) {
 		log.Print("Cannot delete nil user")
 		t.FailNow()
 	}
-	err = database.DeleteUserAccount(user.ID)
+	err = database.DeleteUserAccount(user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to delete user: %s", err)
 		t.FailNow()
@@ -184,7 +184,7 @@ func loadUserAndSetupFields(id int64, name string, password string) (io.Reader, 
 	}
 	if id != 0 {
 		log.Printf("Set id to %d", id)
-		user.ID = id
+		user.OnlineID = id
 	}
 	if name != "" {
 		log.Printf("Set name to %s", name)
@@ -212,7 +212,7 @@ func TestUserCreation(t *testing.T) {
 	c, r := gin.CreateTestContext(w)
 
 	newUser := data.User{
-		ID:       0,
+		OnlineID: 0,
 		Username: "test creation user",
 		Password: "new password",
 	}
@@ -239,12 +239,12 @@ func TestUserCreation(t *testing.T) {
 		log.Printf("Did not receive a user as answer!")
 		t.FailNow()
 	}
-	assert.NotEqual(t, 0, answeredUser.ID)
+	assert.NotEqual(t, 0, answeredUser.OnlineID)
 	assert.Equal(t, answeredUser.Username, newUser.Username)
 	assert.Equal(t, "accepted", answeredUser.Password)
 
 	w = httptest.NewRecorder()
-	newUser.ID = answeredUser.ID
+	newUser.OnlineID = answeredUser.OnlineID
 	rawUser, err = json.Marshal(newUser)
 	if err != nil {
 		log.Printf("Failed to encode user: %s", err)
@@ -437,7 +437,7 @@ func TestAuthentcationWrongTokenSignature(t *testing.T) {
 
 	expirationTime := time.Now().Add(1 * time.Minute)
 	wrongUsername := authentication.Claims{
-		Id:       int(user.ID),
+		Id:       int(user.OnlineID),
 		Username: user.Username + "invalid",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
@@ -527,7 +527,7 @@ func TestUnissuedToken(t *testing.T) {
 
 	expirationTime := time.Now().Add(1 * time.Minute)
 	userToken := authentication.Claims{
-		Id:       int(user.ID),
+		Id:       int(user.OnlineID),
 		Username: user.Username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
@@ -638,7 +638,7 @@ func TestCreatingList(t *testing.T) {
 	}
 	listName := "test list"
 	creator := data.ListCreator{
-		ID:   user.ID,
+		ID:   user.OnlineID,
 		Name: user.Username,
 	}
 	timeNow := time.Now().UTC()
@@ -703,7 +703,7 @@ func TestGetAllOwnLists(t *testing.T) {
 	// Add two lists for our user behind the curtains
 	var offlineList []data.Shoppinglist
 	for i := 0; i < 2; i++ {
-		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID, []data.ItemWire{}); err != nil {
+		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{}); err != nil {
 			log.Printf("Failed to create list: %s", err)
 		} else {
 			// TODO: Add items for this list
@@ -721,7 +721,7 @@ func TestGetAllOwnLists(t *testing.T) {
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.ID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.OnlineID), nil)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -736,7 +736,7 @@ func TestGetAllOwnLists(t *testing.T) {
 
 	assert.Equal(t, 2, len(allOwnLists))
 	for i := 0; i < 2; i++ {
-		assert.Equal(t, user.ID, allOwnLists[i].CreatedBy.ID)
+		assert.Equal(t, user.OnlineID, allOwnLists[i].CreatedBy.ID)
 		assert.Equal(t, user.Username, allOwnLists[i].CreatedBy.Name)
 		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allOwnLists[i].LastEdited).Format(time.RFC3339))
 		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allOwnLists[i].Created).Format(time.RFC3339))
@@ -776,7 +776,7 @@ func TestGetAllLists(t *testing.T) {
 	// Creating two own lists
 	var offlineList []data.Shoppinglist
 	for i := 0; i < 2; i++ {
-		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID, []data.ItemWire{}); err != nil {
+		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{}); err != nil {
 			log.Printf("Failed to create list: %s", err)
 			t.FailNow()
 		} else {
@@ -789,14 +789,14 @@ func TestGetAllLists(t *testing.T) {
 		if i > 1 {
 			sharedByUser = sharedByUser2
 		}
-		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), sharedByUser.ID, []data.ItemWire{})
+		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), sharedByUser.OnlineID, []data.ItemWire{})
 		if err != nil {
 			log.Printf("Failed to created shared list: %s", err)
 			t.FailNow()
 		}
 		offlineList = append(offlineList, list)
 		// Create the sharing
-		if _, err = createListSharing(list.ListId, list.CreatedBy.ID, user.ID); err != nil {
+		if _, err = createListSharing(list.ListId, list.CreatedBy.ID, user.OnlineID); err != nil {
 			log.Printf("Failed to create sharing: %s", err)
 			t.FailNow()
 		}
@@ -812,7 +812,7 @@ func TestGetAllLists(t *testing.T) {
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.ID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.OnlineID), nil)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -868,7 +868,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 	var offlineList []data.Shoppinglist
 	for i := 0; i < 2; i++ {
 		items := createItemsWire("Item", i+1)
-		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID, items); err != nil {
+		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, items); err != nil {
 			log.Printf("Failed to create list: %s", err)
 			t.FailNow()
 		} else {
@@ -882,14 +882,14 @@ func TestGetAllListsWithItems(t *testing.T) {
 			sharedByUser = sharedByUser2
 		}
 		items := createItemsWire("Shared Item", i+1)
-		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), sharedByUser.ID, items)
+		list, err := createListOffline("shared list from "+strconv.Itoa(i+1), sharedByUser.OnlineID, items)
 		if err != nil {
 			log.Printf("Failed to created shared list: %s", err)
 			t.FailNow()
 		}
 		offlineList = append(offlineList, list)
 		// Create the sharing
-		if _, err = createListSharing(list.ListId, list.CreatedBy.ID, user.ID); err != nil {
+		if _, err = createListSharing(list.ListId, list.CreatedBy.ID, user.OnlineID); err != nil {
 			log.Printf("Failed to create sharing: %s", err)
 			t.FailNow()
 		}
@@ -904,7 +904,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.ID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/v1/lists/%d", user.OnlineID), nil)
 	// Adding the authentication
 	req.Header.Add("Authorization", bearer)
 	router.ServeHTTP(w, req)
@@ -955,7 +955,7 @@ func TestRemoveList(t *testing.T) {
 	}
 	listName := "test list"
 	creator := data.ListCreator{
-		ID:   user.ID,
+		ID:   user.OnlineID,
 		Name: user.Username,
 	}
 	timeNow := time.Now().UTC()
@@ -1028,7 +1028,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	sharedWithUserId := 12345
 	var offlineList []data.Shoppinglist
 	for i := 0; i < 2; i++ {
-		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID, []data.ItemWire{})
+		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{})
 		if err != nil {
 			log.Printf("Failed to create list: %s", err)
 			t.FailNow()
@@ -1050,7 +1050,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	sharedWith := data.ListShared{
 		ID:         0,
 		ListId:     offlineList[0].ListId,
-		CreatedBy:  user.ID,
+		CreatedBy:  user.OnlineID,
 		SharedWith: int64(sharedWithUserId),
 		Created:    time.Now().UTC(),
 	}
@@ -1095,10 +1095,10 @@ func TestCreateSharing(t *testing.T) {
 	}
 
 	// Creating two own lists and share one with a random user
-	sharedWithUserId := sharedWithUser.ID
+	sharedWithUserId := sharedWithUser.OnlineID
 	var offlineList []data.Shoppinglist
 	for i := 0; i < 2; i++ {
-		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.ID, []data.ItemWire{})
+		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{})
 		if err != nil {
 			log.Printf("Failed to create list: %s", err)
 			t.FailNow()
@@ -1120,7 +1120,7 @@ func TestCreateSharing(t *testing.T) {
 	sharedWith := data.ListShared{
 		ID:         0,
 		ListId:     offlineList[0].ListId,
-		CreatedBy:  user.ID,
+		CreatedBy:  user.OnlineID,
 		SharedWith: int64(sharedWithUserId),
 		Created:    time.Now().UTC(),
 	}
@@ -1162,7 +1162,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	}
 
 	// Creating a list that WE DO NOT OWN
-	list, err := createListOffline("unowned list 1", user.ID+1, []data.ItemWire{})
+	list, err := createListOffline("unowned list 1", user.OnlineID+1, []data.ItemWire{})
 	if err != nil {
 		log.Printf("Failed to create list: %s", err)
 		t.FailNow()
@@ -1182,7 +1182,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	sharedWith := data.ListShared{
 		ID:         0,
 		ListId:     list.ListId,
-		CreatedBy:  user.ID,
+		CreatedBy:  user.OnlineID,
 		SharedWith: int64(sharedWithUserId),
 		Created:    time.Now().UTC(),
 	}

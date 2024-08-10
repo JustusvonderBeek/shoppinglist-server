@@ -9,7 +9,7 @@ import "time"
 // ------------------------------------------------------------
 
 type User struct {
-	ID        int64
+	OnlineID  int64
 	Username  string
 	Password  string
 	Created   string
