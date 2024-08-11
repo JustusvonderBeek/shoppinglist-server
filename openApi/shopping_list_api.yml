@@ -1,0 +1,350 @@
+openapi: '3.0.3'
+info:
+  title: Shopping-List API
+  version: '1.0'
+  description: 'The remote API for the shopping list application to exchange items to buy.'
+servers:
+  - url: https://api.server.test/v1
+    variables:
+      port:
+        enum:
+          - '443'
+        default: '443'
+paths:
+  /users/{userId}:
+    get:
+      tags:
+        - User Handling
+      description: Receive user information from the service
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users:
+    post:
+      tags:
+        - User Handling
+      description: Create a new user at the service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        201:
+          description: Created
+
+  /lists/{listId}:
+    get:
+      tags:
+        - List Handling
+      description: Retrieve the specific list for the current user
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list which is queried to be received
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/List'
+    put:
+      tags:
+        - List Handling
+      description: Update an existing list with new items
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list which is updated
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListItem'
+      responses:
+        201:
+          description: Created
+  /lists:
+    get:
+      tags:
+        - List Handling
+      description: Retrieve all lists for the current user. Includes shared lists
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/List'
+    post:
+      tags:
+        - List Handling
+      description: Creating a new list for the current user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/List'
+      responses:
+        201:
+          description: Created
+  /share/{listId}:
+    post:
+      tags:
+        - List Sharing
+      description: Share the given list with the user contained in the request body.
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list that should be shared
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sharing'
+      responses:
+        201:
+          description: Created
+    put:
+      tags:
+        - List Sharing
+      description: Add the given users to the sharing. Replaces the existing sharing.
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list which sharing should be updated
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sharing'
+      responses:
+        201:
+          description: Created
+    delete:
+      tags:
+        - List Sharing
+      description: Unshare the given list with the user(s).
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list that should be unshared
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sharing'
+      responses:
+        200:
+          description: OK
+  /receipt:
+    post:
+      tags:
+        - Receipt Handling
+      description: Create a new receipt at the server
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Receipt'
+      responses:
+        201:
+          description: Created
+
+components:
+  schemas:
+    User:
+      type: object
+      description: The online user for operations
+      properties:
+        userId:
+          type: integer
+          format: int32
+          example: 12344
+        username:
+          type: string
+          example: "markus"
+        password:
+          type: string
+          format: byte
+          example: "secure as hell"
+        created:
+          type: string
+          format: date-time
+          example: "2024-08-09T19:37:21Z"
+    Sharing:
+      type: object
+      description: Detailed description what list to share with which user
+      properties:
+        sharingUser:
+          type: integer
+          format: int32
+          example: 123443
+        sharedWith:
+          type: array
+          items:
+            type: integer
+            format: int32
+            example: 15331
+        created:
+          type: string
+          format: date-time
+          example: '2024-08-09T19:37:21Z'
+    Item:
+      type: object
+      description: An item that can be bought
+      properties:
+        itemId:
+          type: integer
+          format: int32
+          example: 120
+        name:
+          type: string
+          maxLength: 100
+        image:
+          type: string
+          format: byte
+          example: "ea16feea"
+          nullable: true
+          description: The item might contains an optional image
+    ListItem:
+      type: object
+      description: The item send inside an online list
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          properties:
+            quantity:
+              type: integer
+              format: int32
+              example: 2
+            checked:
+              type: boolean
+              example: true
+    List:
+      type: object
+      description: The list containing items to buy
+      properties:
+        listId:
+          type: integer
+          format: int32
+          example: 121633
+        title:
+          type: string
+          maxLength: 50
+          example: 'groceries'
+        elements:
+          type: integer
+          format: int32
+          example: 2
+        createdBy:
+          type: integer
+          example: 121600
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-08-09T19:37:21Z'
+        lastUpdated:
+          type: string
+          format: date-time
+          nullable: false
+          example: '2024-08-09T19:37:21Z'
+        listItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListItem'
+    Quantity:
+      description: The quantity and type of quantity for some item
+      type: object
+      properties:
+        quantity:
+          type: integer
+          format: int32
+          example: 300
+        quantityType:
+          type: string
+          maxLength: 10
+          example: "g"
+    Ingredient:
+      description: An ingredient for a receipt with quantity, name and more
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - $ref: '#/components/schemas/Quantity'
+    ReceiptStep:
+      description: A single step in a receipt, including what items to use, how much and the order and description of the actions.
+      type: object
+      properties:
+        description:
+          type: string
+          example: "mix the eggs and milk together"
+    Receipt:
+      type: object
+      description: A receipt to cook or buy
+      properties:
+        receiptId:
+          type: integer
+          format: int32
+          example: 88123
+        name:
+          type: string
+          maxLength: 100
+          example: 'Pancakes'
+        createdBy:
+          type: integer
+          format: int32
+          example: 121633
+        createdAt:
+          type: string
+          format: date-time
+          example: '2024-08-09T19:37:21Z'
+        lastUpdated:
+          type: string
+          format: date-time
+          example: '2024-08-09T19:37:21Z'
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        description:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptStep'
+
+
+
+        
