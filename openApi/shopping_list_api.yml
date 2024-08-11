@@ -4,7 +4,7 @@ info:
   version: '1.0'
   description: 'The remote API for the shopping list application to exchange items to buy.'
 servers:
-  - url: https://api.server.test/v1
+  - url: https://shop.cloudsheeptech.com/v1
     variables:
       port:
         enum:
@@ -32,6 +32,8 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Not found
     put:
       tags:
         - User Handling
@@ -53,6 +55,24 @@ paths:
           description: OK
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: User not found
+    delete:
+      tags:
+        - User Handling
+      description: Deleting an existing user. Can only be initiated by the user itself
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+        '410':
+          description: Gone
   /users:
     post:
       tags:
@@ -68,7 +88,7 @@ paths:
           description: Created
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-  /users/name{username}:
+  /users/name?{username}:
     get:
       tags:
         - List Sharing
@@ -91,16 +111,25 @@ paths:
                   $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-  /lists/{listId}:
+        '404':
+          description: Not found
+  /lists/{listId}?{createdBy}:
     get:
       tags:
         - List Handling
-      description: Retrieve the specific list for the current user
+      description: Retrieve the specific list either created by the user or shared with the current user.
       parameters:
         - name: listId
           in: path
           description: The id of the list which is queried to be received
           required: true
+          schema:
+            type: integer
+            format: int32
+        - name: createdBy
+          in: query
+          description: The creator of the list that is retrieved. Can be different from the requesting user if the list is shared.
+          required: false
           schema:
             type: integer
             format: int32
@@ -125,16 +154,43 @@ paths:
           schema:
             type: integer
             format: int32
+        - name: createdBy
+          in: query
+          description: The creator of the list that is updated. Can be different from the requester when the list is shared.
+          required: false
+          schema:
+            type: integer
+            format: int32
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ListItem'
+              type: array
+              items:
+                $ref: '#/components/schemas/ListItem'
       responses:
         '201':
           description: Created
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /lists/{listId}:
+    delete:
+      tags:
+        - List Handling
+      description: Delete an existing list. Can only be issued by the user who created the list.
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list which is deleted
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+        '202':
+          description: Accepted
   /lists:
     get:
       tags:
@@ -155,6 +211,14 @@ paths:
       tags:
         - List Handling
       description: Creating a new list for the current user
+      parameters:
+        - name: createdBy
+          in: query
+          description: The creator of the list that is retrieved
+          required: false
+          schema:
+            type: integer
+            format: int32
       requestBody:
         content:
           application/json:
@@ -284,19 +348,28 @@ components:
         username:
           type: string
           example: "markus"
+          maxLength: 40
         password:
           type: string
           format: byte
           example: "secure as hell"
+          nullable: true
+          minLength: 32
         created:
           type: string
           format: date-time
           example: "2024-08-09T19:37:21Z"
+          nullable: true
+        lastLogin:
+          type: string
+          format: date-time
+          example: '2024-08-09T19:37:21Z'
+          nullable: true
     Sharing:
       type: object
       description: Detailed description what list to share with which user
       properties:
-        sharingUser:
+        sharedBy:
           type: integer
           format: int32
           example: 123443
@@ -321,7 +394,7 @@ components:
         name:
           type: string
           maxLength: 100
-        image:
+        icon:
           type: string
           format: byte
           example: "ea16feea"
@@ -370,7 +443,7 @@ components:
           format: date-time
           nullable: false
           example: '2024-08-09T19:37:21Z'
-        listItems:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/ListItem'
