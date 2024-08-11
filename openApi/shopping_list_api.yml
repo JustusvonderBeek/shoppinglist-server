@@ -127,6 +127,37 @@ paths:
           description: OK
         "410":
           description: Gone
+  /users/{userId}/login:
+    post:
+      tags:
+      - User Handling
+      description: Login with with id and credentials to access resources.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    format: byte
+                    example: "eeaaff123"
   /lists:
     get:
       tags:
@@ -447,7 +478,7 @@ components:
     User:
       type: object
       properties:
-        userId:
+        onlineId:
           type: integer
           format: int32
           example: 12344
