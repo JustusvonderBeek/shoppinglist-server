@@ -450,24 +450,25 @@ func unshareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
-	var listUnshare data.ListSharedWire
-	if err := c.BindJSON(&listUnshare); err != nil {
-		log.Print("Failed to deserialize share object")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
+	// Delete requests cannot have a body, therefore simply delete all sharing
+	// if only specific should be deleted, the PUT method can be used
+
+	// var listUnshare data.ListSharedWire
+	// if err := c.BindJSON(&listUnshare); err != nil {
+	// 	log.Print("Failed to deserialize share object")
+	// 	c.AbortWithStatus(http.StatusBadRequest)
+	// 	return
+	// }
 	// should not happen, unless my implementation above is bogus, so could be :)
 	if list.CreatedBy.ID != int64(userId) {
 		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
-	for _, unshareId := range listUnshare.SharedWith {
-		if err := database.DeleteSharingForUser(int64(listId), userId, unshareId); err != nil {
-			log.Printf("Failed to delete sharing %s", err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
+	if err = database.DeleteSharingOfList(int64(listId), userId); err != nil {
+		log.Printf("failed to delete sharing of list %d for user %d", listId, userId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
 	c.Status(http.StatusOK)
 }
