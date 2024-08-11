@@ -259,7 +259,7 @@ paths:
     post:
       tags:
         - List Sharing
-      description: Share the given list with the user contained in the request body.
+      description: Share the given list with the user contained in the request body. The list can only be shared by the original owner and creator.
       parameters:
         - name: listId
           in: path
@@ -276,6 +276,8 @@ paths:
       responses:
         '201':
           description: Created
+        '400':
+          description: Bad Request
         '401':
           $ref: '#/components/responses/UnauthorizedError'
     put:
