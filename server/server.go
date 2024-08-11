@@ -553,9 +553,9 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	// ------------- Handling Account Creation and Login ---------------
 
 	// Independent of API version, therefore not in the auth bracket
-	router.POST("/users/create", authentication.CreateAccount)
+	router.POST("/v1/users", authentication.CreateAccount)
 	// JWT BASED AUTHENTICATION
-	router.POST("/users/login", authentication.Login)
+	router.POST("/v1/users/login", authentication.Login)
 
 	// ------------- Handling Routes v1 (API version 1) ---------------
 
@@ -600,6 +600,12 @@ func Start(cfg configuration.Config) error {
 
 	address := cfg.ListenAddr + ":" + cfg.ListenPort
 	// Only allow TLS
-	err := router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
+	var err error
+	if !cfg.DisableTLS {
+		err = router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
+	} else {
+		log.Printf("Disabling TLS...")
+		err = router.Run(address)
+	}
 	return err
 }
