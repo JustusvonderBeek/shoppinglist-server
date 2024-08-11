@@ -1,20 +1,35 @@
-openapi: '3.0.3'
+openapi: 3.0.3
 info:
   title: Shopping-List API
-  version: '1.0'
-  description: 'The remote API for the shopping list application to exchange items to buy.'
+  description: The remote API for the shopping list application to exchange items to buy.
+  version: "1.0"
 servers:
-  - url: https://shop.cloudsheeptech.com/v1
-    variables:
-      port:
-        enum:
-          - '443'
-        default: '443'
+- url: https://shop.cloudsheeptech.com:{port}/{basePath}
+  description: Production server
+  variables:
+    port:
+      default: "46152"
+      enum:
+      - "46152"
+    basePath:
+      default: "v1"
+- url: http://localhost:{port}/{basePath}
+  description: Development server
+  variables:
+    port:
+      default: "46152"
+      enum:
+        - "46152"
+    basePath:
+      default: "v1"
+security:
+- ApiKey: []
+- bearerAuth: []
 paths:
   /users:
     post:
       tags:
-        - User Handling
+      - User Handling
       description: Create a new user at the service
       requestBody:
         content:
@@ -22,101 +37,103 @@ paths:
             schema:
               $ref: '#/components/schemas/User'
       responses:
-        '201':
+        "201":
           description: Created
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
   /users/{userId}:
+    get:
+      tags:
+      - User Handling
+      description: Receive user information from the service
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: Not found
     put:
       tags:
-        - User Handling
+      - User Handling
       description: Updating an existing user
       parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
-            format: int32
+      - name: userId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
       requestBody:
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/User'
       responses:
-        '200':
+        "200":
           description: OK
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '404':
-          description: User not found
-    get:
-      tags:
-        - User Handling
-      description: Receive user information from the service
-      parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
-            format: int32
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
               schema:
-                $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '404':
-          description: Not found
+                type: string
+        "404":
+          description: User not found
     delete:
       tags:
-        - User Handling
+      - User Handling
       description: Deleting an existing user. Can only be initiated by the user itself
       parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
-            format: int32
+      - name: userId
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
       responses:
-        '200':
+        "200":
           description: OK
-        '410':
+        "410":
           description: Gone
   /lists:
-    post:
-      tags:
-        - List Handling
-      description: Creating a new list for the current user
-      parameters:
-        - name: createdBy
-          in: query
-          description: The creator of the list that is retrieved
-          required: false
-          schema:
-            type: integer
-            format: int32
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/List'
-      responses:
-        '201':
-          description: Created
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
     get:
       tags:
-        - List Handling
+      - List Handling
       description: Retrieve all lists for the current user. Includes shared lists
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
@@ -124,22 +141,60 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/List'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-  /users/name?{username}:
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+    post:
+      tags:
+      - List Handling
+      description: Creating a new list for the current user
+      parameters:
+      - name: createdBy
+        in: query
+        description: The creator of the list that is retrieved
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/List'
+      responses:
+        "201":
+          description: Created
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+  /users/name:
     get:
       tags:
-        - List Sharing
+      - List Sharing
       description: Receive all users with a matching name (matching according to contains)
       parameters:
-        - in: query
-          name: username
-          required: true
-          schema:
-            type: string
-          allowEmptyValue: false
+      - name: username
+        in: query
+        required: true
+        allowEmptyValue: false
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
@@ -147,30 +202,78 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '404':
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
           description: Not found
-  /lists/{listId}?{createdBy}:
+  /lists/{listId}:
+    get:
+      tags:
+      - List Handling
+      description: Retrieve the specific list either created by the user or shared with the current user.
+      parameters:
+      - name: listId
+        in: path
+        description: The id of the list which is queried to be received
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
+      - name: createdBy
+        in: query
+        description: The creator of the list that is retrieved. Can be different from the requesting user if the list is shared.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/List'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
     put:
       tags:
-        - List Handling
+      - List Handling
       description: Update an existing list with new items
       parameters:
-        - name: listId
-          in: path
-          description: The id of the list which is updated
-          required: true
-          schema:
-            type: integer
-            format: int32
-        - name: createdBy
-          in: query
-          description: The creator of the list that is updated. Can be different from the requester when the list is shared.
-          required: false
-          schema:
-            type: integer
-            format: int32
+      - name: listId
+        in: path
+        description: The id of the list which is updated
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
+      - name: createdBy
+        in: query
+        description: The creator of the list that is updated. Can be different from the requester when the list is shared.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          format: int32
       requestBody:
         content:
           application/json:
@@ -179,155 +282,149 @@ paths:
               items:
                 $ref: '#/components/schemas/ListItem'
       responses:
-        '201':
+        "201":
           description: Created
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-    get:
-      tags:
-        - List Handling
-      description: Retrieve the specific list either created by the user or shared with the current user.
-      parameters:
-        - name: listId
-          in: path
-          description: The id of the list which is queried to be received
-          required: true
-          schema:
-            type: integer
-            format: int32
-        - name: createdBy
-          in: query
-          description: The creator of the list that is retrieved. Can be different from the requesting user if the list is shared.
-          required: false
-          schema:
-            type: integer
-            format: int32
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
               schema:
-                $ref: '#/components/schemas/List'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-  /lists/{listId}:
+                type: string
     delete:
       tags:
-        - List Handling
+      - List Handling
       description: Delete an existing list. Can only be issued by the user who created the list.
       parameters:
-        - name: listId
-          in: path
-          description: The id of the list which is deleted
-          required: true
-          schema:
-            type: integer
-            format: int32
+      - name: listId
+        in: path
+        description: The id of the list which is deleted
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
       responses:
-        '200':
+        "200":
           description: OK
-        '202':
+        "202":
           description: Accepted
   /share:
     get:
       tags:
-        - List Sharing
+      - List Sharing
       description: Retrieve the information which lists are shared with whom.
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    listId:
-                      type: integer
-                      format: int32
-                      example: 1233
-                    sharedWith:
-                      type: array
-                      items:
-                        type: integer
-                        example: 1066
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+                  $ref: '#/components/schemas/inline_response_200'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
   /share/{listId}:
-    post:
-      tags:
-        - List Sharing
-      description: Share the given list with the user contained in the request body. The list can only be shared by the original owner and creator.
-      parameters:
-        - name: listId
-          in: path
-          description: The id of the list that should be shared
-          required: true
-          schema:
-            type: integer
-            format: int32
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Sharing'
-      responses:
-        '201':
-          description: Created
-        '400':
-          description: Bad Request
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
     put:
       tags:
-        - List Sharing
+      - List Sharing
       description: Add the given users to the sharing. Replaces the existing sharing.
       parameters:
-        - name: listId
-          in: path
-          description: The id of the list which sharing should be updated
-          required: true
-          schema:
-            type: integer
-            format: int32
+      - name: listId
+        in: path
+        description: The id of the list which sharing should be updated
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
       requestBody:
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/Sharing'
       responses:
-        '201':
+        "201":
           description: Created
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+    post:
+      tags:
+      - List Sharing
+      description: Share the given list with the user contained in the request body. The list can only be shared by the original owner and creator.
+      parameters:
+      - name: listId
+        in: path
+        description: The id of the list that should be shared
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sharing'
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
     delete:
       tags:
-        - List Sharing
+      - List Sharing
       description: Unshare the given list with the user(s).
       parameters:
-        - name: listId
-          in: path
-          description: The id of the list that should be unshared
-          required: true
-          schema:
-            type: integer
-            format: int32
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Sharing'
+      - name: listId
+        in: path
+        description: The id of the list that should be unshared
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int32
       responses:
-        '200':
+        "200":
           description: OK
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
   /receipt:
     post:
       tags:
-        - Receipt Handling
+      - Receipt Handling
       description: Create a new receipt at the server
       requestBody:
         content:
@@ -335,67 +432,48 @@ paths:
             schema:
               $ref: '#/components/schemas/Receipt'
       responses:
-        '201':
+        "201":
           description: Created
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-# Apply the API key to all operations
-security:
-  - ApiKey: []
-  - bearerAuth: []
-
+        "401":
+          description: API key required but not provided
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
 components:
-  securitySchemes:
-    ApiKey:
-      type: apiKey
-      in: header
-      name: X-API-KEY
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  responses:
-    UnauthorizedError:
-      description: API key required but not provided
-      headers:
-        WWW_Authenticate:
-          schema:
-            type: string
-    UnauthorizedBearerError:
-      description: Invalid bearer token provided
   schemas:
     User:
       type: object
-      description: The online user for operations
       properties:
         userId:
           type: integer
           format: int32
           example: 12344
         username:
-          type: string
-          example: "markus"
           maxLength: 40
+          type: string
+          example: markus
         password:
+          minLength: 32
           type: string
           format: byte
-          example: "secure as hell"
           nullable: true
-          minLength: 32
+          example: secure as hell
         created:
           type: string
           format: date-time
-          example: "2024-08-09T19:37:21Z"
           nullable: true
+          example: 2024-08-09T19:37:21Z
         lastLogin:
           type: string
           format: date-time
-          example: '2024-08-09T19:37:21Z'
           nullable: true
+          example: 2024-08-09T19:37:21Z
+      description: The online user for operations
     Sharing:
       type: object
-      description: Detailed description what list to share with which user
       properties:
         sharedBy:
           type: integer
@@ -410,50 +488,50 @@ components:
         created:
           type: string
           format: date-time
-          example: '2024-08-09T19:37:21Z'
+          example: 2024-08-09T19:37:21Z
+      description: Detailed description what list to share with which user
     Item:
       type: object
-      description: An item that can be bought
       properties:
         itemId:
           type: integer
           format: int32
           example: 120
         name:
-          type: string
           maxLength: 100
+          type: string
         icon:
           type: string
-          format: byte
-          example: "ea16feea"
-          nullable: true
           description: The item might contains an optional image
+          format: byte
+          nullable: true
+          example: ea16feea
+      description: An item that can be bought
     ListItem:
       type: object
       description: The item send inside an online list
       allOf:
-        - $ref: '#/components/schemas/Item'
-        - type: object
-          properties:
-            quantity:
-              type: integer
-              format: int32
-              example: 2
-            checked:
-              type: boolean
-              example: true
+      - $ref: '#/components/schemas/Item'
+      - type: object
+        properties:
+          quantity:
+            type: integer
+            format: int32
+            example: 2
+          checked:
+            type: boolean
+            example: true
     List:
       type: object
-      description: The list containing items to buy
       properties:
         listId:
           type: integer
           format: int32
           example: 121633
         title:
-          type: string
           maxLength: 50
-          example: 'groceries'
+          type: string
+          example: groceries
         elements:
           type: integer
           format: int32
@@ -465,18 +543,18 @@ components:
           type: string
           format: date-time
           nullable: true
-          example: '2024-08-09T19:37:21Z'
+          example: 2024-08-09T19:37:21Z
         lastUpdated:
           type: string
           format: date-time
           nullable: false
-          example: '2024-08-09T19:37:21Z'
+          example: 2024-08-09T19:37:21Z
         items:
           type: array
           items:
             $ref: '#/components/schemas/ListItem'
+      description: The list containing items to buy
     Quantity:
-      description: The quantity and type of quantity for some item
       type: object
       properties:
         quantity:
@@ -484,33 +562,33 @@ components:
           format: int32
           example: 300
         quantityType:
-          type: string
           maxLength: 10
-          example: "g"
+          type: string
+          example: g
+      description: The quantity and type of quantity for some item
     Ingredient:
-      description: An ingredient for a receipt with quantity, name and more
+      description: "An ingredient for a receipt with quantity, name and more"
       allOf:
-        - $ref: '#/components/schemas/Item'
-        - $ref: '#/components/schemas/Quantity'
+      - $ref: '#/components/schemas/Item'
+      - $ref: '#/components/schemas/Quantity'
     ReceiptStep:
-      description: A single step in a receipt, including what items to use, how much and the order and description of the actions.
       type: object
       properties:
         description:
           type: string
-          example: "mix the eggs and milk together"
+          example: mix the eggs and milk together
+      description: "A single step in a receipt, including what items to use, how much and the order and description of the actions."
     Receipt:
       type: object
-      description: A receipt to cook or buy
       properties:
         receiptId:
           type: integer
           format: int32
           example: 88123
         name:
-          type: string
           maxLength: 100
-          example: 'Pancakes'
+          type: string
+          example: Pancakes
         createdBy:
           type: integer
           format: int32
@@ -518,11 +596,11 @@ components:
         createdAt:
           type: string
           format: date-time
-          example: '2024-08-09T19:37:21Z'
+          example: 2024-08-09T19:37:21Z
         lastUpdated:
           type: string
           format: date-time
-          example: '2024-08-09T19:37:21Z'
+          example: 2024-08-09T19:37:21Z
         ingredients:
           type: array
           items:
@@ -531,3 +609,36 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReceiptStep'
+      description: A receipt to cook or buy
+    inline_response_200:
+      type: object
+      properties:
+        listId:
+          type: integer
+          format: int32
+          example: 1233
+        sharedWith:
+          type: array
+          items:
+            type: integer
+            example: 1066
+  responses:
+    UnauthorizedError:
+      description: API key required but not provided
+      headers:
+        WWW_Authenticate:
+          style: simple
+          explode: false
+          schema:
+            type: string
+    UnauthorizedBearerError:
+      description: Invalid bearer token provided
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      name: X-API-KEY
+      in: header
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
