@@ -24,6 +24,7 @@ func main() {
 	tlskey := flag.String("key", "resources/shoppinglist.pem", "THe location of the TLS keyfile")
 	jwtFile := flag.String("jwt", "resources/jwtSecret.json", "The path to the file holding the JWT Secret")
 	resetDb := flag.Bool("reset", false, "Reset the whole database")
+	noTls := flag.Bool("k", false, "Disable TLS for testing")
 	flag.Parse()
 
 	configuration := configuration.Config{
@@ -33,6 +34,7 @@ func main() {
 		ResetDatabase:  *resetDb,
 		TLSCertificate: *tlscert,
 		TLSKeyfile:     *tlskey,
+		DisableTLS:     *noTls,
 		JWTSecretFile:  *jwtFile,
 		JWTTimeout:     180, // Maybe make this a parameter later
 	}
