@@ -21,19 +21,19 @@ func createUserDb(name string) (data.User, error) {
 	return user, nil
 }
 
-func createListBase(name string, createdBy int64) data.Shoppinglist {
+func createListBase(name string, createdBy int64) data.List {
 	creator := data.ListCreator{
 		ID:   createdBy,
 		Name: "List Creator",
 	}
 	created := time.Now().Local()
-	return data.Shoppinglist{
-		ListId:     1,
-		Name:       "Create List Name",
-		CreatedBy:  creator,
-		Created:    created,
-		LastEdited: created,
-		Items:      []data.ItemWire{},
+	return data.List{
+		ListId:      1,
+		Title:       "Create List Name",
+		CreatedBy:   creator,
+		CreatedAt:   created,
+		LastUpdated: created,
+		Items:       []data.ItemWire{},
 	}
 }
 
@@ -128,9 +128,9 @@ func TestModifyListName(t *testing.T) {
 		t.FailNow()
 	}
 	updatedList := list
-	oldName := getList.Name
+	oldName := getList.Title
 	updatedName := "New List Name"
-	updatedList.Name = updatedName
+	updatedList.Title = updatedName
 	err = CreateOrUpdateShoppingList(updatedList)
 	if err != nil {
 		log.Printf("Failed to modify shopping list name: %s", err)
@@ -141,11 +141,11 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to get list: %s", err)
 		t.FailNow()
 	}
-	if getList.Name == oldName {
+	if getList.Title == oldName {
 		log.Print("List names still match after update!")
 		t.FailNow()
 	}
-	if getList.Name != updatedName {
+	if getList.Title != updatedName {
 		log.Printf("Name update not correctly stored")
 		t.FailNow()
 	}
