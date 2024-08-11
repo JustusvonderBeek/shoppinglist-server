@@ -125,17 +125,21 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	log.Print("Connected to database")
 }
 
-func convertTimeToString(time time.Time) string {
+func convertTimeToString(timeToFormat time.Time) string {
 	// For some strange reason, the default mechanism to parse UTC time
 	// seems to produce different results for the raspi and my local machine
 	// Therefore, explicitly define the format here again
-	formatTime := time.Format("2024-08-11T11:12:13Z")
+	// log.Printf("Time before format: %v", timeToFormat)
+
+	// We need to omit the Z at the end for our database
+	formatTime := timeToFormat.Format("2006-01-02T03:04:05")
+	// log.Printf("Converted time: %s", formatTime)
 	return formatTime
 }
 
 func convertStringToTime(strTime string) time.Time {
 	trimmedString := strings.Trim(strTime, "\t")
-	parsedTime, err := time.Parse("2024-08-11T11:12:13Z", trimmedString)
+	parsedTime, err := time.Parse("2006-01-02T03:04:05Z07:00", trimmedString)
 	if err != nil {
 		log.Printf("Failed to parse time: %s", trimmedString)
 		return time.Now().UTC()
