@@ -30,6 +30,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    put:
+      tags:
+        - User Handling
+      description: Updating an existing user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: OK
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /users:
     post:
       tags:
@@ -41,9 +64,33 @@ paths:
             schema:
               $ref: '#/components/schemas/User'
       responses:
-        201:
+        '201':
           description: Created
-
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/name{username}:
+    get:
+      tags:
+        - List Sharing
+      description: Receive all users with a matching name (matching according to contains)
+      parameters:
+        - in: query
+          name: username
+          required: true
+          schema:
+            type: string
+          allowEmptyValue: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /lists/{listId}:
     get:
       tags:
@@ -58,12 +105,14 @@ paths:
             type: integer
             format: int32
       responses:
-        200:
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/List'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     put:
       tags:
         - List Handling
@@ -82,15 +131,17 @@ paths:
             schema:
               $ref: '#/components/schemas/ListItem'
       responses:
-        201:
+        '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /lists:
     get:
       tags:
         - List Handling
       description: Retrieve all lists for the current user. Includes shared lists
       responses:
-        200:
+        '200':
           description: OK
           content:
             application/json:
@@ -98,6 +149,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/List'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     post:
       tags:
         - List Handling
@@ -108,8 +161,10 @@ paths:
             schema:
               $ref: '#/components/schemas/List'
       responses:
-        201:
+        '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /share/{listId}:
     post:
       tags:
@@ -129,8 +184,10 @@ paths:
             schema:
               $ref: '#/components/schemas/Sharing'
       responses:
-        201:
+        '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     put:
       tags:
         - List Sharing
@@ -149,8 +206,10 @@ paths:
             schema:
               $ref: '#/components/schemas/Sharing'
       responses:
-        201:
+        '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     delete:
       tags:
         - List Sharing
@@ -169,8 +228,10 @@ paths:
             schema:
               $ref: '#/components/schemas/Sharing'
       responses:
-        200:
+        '200':
           description: OK
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /receipt:
     post:
       tags:
@@ -182,10 +243,35 @@ paths:
             schema:
               $ref: '#/components/schemas/Receipt'
       responses:
-        201:
+        '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+# Apply the API key to all operations
+security:
+  - ApiKey: []
+  - bearerAuth: []
 
 components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    UnauthorizedError:
+      description: API key required but not provided
+      headers:
+        WWW_Authenticate:
+          schema:
+            type: string
+    UnauthorizedBearerError:
+      description: Invalid bearer token provided
   schemas:
     User:
       type: object
