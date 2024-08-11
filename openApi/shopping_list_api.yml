@@ -11,29 +11,22 @@ servers:
           - '443'
         default: '443'
 paths:
-  /users/{userId}:
-    get:
+  /users:
+    post:
       tags:
         - User Handling
-      description: Receive user information from the service
-      parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
-            format: int32
+      description: Create a new user at the service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
       responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
+        '201':
+          description: Created
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-        '404':
-          description: Not found
+  /users/{userId}:
     put:
       tags:
         - User Handling
@@ -57,6 +50,28 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           description: User not found
+    get:
+      tags:
+        - User Handling
+      description: Receive user information from the service
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Not found
     delete:
       tags:
         - User Handling
@@ -73,19 +88,42 @@ paths:
           description: OK
         '410':
           description: Gone
-  /users:
+  /lists:
     post:
       tags:
-        - User Handling
-      description: Create a new user at the service
+        - List Handling
+      description: Creating a new list for the current user
+      parameters:
+        - name: createdBy
+          in: query
+          description: The creator of the list that is retrieved
+          required: false
+          schema:
+            type: integer
+            format: int32
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/List'
       responses:
         '201':
           description: Created
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    get:
+      tags:
+        - List Handling
+      description: Retrieve all lists for the current user. Includes shared lists
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/List'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
   /users/name?{username}:
@@ -114,34 +152,6 @@ paths:
         '404':
           description: Not found
   /lists/{listId}?{createdBy}:
-    get:
-      tags:
-        - List Handling
-      description: Retrieve the specific list either created by the user or shared with the current user.
-      parameters:
-        - name: listId
-          in: path
-          description: The id of the list which is queried to be received
-          required: true
-          schema:
-            type: integer
-            format: int32
-        - name: createdBy
-          in: query
-          description: The creator of the list that is retrieved. Can be different from the requesting user if the list is shared.
-          required: false
-          schema:
-            type: integer
-            format: int32
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/List'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
     put:
       tags:
         - List Handling
@@ -173,6 +183,34 @@ paths:
           description: Created
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+    get:
+      tags:
+        - List Handling
+      description: Retrieve the specific list either created by the user or shared with the current user.
+      parameters:
+        - name: listId
+          in: path
+          description: The id of the list which is queried to be received
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: createdBy
+          in: query
+          description: The creator of the list that is retrieved. Can be different from the requesting user if the list is shared.
+          required: false
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/List'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /lists/{listId}:
     delete:
       tags:
@@ -191,11 +229,11 @@ paths:
           description: OK
         '202':
           description: Accepted
-  /lists:
+  /share:
     get:
       tags:
-        - List Handling
-      description: Retrieve all lists for the current user. Includes shared lists
+        - List Sharing
+      description: Retrieve the information which lists are shared with whom.
       responses:
         '200':
           description: OK
@@ -204,29 +242,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/List'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-    post:
-      tags:
-        - List Handling
-      description: Creating a new list for the current user
-      parameters:
-        - name: createdBy
-          in: query
-          description: The creator of the list that is retrieved
-          required: false
-          schema:
-            type: integer
-            format: int32
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/List'
-      responses:
-        '201':
-          description: Created
+                  type: object
+                  properties:
+                    listId:
+                      type: integer
+                      format: int32
+                      example: 1233
+                    sharedWith:
+                      type: array
+                      items:
+                        type: integer
+                        example: 1066
         '401':
           $ref: '#/components/responses/UnauthorizedError'
   /share/{listId}:
@@ -503,7 +529,3 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReceiptStep'
-
-
-
-        
