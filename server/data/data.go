@@ -4,90 +4,95 @@ import "time"
 
 // Helping file containing all data structures
 
+// NOTE: The field names are kept in camelCase
+// that is, 'field' or 'thisIsAField'
+
+// Furthermore, structs like the user can be used in multiple calls
+// and scenarios, therefore fields can be omitted which must be explicitly marked
+
 // ------------------------------------------------------------
-// The data for authentication and login
+// Operational data structures
+// ------------------------------------------------------------
+
+// ? Shouldn't this already be contained in the framework and http status?
+type Answer struct {
+	Status string
+}
+
+// ------------------------------------------------------------
+// The data for authentication, login and display of information
 // ------------------------------------------------------------
 
 type User struct {
-	OnlineID  int64
-	Username  string
-	Password  string
-	Created   string
-	LastLogin string
-}
-
-type UserWire struct {
-	ID       int64
-	Username string
-}
-
-// ------------------------------------------------------------
-// The answer status structure
-// ------------------------------------------------------------
-
-type Answer struct {
-	Status string
+	OnlineID  int64  `json:"onlineId"`
+	Username  string `json:"username"`
+	Password  string `json:"password,omitempty"`
+	Created   string `json:"created,omitempty"`
+	LastLogin string `json:"lastLogin,omitempty"` // <- what do we need this information for? would only be relevant when displaying or using this in the app
 }
 
 // ------------------------------------------------------------
 // The list data structures
 // ------------------------------------------------------------
 
+// Note: This can also be represented by the user format with fields omitted!!!
+// Deprecated: ListCreated is deprecated. Use user instead
 type ListCreator struct {
-	ID   int64
-	Name string
+	ID   int64  `json:"onlineId"`
+	Name string `json:"username"`
 }
 
-type Shoppinglist struct {
-	ListId     int64
-	Name       string
-	CreatedBy  ListCreator
-	Created    time.Time
-	LastEdited time.Time
-	Items      []ItemWire
+type List struct {
+	ListId      int64       `json:"listId"`
+	Title       string      `json:"title"`
+	Elements    int32       `json:"elements"`
+	CreatedBy   ListCreator `json:"createdBy"`
+	CreatedAt   time.Time   `json:"createdAt,omitempty"`
+	LastUpdated time.Time   `json:"lastUpdated"`
+	Items       []ItemWire  `json:"items"`
+}
+
+type Item struct {
+	ItemId int64  `json:"itemId"` // Only for interal reasons
+	Name   string `json:"name"`
+	Icon   string `json:"icon,omitempty"`
+}
+
+type ItemWire struct {
+	Name     string `json:"name"`
+	Icon     string `json:"icon"`
+	Quantity int64  `json:"quantity,omitempty"`
+	Checked  bool   `json:"checked,omitempty"`
+	AddedBy  int64  `json:"addedBy,omitempty"`
+}
+
+type ListItem struct {
+	ID        int64 `json:"id,omitempty"`
+	ListId    int64 `json:"listId"`
+	ItemId    int64 `json:"itemId"`
+	Quantity  int64 `json:"quantity,omitempty"`
+	Checked   bool  `json:"checked,omitempty"`
+	CreatedBy int64 `json:"createdBy,omitempty"`
+	AddedBy   int64 `json:"addedBy,omitempty"`
 }
 
 type ListShared struct {
-	ID         int64
-	ListId     int64
-	CreatedBy  int64
-	SharedWith int64
-	Created    time.Time
+	ID         int64     `json:"shareId,omitempty"`
+	ListId     int64     `json:"listId"`
+	CreatedBy  int64     `json:"createdBy"`
+	SharedWith []int64   `json:"sharedWith"`
+	Created    time.Time `json:"created,omitempty"`
 }
 
 type ListSharedWire struct {
-	ListId     int64
-	CreatedBy  int64
-	SharedWith int64
-}
-
-type ItemPerList struct {
-	ID        int64
-	ListId    int64
-	ItemId    int64
-	Quantity  int64
-	Checked   bool
-	CreatedBy int64
-	AddedBy   int64
+	SharedBy   int64     `json:"sharedBy"` // Could also be obtained by the request token or user...?
+	SharedWith []int64   `json:"sharedWith"`
+	Created    time.Time `json:"created,omitempty"`
 }
 
 // ------------------------------------------------------------
 // The items that are stored in the list
 // ------------------------------------------------------------
-
-type Item struct {
-	ID   int64 // Only for interal reasons
-	Name string
-	Icon string
-}
-
-type ItemWire struct {
-	Name     string
-	Icon     string
-	Quantity int64
-	Checked  bool
-	AddedBy  int64
-}
 
 // ------------------------------------------------------------
 // The recipe data structures
