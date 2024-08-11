@@ -11,8 +11,8 @@ import (
 // Testing the list handling: list_test
 // ------------------------------------------------------------
 
-func createDefaultMapping() data.ItemPerList {
-	return data.ItemPerList{
+func createDefaultMapping() data.ListItem {
+	return data.ListItem{
 		ID:        12,
 		ListId:    1,
 		ItemId:    1,
@@ -35,7 +35,7 @@ func TestInsertMapping(t *testing.T) {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
-	getMapping, err := GetItemsInList(mapping.ListId)
+	getMapping, err := GetItemsInList(mapping.ListId, 0)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -67,7 +67,7 @@ func TestInsertDoubleMapping(t *testing.T) {
 			log.Print("Mapping not correctly inserted")
 			t.FailNow()
 		}
-		getMapping, err := GetItemsInList(mapping.ListId)
+		getMapping, err := GetItemsInList(mapping.ListId, created.ID)
 		if err != nil {
 			log.Printf("The mapping or item for the mapping cannot be found")
 			t.FailNow()
@@ -82,7 +82,7 @@ func TestInsertDoubleMapping(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	allMappings, err := GetItemsInList(mapping.ListId)
+	allMappings, err := GetItemsInList(mapping.ListId, mapping.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to get items but there should be 1: %s", err)
 		t.FailNow()
@@ -108,7 +108,7 @@ func TestUpdatingMapping(t *testing.T) {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
-	getMapping, err := GetItemsInList(mapping.ListId)
+	getMapping, err := GetItemsInList(mapping.ListId, mapping.CreatedBy)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -131,7 +131,7 @@ func TestUpdatingMapping(t *testing.T) {
 		log.Printf("Failed to update mapping into database: %s", err)
 		t.FailNow()
 	}
-	updatedMapping, err := GetItemsInList(mapping.ListId)
+	updatedMapping, err := GetItemsInList(mapping.ListId, mapping.CreatedBy)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -162,7 +162,7 @@ func TestDeleteMapping(t *testing.T) {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
-	getMapping, err := GetItemsInList(mapping.ListId)
+	getMapping, err := GetItemsInList(mapping.ListId, mapping.CreatedBy)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
@@ -177,7 +177,7 @@ func TestDeleteMapping(t *testing.T) {
 		log.Printf("Failed to delete mapping")
 		t.FailNow()
 	}
-	getMapping, err = GetItemsInList(mapping.ListId)
+	getMapping, err = GetItemsInList(mapping.ListId, mapping.CreatedBy)
 	if err != nil {
 		log.Printf("The mapping or item for the mapping cannot be found")
 		t.FailNow()
