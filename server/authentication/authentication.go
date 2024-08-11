@@ -338,6 +338,7 @@ func DeleteAccount(c *gin.Context) {
 	id, err := strconv.Atoi(sId)
 	if err != nil {
 		log.Printf("Failed to parse given userId: %s: %s", sId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	stored, exists := c.Get("userId")
@@ -359,7 +360,7 @@ func DeleteAccount(c *gin.Context) {
 	}
 	if err := database.DeleteUserAccount(int64(userId)); err != nil {
 		log.Printf("Failed to delete user account")
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusGone)
 		return
 	}
 	c.Status(http.StatusOK)
@@ -421,6 +422,8 @@ func Login(c *gin.Context) {
 	}
 
 	log.Print("User found and token generated")
+	database.ModifyLastLogin(time.Now().UTC().Unix())
+
 	// log.Printf("Sending token: %s", token)
 
 	wireToken := Token{
@@ -439,6 +442,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 		// log.Printf("Request header: %s", header)
 		log.Printf("Origin: %s, Remote: %s", origin, remote)
 
+		// TODO: Add the API token-
 		tokenString := c.GetHeader("Authorization")
 		if tokenString == "" {
 			log.Print("No token found! Abort")
