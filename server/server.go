@@ -24,11 +24,23 @@ func updateUserinfo(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	// Check if the user we want to modify is in fact the user that called our service
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User not authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	if userId != user.OnlineID {
+		log.Printf("User %d cannot modify user %d", userId, user.OnlineID)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
 	// User already found in our database. Simply update this stuff
 	user, err = database.ModifyUserAccountName(user.OnlineID, user.Username)
 	if err != nil {
-		log.Printf("Failed to insert user into database: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		log.Printf("User %d to update not found: %s", user.OnlineID, err)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -43,6 +55,8 @@ func getUserInfos(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	// Make sure that the format of the user only includes name and other
+	// non critical information, especially passwords
 	user, err := database.GetUserInWireFormat(int64(queriedUserId))
 	if err != nil {
 		log.Printf("Queried user %d does not exist", queriedUserId)
@@ -53,31 +67,36 @@ func getUserInfos(c *gin.Context) {
 }
 
 func getMatchingUsers(c *gin.Context) {
-	sUsername := c.Param("name")
-	users, err := database.GetUserFromMatchingUsername(sUsername)
+	// Expecting the searched username in the URL as query parameter
+	// like: users/name?username=xxx
+	queryUsername := c.Query("username")
+	if queryUsername == "" {
+		log.Printf("Username query not found or empty!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	users, err := database.GetUserFromMatchingUsername(queryUsername)
 	if err != nil {
 		log.Printf("Failed to retrieve matching users: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	stored, exists := c.Get("userId")
-	if !exists {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
 	// Remove the user itself
-	finalUsers := make([]data.ListCreator, 0)
+	finalUsers := make([]data.User, 0)
 	for _, user := range users {
-		if user.ID != int64(userId) {
+		if user.OnlineID != int64(userId) {
 			finalUsers = append(finalUsers, user)
 		}
+	}
+	if len(finalUsers) == 0 {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
 	}
 	log.Printf("Found %d matching users", len(users))
 	c.JSON(http.StatusOK, finalUsers)
@@ -87,133 +106,143 @@ func getMatchingUsers(c *gin.Context) {
 // Handling of lists
 // ------------------------------------------------------------
 
-func getShoppingListsForUser(c *gin.Context) {
-	sUserId := c.Param("userId")
-	id, err := strconv.Atoi(sUserId)
+func postShoppingList(c *gin.Context) {
+	var list data.List
+	err := c.BindJSON(&list)
 	if err != nil {
-		log.Printf("Failed to parse given item id: %s", sUserId)
-		log.Printf("Err: %s", err)
+		log.Printf("Failed to convert given data to shopping list: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	// User MUST be authenticated so it does exist and is allowed to make the request
-	// Check for the lists of the user itself first
-	lists, err := database.GetShoppingListsFromUserId(int64(id))
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Got %d lists for user itself", len(lists))
-
-	// Asking the database for all the lists that are shared with the current user
-	sharedInfo, err := database.GetSharedListForUserId(int64(id))
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Got %d shared lists for user", len(sharedInfo))
-	// Get full information for the shared lists
-	sharedLists, err := database.GetShoppingListsFromSharedListIds(sharedInfo)
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	lists = append(lists, sharedLists...)
-	// Asking DB to get the items in this list
-	for i, list := range lists {
-		itemsPerList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
-		if err != nil {
-			log.Printf("Failed to get items for list %d: %s", list.ListId, err)
-			lists[i].Items = []data.ItemWire{}
-			continue
-		}
-		if len(itemsPerList) == 0 {
-			lists[i].Items = []data.ItemWire{}
-			continue
-		}
-		// Unpack and convert into wire format
-		for _, item := range itemsPerList {
-			dbItem, err := database.GetItem(item.ItemId)
-			if err != nil {
-				log.Printf("Failed to get information for item %d in list", i)
-				continue
-			}
-			wireItem := data.ItemWire{
-				Name:     dbItem.Name,
-				Icon:     dbItem.Icon,
-				Quantity: item.Quantity,
-				Checked:  item.Checked,
-				AddedBy:  item.AddedBy,
-			}
-			lists[i].Items = append(lists[i].Items, wireItem)
-		}
-	}
-
-	c.JSON(http.StatusOK, lists)
-}
-
-func getShoppingList(c *gin.Context) {
-	listIdS := c.Query("listId")
-	if listIdS == "" {
-		log.Printf("Expected listId parameter but did not get anything")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	listId, err := strconv.Atoi(listIdS)
-	if err != nil {
-		log.Printf("Failed to parse given listId: %s", listIdS)
-		log.Printf("Err: %s", err)
-		return
-	}
-	stored, exists := c.Get("userId")
-	if !exists {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
+	// Check if the requesting user is the owner or the list is shared
+	if userId != list.CreatedBy.ID || list.CreatedBy.ID == 0 {
+		log.Print("The logged in user %d and the createdBy %d are not equal", userId, list.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	err = database.CreateShoppingList(list)
+	if err != nil {
+		log.Printf("Failed to create list: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	createdByS := c.Query("createdBy")
-	listIsFromCreator := false
-	if createdByS == "" {
-		// log.Printf("Expected createdBy parameter but did not get one")
-		// c.AbortWithStatus(http.StatusBadRequest)
-		// return
-		// If no parameter is given expect the userId to be the creator
-		listIsFromCreator = true
+	// No more information is gained through an answer because the client
+	// dictates the ID and the server stores the info combined with the userId
+	c.Status(http.StatusCreated)
+}
+
+func putShoppingList(c *gin.Context) {
+	// Check the contained listId and createdBy
+	strListId := c.Param("listId")
+	if strListId == "" {
+		log.Printf("required listId not found or empty")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
-	var createdBy int
-	if !listIsFromCreator {
-		createdBy, err = strconv.Atoi(createdByS)
+	listId, err := strconv.Atoi(strListId)
+	if err != nil {
+		log.Printf("failed to convert given listId to integer: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Check if the list was created by the requesting user or might be shared
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	createdBy := int(userId)
+	strCreatedBy := c.Query("createdBy")
+	if strCreatedBy != "" {
+		// The list was not created by the requesting user!
+		// Check if the list was shared with this user, otherwise that
+		// would be an error
+		createdBy, err = strconv.Atoi(strCreatedBy)
 		if err != nil {
-			log.Printf("Given createdBy in incorrect format")
+			log.Printf("given createdBy parameter is not an integer: %s", err)
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		// Check if the user actually has access to this list
-		if err := database.IsListSharedWithUser(int64(listId), int64(createdBy), int64(userId)); err != nil {
-			log.Printf("User %d is not owner of list %d but list is not shared", userId, listId)
-			c.AbortWithStatus(http.StatusUnauthorized)
+		if err = database.IsListSharedWithUser(int64(listId), int64(createdBy), int64(userId)); err != nil {
+			log.Printf("list %d is not shared with user %d", listId, userId)
+			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
 	}
-	if listIsFromCreator {
-		createdBy = userId
+	// Now, either the requesting user created the list or the list was shared with
+	// the user that wants to update it
+	var list data.List
+	err = c.BindJSON(&list)
+	if err != nil {
+		log.Printf("Failed to convert given data to shopping list: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err = database.CreateOrUpdateShoppingList(list); err != nil {
+		log.Printf("failed to update listId %d from user %d", listId, userId)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func getShoppingList(c *gin.Context) {
+	strListId := c.Param("listId")
+	if strListId == "" {
+		log.Printf("listId parameter not found or empty")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	listId, err := strconv.Atoi(strListId)
+	if err != nil {
+		log.Printf("Failed to parse given listId: %s", strListId)
+		log.Printf("Err: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	createdBy := int(userId)
+	// Check if the list was created by the user itself or by another user
+	strCreatedBy := c.Query("createdBy")
+	if strCreatedBy != "" {
+		createdBy, err = strconv.Atoi(strCreatedBy)
+		if err != nil {
+			log.Printf("given createdBy query parameter is no integer")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	}
+	listIsFromCreator := createdBy == int(userId)
+	if !listIsFromCreator {
+		// Check if the user actually has access to this list
+		if err := database.IsListSharedWithUser(int64(listId), int64(createdBy), int64(userId)); err != nil {
+			log.Printf("User %d is not owner of list %d but list is not shared", userId, listId)
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
 	}
 	list, err := database.GetShoppingList(int64(listId), int64(createdBy))
 	if err != nil {
 		log.Printf("Failed to get mapping for id %d: %s", listId, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	itemsInList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
+	itemsInList, err := database.GetItemsInList(list.ListId, int64(createdBy))
 	if err != nil {
 		log.Printf("Failed to get item in list: %s", err)
-		c.JSON(http.StatusInternalServerError, list)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 	for _, item := range itemsInList {
@@ -234,79 +263,102 @@ func getShoppingList(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
-func postShoppingList(c *gin.Context) {
-	var list data.Shoppinglist
-	err := c.BindJSON(&list)
-	if err != nil {
-		log.Printf("Failed to convert given data to shopping list: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	stored, exists := c.Get("userId")
-	if !exists {
-		log.Printf("User is not correctly authenticated")
+func getAllShoppingListsForUser(c *gin.Context) {
+	// User MUST be authenticated so it does exist and is allowed to make the request
+	// Check for the lists of the user itself first
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User not authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusInternalServerError)
+
+	ownLists, err := database.GetShoppingListsFromUserId(int64(userId))
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	// Check if the requesting user is the owner or the list is shared
-	if userId != int(list.CreatedBy.ID) || list.CreatedBy.ID == 0 {
-		log.Print("The logged in user and the created by are not equal")
-		if err := database.IsListSharedWithUser(list.ListId, list.CreatedBy.ID, int64(userId)); err != nil {
-			log.Printf("List is not shared with the requesting user")
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
+	log.Printf("Got %d lists for user", len(ownLists))
+
+	// Asking the database for all the lists that are shared with the current user
+	sharedListIds, err := database.GetSharedListForUserId(int64(userId))
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	log.Printf("Got %d shared lists for user", len(sharedListIds))
+	// Get full information for the shared lists
+	sharedLists, err := database.GetShoppingListsFromSharedListIds(sharedListIds)
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	ownLists = append(ownLists, sharedLists...)
+	// Asking DB to get the items in this list
+	for i, list := range ownLists {
+		itemsPerList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
+		if err != nil {
+			log.Printf("Failed to get items for list %d: %s", list.ListId, err)
+			ownLists[i].Items = []data.ItemWire{}
+			continue
+		}
+		if len(itemsPerList) == 0 {
+			ownLists[i].Items = []data.ItemWire{}
+			continue
+		}
+		// Unpack and convert into wire format
+		for _, item := range itemsPerList {
+			dbItem, err := database.GetItem(item.ItemId)
+			if err != nil {
+				log.Printf("Failed to get information for item %d in list", i)
+				continue
+			}
+			wireItem := data.ItemWire{
+				Name:     dbItem.Name,
+				Icon:     dbItem.Icon,
+				Quantity: item.Quantity,
+				Checked:  item.Checked,
+				AddedBy:  item.AddedBy,
+			}
+			ownLists[i].Items = append(ownLists[i].Items, wireItem)
 		}
 	}
-	err = database.CreateOrUpdateShoppingList(list)
-	if err != nil {
-		log.Printf("Failed to create or update list: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	// No more information is gained through the same data
-	c.Status(http.StatusCreated)
+	c.JSON(http.StatusOK, ownLists)
 }
 
 func removeShoppingList(c *gin.Context) {
-	listIdS := c.Param("listId")
-	if listIdS == "" {
+	strListId := c.Param("listId")
+	if strListId == "" {
 		log.Printf("Expected listId parameter but did not get anything")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	listId, err := strconv.Atoi(listIdS)
+	listId, err := strconv.Atoi(strListId)
 	if err != nil {
-		log.Printf("Failed to parse given listId: %s", listIdS)
+		log.Printf("Failed to parse given listId: %s", strListId)
 		log.Printf("Err: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	stored, exists := c.Get("userId")
-	if !exists {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
+	// User can only delete the own lists, therefore check only if the list
+	// is owned by the user
 	list, err := database.GetShoppingList(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("Failed to get mapping for listId %d: %s", listId, err)
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	if int(list.CreatedBy.ID) != userId {
+	// Can this really happen? What has to go wrong for the method above to return
+	// a list with a different createdBy ?
+	if list.CreatedBy.ID != userId {
 		log.Printf("Cannot delete list: User %d did not create list %d", userId, list.ListId)
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
 	if err := database.DeleteShoppingList(int64(listId), int64(userId)); err != nil {
@@ -323,22 +375,22 @@ func removeShoppingList(c *gin.Context) {
 // ------------------------------------------------------------
 
 func shareList(c *gin.Context) {
-	listIdS := c.Param("id")
-	listId, err := strconv.Atoi(listIdS)
-	if err != nil {
-		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
+	strListId := c.Param("listId")
+	if strListId == "" {
+		log.Printf("listId parameter not found or empty")
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	stored, exists := c.Get("userId")
-	if !exists {
+	listId, err := strconv.Atoi(strListId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", strListId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 	var shared data.ListSharedWire
@@ -347,10 +399,10 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	// Check if the user owns this list?
-	list, err := database.GetShoppingList(shared.ListId, int64(userId))
+	// Abort if the user does not own the list
+	list, err := database.GetShoppingList(int64(listId), int64(userId))
 	if err != nil {
-		log.Printf("Failed to retrieve list: %s", err)
+		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -359,66 +411,111 @@ func shareList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	// Should never happen, but who knows
 	if list.CreatedBy.ID != int64(userId) {
-		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
-		c.AbortWithStatus(http.StatusBadRequest)
+		log.Printf("listId %d was not createdBy %d", listId, userId)
+		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
-	listShared, err := database.CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
-	if err != nil {
-		log.Printf("Failed to create sharing: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+	var listShared data.ListShared
+	for _, sharedWith := range shared.SharedWith {
+		listShared, err = database.CreateOrUpdateSharedList(int64(listId), userId, sharedWith)
+		if err != nil {
+			log.Printf("Failed to create sharing: %s", err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
 	}
 	c.JSON(http.StatusCreated, listShared)
 }
 
 func unshareList(c *gin.Context) {
-	listIdS := c.Param("id")
-	listId, err := strconv.Atoi(listIdS)
+	strListId := c.Param("listId")
+	listId, err := strconv.Atoi(strListId)
 	if err != nil {
-		log.Printf("Failed to parse given list id: %s: %s", listIdS, err)
+		log.Printf("Failed to parse given list id: %s: %s", strListId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	stored, exists := c.Get("userId")
-	if !exists {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusInternalServerError)
+	// Check if the user owns the list that should be unshared
+	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	if err != nil {
+		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
+		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
-	var unshare data.ListSharedWire
-	if err := c.BindJSON(&unshare); err != nil {
+	var listUnshare data.ListSharedWire
+	if err := c.BindJSON(&listUnshare); err != nil {
 		log.Print("Failed to deserialize share object")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if unshare.ListId != int64(listId) {
-		log.Print("Given list and unshare list do not match")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	// Check if the user owns this list?
-	list, err := database.GetShoppingList(unshare.ListId, int64(userId))
-	if err != nil {
-		log.Printf("Failed to retrieve list: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
+	// should not happen, unless my implementation above is bogus, so could be :)
 	if list.CreatedBy.ID != int64(userId) {
 		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	for _, unshareId := range listUnshare.SharedWith {
+		if err := database.DeleteSharingForUser(int64(listId), userId, unshareId); err != nil {
+			log.Printf("Failed to delete sharing %s", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+	}
+	c.Status(http.StatusOK)
+}
+
+func updateSharing(c *gin.Context) {
+	strListId := c.Param("listId")
+	listId, err := strconv.Atoi(strListId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", strListId, err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if err := database.DeleteSharingForUser(unshare.ListId, unshare.CreatedBy, unshare.SharedWith); err != nil {
-		log.Printf("Failed to delete sharing %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
+	}
+	// Check if the user owns the list that should be unshared
+	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	if err != nil {
+		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	var updatedListShare data.ListSharedWire
+	if err := c.BindJSON(&updatedListShare); err != nil {
+		log.Print("Failed to deserialize share object")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// should not happen, unless my implementation above is bogus, so could be :)
+	if list.CreatedBy.ID != int64(userId) {
+		log.Printf("User ID (%d) does not match created ID (%d)", userId, list.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	if err = database.DeleteSharingOfList(int64(listId), userId); err != nil {
+		log.Printf("failed to delete sharing of list %d for user %d", listId, userId)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	for _, shareWithId := range updatedListShare.SharedWith {
+		if _, err := database.CreateOrUpdateSharedList(int64(listId), userId, shareWithId); err != nil {
+			log.Printf("Failed to create sharing %s", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 	}
 	c.Status(http.StatusOK)
 }
@@ -455,9 +552,9 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	// ------------- Handling Account Creation and Login ---------------
 
 	// Independent of API version, therefore not in the auth bracket
-	router.POST("/auth/create", authentication.CreateAccount)
+	router.POST("/users/create", authentication.CreateAccount)
 	// JWT BASED AUTHENTICATION
-	router.POST("/auth/login", authentication.Login)
+	router.POST("/users/login", authentication.Login)
 
 	// ------------- Handling Routes v1 (API version 1) ---------------
 
@@ -465,26 +562,25 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	authorized := router.Group("/v1")
 	authorized.Use(authentication.AuthenticationMiddleware(cfg))
 	{
-		// Taking care of users which are registered but want to update their info
-		authorized.PUT("/userinfo/:userId", updateUserinfo)
-		authorized.GET("/userinfo/:userId", getUserInfos)
-		authorized.GET("/users/:name", getMatchingUsers)
+		// The structure is similar to the order of operations: create, update, get, delete
+
+		// Notice: The creation of a new user does not require an account and authorization
+		// therefore, it is handled in the unauthorized part above
+		authorized.PUT("/users/:userId", updateUserinfo)
+		authorized.GET("/users/:userId", getUserInfos)
 		authorized.DELETE("/users/:userId", authentication.DeleteAccount)
 
-		// Handling the lists itself
-		authorized.GET("/lists/:userId", getShoppingListsForUser) // Includes OWN and SHARED lists
-		authorized.GET("/list", getShoppingList)
-		authorized.DELETE("/list/:listId", removeShoppingList)
+		authorized.GET("/users/name", getMatchingUsers) // Includes search query parameter
 
-		// Includes both adding a new list and updating an existing list
-		authorized.POST("/list", postShoppingList)
+		authorized.POST("/lists", postShoppingList)
+		authorized.PUT("/lists/:listId", putShoppingList) // Includes createBy parameter
+		authorized.GET("/lists/:listId", getShoppingList) // Includes search query parameter
+		authorized.GET("/lists", getAllShoppingListsForUser)
+		authorized.DELETE("/lists/:listId", removeShoppingList)
 
-		// Handling the items per list
-		// authorized.POST("/list/items", postItemsInList)
-
-		// Handling sharing a list
-		authorized.POST("/share/:id", shareList)
-		authorized.DELETE("/share/:id", unshareList)
+		authorized.POST("/share/:listId", shareList)
+		authorized.PUT("/share/:listId", updateSharing)
+		authorized.DELETE("/share/:listId", unshareList)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
