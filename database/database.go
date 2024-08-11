@@ -125,6 +125,24 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	log.Print("Connected to database")
 }
 
+func convertTimeToString(time time.Time) string {
+	// For some strange reason, the default mechanism to parse UTC time
+	// seems to produce different results for the raspi and my local machine
+	// Therefore, explicitly define the format here again
+	formatTime := time.Format("2024-08-11T11:12:13Z")
+	return formatTime
+}
+
+func convertStringToTime(strTime string) time.Time {
+	trimmedString := strings.Trim(strTime, "\t")
+	parsedTime, err := time.Parse("2024-08-11T11:12:13Z", trimmedString)
+	if err != nil {
+		log.Printf("Failed to parse time: %s", trimmedString)
+		return time.Now().UTC()
+	}
+	return parsedTime
+}
+
 // ------------------------------------------------------------
 // The data structs and constants for the user handling
 // ------------------------------------------------------------
@@ -143,36 +161,37 @@ func GetUser(id int64) (data.User, error) {
 	return user, nil
 }
 
-func GetUserInWireFormat(id int64) (data.UserWire, error) {
+func GetUserInWireFormat(id int64) (data.User, error) {
 	user, err := GetUser(id)
 	if err != nil {
-		return data.UserWire{}, err
+		return data.User{}, err
 	}
-	userWire := data.UserWire{
-		ID:       user.OnlineID,
+	userWire := data.User{
+		OnlineID: user.OnlineID,
 		Username: user.Username,
 	}
 	return userWire, nil
 }
 
-func GetUserFromMatchingUsername(name string) ([]data.ListCreator, error) {
-	query := "SELECT * FROM " + userTable + " WHERE INSTR(username, '" + name + "') > 0"
+func GetUserFromMatchingUsername(name string) ([]data.User, error) {
+	query := "SELECT id,username,lastLogin FROM " + userTable + " WHERE INSTR(username, '" + name + "') > 0"
 	rows, err := db.Query(query)
 	if err != nil {
 		log.Printf("Failed to query database for users: %s", err)
-		return []data.ListCreator{}, err
+		return []data.User{}, err
 	}
 	defer rows.Close()
 	// Looping through data, assigning the columns to the given struct
-	var users []data.ListCreator
+	var users []data.User
 	for rows.Next() {
-		var user data.ListCreator
-		var password string
-		var created time.Time
+		var user data.User
 		var lastLogin time.Time
-		if err := rows.Scan(&user.ID, &user.Name, &password, &created, &lastLogin); err != nil {
-			return []data.ListCreator{}, err
+		if err := rows.Scan(&user.OnlineID, &user.Username, &lastLogin); err != nil {
+			return []data.User{}, err
 		}
+		// convert the time into a string
+		timeConv := convertTimeToString(lastLogin)
+		user.LastLogin = timeConv
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
@@ -212,7 +231,8 @@ func createUser(username string, passwd string) (data.User, error) {
 		return data.User{}, errors.New("invalid username or password")
 	}
 	// created := time.Now().Local().Format(time.RFC3339)
-	created := time.Now().UTC().Format(time.DateTime)
+	now := time.Now().UTC()
+	created := convertTimeToString(now)
 	newUser := data.User{
 		OnlineID:  int64(userId),
 		Username:  username,
@@ -338,46 +358,46 @@ func ResetUserTable() {
 
 const shoppingListTable = "shoppinglist"
 
-func GetShoppingListWithId(id int64, createdBy int64) (int, data.Shoppinglist, error) {
+func GetShoppingListWithId(id int64, createdBy int64) (int, data.List, error) {
 	query := "SELECT * FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
-	var list data.Shoppinglist
-	if err := row.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err == sql.ErrNoRows {
-		return 0, data.Shoppinglist{}, err
+	var list data.List
+	if err := row.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err == sql.ErrNoRows {
+		return 0, data.List{}, err
 	}
 	user, err := GetUser(createdBy)
 	if err != nil {
 		log.Printf("User not found: %s", err)
-		return 0, data.Shoppinglist{}, err
+		return 0, data.List{}, err
 	}
 	list.CreatedBy.Name = user.Username
 	return dbId, list, nil
 }
 
-func GetShoppingList(id int64, createdBy int64) (data.Shoppinglist, error) {
+func GetShoppingList(id int64, createdBy int64) (data.List, error) {
 	_, list, err := GetShoppingListWithId(id, createdBy)
 	return list, err
 }
 
-func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
+func GetShoppingListsFromUserId(id int64) ([]data.List, error) {
 	query := "SELECT * FROM " + shoppingListTable + " WHERE createdBy = ?"
 	rows, err := db.Query(query, id)
 	if err != nil {
 		log.Printf("Failed to retrieve any list for user %d: %s", id, err)
-		return []data.Shoppinglist{}, err
+		return []data.List{}, err
 	}
-	var lists []data.Shoppinglist
+	var lists []data.List
 	for rows.Next() {
 		var dbId int64
-		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
+		var list data.List
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
-			return []data.Shoppinglist{}, err
+			return []data.List{}, err
 		}
 		user, err := GetUser(list.CreatedBy.ID)
 		if err != nil {
-			return []data.Shoppinglist{}, err
+			return []data.List{}, err
 		}
 		list.CreatedBy.Name = user.Username
 		lists = append(lists, list)
@@ -385,10 +405,10 @@ func GetShoppingListsFromUserId(id int64) ([]data.Shoppinglist, error) {
 	return lists, nil
 }
 
-func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Shoppinglist, error) {
+func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.List, error) {
 	if len(sharedLists) == 0 {
 		log.Print("No ids given.")
-		return []data.Shoppinglist{}, nil
+		return []data.List{}, nil
 	}
 	// Extract the list ids so we can query them
 	// Join the IDs followed by the createdBy to make a fitting query
@@ -409,15 +429,15 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 			sharedWithId = int(sharedLists[0].ID)
 		}
 		log.Printf("Failed to retrieve any shared list for user %d: %s", sharedWithId, err)
-		return []data.Shoppinglist{}, err
+		return []data.List{}, err
 	}
-	var lists []data.Shoppinglist
+	var lists []data.List
 	for rows.Next() {
 		var dbId int64
-		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
+		var list data.List
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
-			return []data.Shoppinglist{}, err
+			return []data.List{}, err
 		}
 		creatorInfo, err := GetUserInWireFormat(list.CreatedBy.ID)
 		if err != nil {
@@ -429,15 +449,15 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Sh
 	return lists, nil
 }
 
-func checkListCorrect(list data.Shoppinglist) error {
+func checkListCorrect(list data.List) error {
 	if list.CreatedBy.ID == 0 {
 		return errors.New("invalid field created by")
 	}
-	if list.Name == "" {
+	if list.Title == "" {
 		return errors.New("invalid field name")
 	}
-	if list.LastEdited.After(time.Now().UTC().Add(5 * time.Second)) {
-		return fmt.Errorf("invalid field last edited. time '%s' is in future. Now: %s", list.LastEdited, time.Now().GoString())
+	if list.LastUpdated.After(time.Now().UTC().Add(5 * time.Second)) {
+		return fmt.Errorf("invalid field last edited. time '%s' is in future. Now: %s", list.LastUpdated, time.Now().GoString())
 	}
 	return nil
 }
@@ -456,7 +476,7 @@ func checkItemCorrect(item data.ItemWire) (data.Item, error) {
 	return converted, nil
 }
 
-func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
+func createOrUpdateShoppingListBase(list data.List) error {
 	if err := checkListCorrect(list); err != nil {
 		log.Printf("List not in correct format for insertion: %s", err)
 		return err
@@ -470,14 +490,14 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 		replacing = true
 		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
 		query = fmt.Sprintf("UPDATE %s SET name = ?, lastEdited = ? WHERE id = ?", shoppingListTable)
-		result, err = db.Exec(query, list.Name, list.LastEdited, databaseListId)
+		result, err = db.Exec(query, list.Title, list.LastUpdated, databaseListId)
 		if err != nil {
 			return err
 		}
 	}
 	if !replacing {
 		var err error
-		result, err = db.Exec(query, list.ListId, list.Name, list.CreatedBy.ID, list.Created, list.LastEdited)
+		result, err = db.Exec(query, list.ListId, list.Title, list.CreatedBy.ID, list.CreatedAt, list.LastUpdated)
 		if err != nil {
 			return err
 		}
@@ -488,7 +508,7 @@ func createOrUpdateShoppingListBase(list data.Shoppinglist) error {
 	return nil
 }
 
-func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, []int64, error) {
+func addOrRemoveItemsInShoppingList(list data.List) ([]int64, []int64, error) {
 	log.Printf("Adding (%d) items in shopping list to database", len(list.Items))
 	var itemIds []int64
 	var addedBy []int64
@@ -509,7 +529,7 @@ func addOrRemoveItemsInShoppingList(list data.Shoppinglist) ([]int64, []int64, e
 	return itemIds, addedBy, nil
 }
 
-func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64, addedBy []int64) error {
+func mapItemsIntoShoppingList(list data.List, itemIds []int64, addedBy []int64) error {
 	log.Printf("Adding (%d) items to shopping list", len(list.Items))
 	if len(list.Items) == 0 || len(itemIds) == 0 {
 		return nil
@@ -522,7 +542,7 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64, addedBy [
 		return err
 	}
 	for i, item := range list.Items {
-		converted := data.ItemPerList{
+		converted := data.ListItem{
 			ID:        0,
 			ListId:    list.ListId,
 			ItemId:    itemIds[i],
@@ -532,14 +552,32 @@ func mapItemsIntoShoppingList(list data.Shoppinglist, itemIds []int64, addedBy [
 			AddedBy:   addedBy[i],
 		}
 		if _, err := InsertOrUpdateItemInList(converted); err != nil {
-			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Name)
+			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Title)
 		}
 	}
 	return nil
 }
 
-func CreateOrUpdateShoppingList(list data.Shoppinglist) error {
-	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Name, list.ListId, list.CreatedBy)
+func CreateOrUpdateShoppingList(list data.List) error {
+	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Title, list.ListId, list.CreatedBy)
+	if err := createOrUpdateShoppingListBase(list); err != nil {
+		return err
+	}
+	itemIds, addedBy, err := addOrRemoveItemsInShoppingList(list)
+	if err != nil {
+		return err
+	}
+	if err := mapItemsIntoShoppingList(list, itemIds, addedBy); err != nil {
+		return err
+	}
+	return nil
+}
+
+// TODO: rework this
+func CreateShoppingList(list data.List) error {
+	log.Printf("Creating new shopping list '%s'", list.Title)
+	// TODO: abort if the list already exists
+	// because that is bad usage of this function
 	if err := createOrUpdateShoppingListBase(list); err != nil {
 		return err
 	}
@@ -702,10 +740,10 @@ func CreateOrUpdateSharedList(listId int64, createdBy int64, sharedWith int64) (
 		ID:         0,
 		ListId:     listId,
 		CreatedBy:  createdBy,
-		SharedWith: sharedWith,
+		SharedWith: []int64{sharedWith},
 		Created:    time.Now().Local(),
 	}
-	result, err := db.Exec(query, shared.ListId, shared.CreatedBy, shared.SharedWith, shared.Created)
+	result, err := db.Exec(query, shared.ListId, shared.CreatedBy, shared.SharedWith[0], shared.Created)
 	if err != nil {
 		log.Printf("Failed to insert sharing into database: %s", err)
 		return data.ListShared{}, err
@@ -769,7 +807,7 @@ func IsItemInList(listId int64, createdBy int64, itemId int64) (int64, error) {
 	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ? AND itemId = ? AND createdBy = ?"
 	row := db.QueryRow(query, listId, itemId, createdBy)
 	var dbId int
-	var mapping data.ItemPerList
+	var mapping data.ListItem
 	if err := row.Scan(&dbId, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.CreatedBy, &mapping.AddedBy); err == sql.ErrNoRows {
 		return 0, err
 	}
@@ -777,19 +815,19 @@ func IsItemInList(listId int64, createdBy int64, itemId int64) (int64, error) {
 }
 
 // Returns the lists in which the item with the given ID is included
-func GetListsOfItem(itemId int64) ([]data.ItemPerList, error) {
-	var lists []data.ItemPerList
+func GetListsOfItem(itemId int64) ([]data.ListItem, error) {
+	var lists []data.ListItem
 	query := "SELECT * FROM " + itemPerListTable + " WHERE itemId = ?"
 	rows, err := db.Query(query, itemId)
 	if err != nil {
 		log.Printf("Failed to query for lists containing item %d: %s", itemId, err)
-		return []data.ItemPerList{}, nil
+		return []data.ListItem{}, nil
 	}
 	for rows.Next() {
-		var mapping data.ItemPerList
+		var mapping data.ListItem
 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.AddedBy); err != nil {
 			log.Printf("Failed to query table: %s: %s", itemPerListTable, err)
-			return []data.ItemPerList{}, err
+			return []data.ListItem{}, err
 		}
 		lists = append(lists, mapping)
 	}
@@ -797,26 +835,26 @@ func GetListsOfItem(itemId int64) ([]data.ItemPerList, error) {
 }
 
 // Returns the items in a specific list
-func GetItemsInList(listId int64, createdBy int64) ([]data.ItemPerList, error) {
-	var list []data.ItemPerList
+func GetItemsInList(listId int64, createdBy int64) ([]data.ListItem, error) {
+	var list []data.ListItem
 	query := "SELECT * FROM " + itemPerListTable + " WHERE listId = ? AND createdBy = ?"
 	rows, err := db.Query(query, listId, createdBy)
 	if err != nil {
 		log.Printf("Failed to query for items contained in list %d: %s", listId, err)
-		return []data.ItemPerList{}, nil
+		return []data.ListItem{}, nil
 	}
 	for rows.Next() {
-		var mapping data.ItemPerList
+		var mapping data.ListItem
 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.CreatedBy, &mapping.AddedBy); err != nil {
 			log.Printf("Failed to query table: %s: %s", itemPerListTable, err)
-			return []data.ItemPerList{}, err
+			return []data.ListItem{}, err
 		}
 		list = append(list, mapping)
 	}
 	return list, nil
 }
 
-func InsertOrUpdateItemInList(mapping data.ItemPerList) (data.ItemPerList, error) {
+func InsertOrUpdateItemInList(mapping data.ListItem) (data.ListItem, error) {
 	update := false
 	itemId, err := IsItemInList(mapping.ListId, mapping.CreatedBy, mapping.ItemId)
 	if err == nil {
@@ -827,7 +865,7 @@ func InsertOrUpdateItemInList(mapping data.ItemPerList) (data.ItemPerList, error
 		_, err := db.Exec(query, mapping.Quantity, mapping.Checked, mapping.AddedBy, itemId)
 		if err != nil {
 			log.Printf("Failed to insert mapping into database: %s", err)
-			return data.ItemPerList{}, err
+			return data.ListItem{}, err
 		}
 		return mapping, nil
 	}
@@ -835,12 +873,12 @@ func InsertOrUpdateItemInList(mapping data.ItemPerList) (data.ItemPerList, error
 	result, err := db.Exec(query, mapping.ListId, mapping.ItemId, mapping.Quantity, mapping.Checked, mapping.CreatedBy, mapping.AddedBy)
 	if err != nil {
 		log.Printf("Failed to insert mapping into database: %s", err)
-		return data.ItemPerList{}, err
+		return data.ListItem{}, err
 	}
 	mapping.ID, err = result.LastInsertId()
 	if err != nil || mapping.ID == 0 {
 		log.Printf("Failed to insert mapping into database: %s", err)
-		return data.ItemPerList{}, err
+		return data.ListItem{}, err
 	}
 	return mapping, nil
 }
@@ -904,7 +942,7 @@ func GetItem(id int64) (data.Item, error) {
 	var item data.Item
 	row := db.QueryRow(query, id)
 	// Looping through data, assigning the columns to the given struct
-	if err := row.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+	if err := row.Scan(&item.ItemId, &item.Name, &item.Icon); err != nil {
 		return data.Item{}, err
 	}
 	return item, nil
@@ -922,7 +960,7 @@ func GetAllItems() ([]data.Item, error) {
 	var items []data.Item
 	for rows.Next() {
 		var item data.Item
-		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+		if err := rows.Scan(&item.ItemId, &item.Name, &item.Icon); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -946,7 +984,7 @@ func GetAllItemsFromName(name string) ([]data.Item, error) {
 	var items []data.Item
 	for rows.Next() {
 		var item data.Item
-		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+		if err := rows.Scan(&item.ItemId, &item.Name, &item.Icon); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -971,9 +1009,9 @@ func InsertItemStruct(item data.Item) (int64, error) {
 	selectQuery := "SELECT * FROM " + itemTable + " WHERE name = ?"
 	row := db.QueryRow(selectQuery, strings.TrimSpace(item.Name))
 	var existingItem data.Item
-	if err := row.Scan(&existingItem.ID, &existingItem.Name, &existingItem.Icon); err == nil {
-		log.Printf("DEBUG: Item (%s) existed (%d)...", existingItem.Name, existingItem.ID)
-		return existingItem.ID, nil
+	if err := row.Scan(&existingItem.ItemId, &existingItem.Name, &existingItem.Icon); err == nil {
+		log.Printf("DEBUG: Item (%s) existed (%d)...", existingItem.Name, existingItem.ItemId)
+		return existingItem.ItemId, nil
 	}
 	query := "INSERT INTO " + itemTable + " (name, icon) VALUES (?, ?)"
 	result, err := db.Exec(query, strings.TrimSpace(item.Name), strings.TrimSpace(item.Icon))
@@ -996,12 +1034,12 @@ func ModifyItemName(id int64, name string) (data.Item, error) {
 	}
 	item.Name = name
 	query := "UPDATE " + itemTable + " SET name = ? WHERE id = ?"
-	result, err := db.Exec(query, item.Name, item.ID)
+	result, err := db.Exec(query, item.Name, item.ItemId)
 	if err != nil {
 		log.Printf("Failed to update item name: %s", err)
 		return data.Item{}, err
 	}
-	item.ID, err = result.LastInsertId()
+	item.ItemId, err = result.LastInsertId()
 	if err != nil {
 		log.Printf("Problem with ID during insertion of item: %s", err)
 		return data.Item{}, err
@@ -1017,12 +1055,12 @@ func ModifyItemIcon(id int64, icon string) (data.Item, error) {
 	}
 	item.Icon = icon
 	query := "UPDATE " + itemTable + " SET icon = ? WHERE id = ?"
-	result, err := db.Exec(query, item.Icon, item.ID)
+	result, err := db.Exec(query, item.Icon, item.ItemId)
 	if err != nil {
 		log.Printf("Failed to update item icon: %s", err)
 		return data.Item{}, err
 	}
-	item.ID, err = result.LastInsertId()
+	item.ItemId, err = result.LastInsertId()
 	if err != nil {
 		log.Printf("Problem with ID during insertion of item: %s", err)
 		return data.Item{}, err
@@ -1086,8 +1124,8 @@ func PrintShoppingListTable() {
 	log.Print("------------- Shopping List Table -------------")
 	for rows.Next() {
 		var dbId int64
-		var list data.Shoppinglist
-		if err := rows.Scan(&dbId, &list.ListId, &list.Name, &list.CreatedBy.ID, &list.Created, &list.LastEdited); err != nil {
+		var list data.List
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", list)
@@ -1106,7 +1144,7 @@ func PrintItemTable() {
 	log.Print("------------- Item Table -------------")
 	for rows.Next() {
 		var item data.Item
-		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+		if err := rows.Scan(&item.ItemId, &item.Name, &item.Icon); err != nil {
 			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", item)
@@ -1124,7 +1162,7 @@ func PrintItemPerListTable() {
 	defer rows.Close()
 	log.Print("------------- Item Table -------------")
 	for rows.Next() {
-		var mapping data.ItemPerList
+		var mapping data.ListItem
 		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.CreatedBy, &mapping.AddedBy); err != nil {
 			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
 		}
