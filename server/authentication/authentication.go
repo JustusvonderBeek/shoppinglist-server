@@ -341,19 +341,8 @@ func DeleteAccount(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	stored, exists := c.Get("userId")
-	if !exists {
-		log.Printf("User is not correctly authenticated")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	userId, ok := stored.(int)
-	if !ok {
-		log.Print("Internal server error: stored value is not correct")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if userId != id {
+	userId := c.GetInt64("userId")
+	if userId != int64(id) {
 		log.Printf("Authenticated user is not user that should be deleted!")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -422,7 +411,7 @@ func Login(c *gin.Context) {
 	}
 
 	log.Print("User found and token generated")
-	database.ModifyLastLogin(time.Now().UTC().Unix())
+	database.ModifyLastLogin(user.OnlineID)
 
 	// log.Printf("Sending token: %s", token)
 
@@ -520,7 +509,7 @@ func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
 			return
 		}
 		if token.Valid {
-			c.Set("userId", claims.Id)
+			c.Set("userId", int64(claims.Id))
 			c.Next()
 		} else {
 			log.Printf("Invalid claims: %s", claims.Valid().Error())
