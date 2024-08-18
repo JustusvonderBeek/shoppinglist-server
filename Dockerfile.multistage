@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+
+# For more infos on multistage, see: https://docs.docker.com/language/golang/build-images/
+# The idea is to strip the compiler and other stuff and make
+# the final image smaller and more secure
+
+FROM golang:1.22 AS build-stage
+WORKDIR /shopping-list
+
+# Copying the go.mod and go.sum files into the images to get ready for compilation
+COPY go.mod ./
+# Now download the dependencies
+RUN go mod download
+# Copy the src files into the image
+# COPY *.go ./
+# Copy the other directories as well
+COPY database ./database/
+COPY server ./server/
+COPY setup ./setup/
+COPY main.go ./
+COPY go.work ./
+COPY server.log ./
+
+# DEBUG: Write the output of ls into a file
+# RUN echo "$(ls -1 /shopping-list)"
+
+# Compile the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o ./shop_server
+
+# Copy the configuration
+COPY resources/dockerDb.json ./resources/db.json
+COPY resources/jwtSecret.json ./resources/jwtSecret.json
+COPY resources/shoppinglist.crt ./resources/shoppinglist.crt
+COPY resources/shoppinglist.pem ./resources/shoppinglist.pem
+COPY resources/whitelisted_ips.json ./resources/whitelisted_ips.json
+
+# Now we switch to the stage where we only deploy the application
+FROM gcr.io/distroless/base-debian12 AS build-release-stage
+
+WORKDIR /shopping-list
+
+COPY --from=build-stage /shopping-list/shop_server ./shop_server
+COPY --from=build-stage /shopping-list/resources ./resources/
+
+# Only documentation
+EXPOSE 41652
+
+# Starting the go application
+ENTRYPOINT [ "/shopping-list/shop_server" ]
