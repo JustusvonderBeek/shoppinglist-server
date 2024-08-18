@@ -10,17 +10,24 @@ RUN go mod download
 # Copy the src files into the image
 # COPY *.go ./
 # Copy the other directories as well
-COPY . ./
+COPY database ./database/
+COPY server ./server/
+COPY setup ./setup/
+COPY main.go ./
+COPY go.work ./
+
+# DEBUG: Write the output of ls into a file
+# RUN echo "$(ls -1 /shopping-list)"
 
 # Compile the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o ./shop_server
 
 # Copy the configuration
-COPY resources/db.json ./resources/db.json
+COPY resources/dockerDb.json ./resources/db.json
 COPY resources/jwtSecret.json ./resources/jwtSecret.json
 COPY resources/shoppinglist.crt ./resources/shoppinglist.crt
 COPY resources/shoppinglist.pem ./resources/shoppinglist.pem
 COPY resources/whitelisted_ips.json ./resources/whitelisted_ips.json
 
 # Starting the go application
-CMD [ "./shop_server" ]
+CMD [ "/shop_server" ]
