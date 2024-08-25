@@ -122,7 +122,7 @@ func postShoppingList(c *gin.Context) {
 	}
 	// Check if the requesting user is the owner or the list is shared
 	if userId != list.CreatedBy.ID || list.CreatedBy.ID == 0 {
-		log.Print("The logged in user %d and the createdBy %d are not equal", userId, list.CreatedBy.ID)
+		log.Printf("The logged in user %d and the createdBy %d are not equal", userId, list.CreatedBy.ID)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
