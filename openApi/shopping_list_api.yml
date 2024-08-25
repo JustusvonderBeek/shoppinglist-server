@@ -473,6 +473,56 @@ paths:
               explode: false
               schema:
                 type: string
+    get:
+      tags:
+        - Receipt Handling
+      description: Get all own and shared receipts.
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Receipt'
+  /receipt/{receiptId}:
+    get:
+      tags:
+      - Receipt Handling
+      description: Retrieve the selected receipt.
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        "404":
+          description: Not found
+    put:
+      tags:
+      - Receipt Handling
+      description: Update a given receipt
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Receipt'
+      responses:
+        "200":
+          description: Ok
+        "404":
+          description: Not found
+    delete:
+      tags:
+        - Receipt Handling
+      description: Delete an own receipt.
+      responses:
+        "200":
+          description: Ok
+        "404":
+          description: Not found
 components:
   schemas:
     User:
@@ -605,7 +655,7 @@ components:
     ReceiptStep:
       type: object
       properties:
-        description:
+        step:
           type: string
           example: mix the eggs and milk together
       description: "A single step in a receipt, including what items to use, how much and the order and description of the actions."
