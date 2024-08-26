@@ -24,11 +24,11 @@ type Answer struct {
 // ------------------------------------------------------------
 
 type User struct {
-	OnlineID  int64  `json:"onlineId"`
-	Username  string `json:"username"`
-	Password  string `json:"password,omitempty"`
-	Created   string `json:"created,omitempty"`
-	LastLogin string `json:"lastLogin,omitempty"` // <- what do we need this information for? would only be relevant when displaying or using this in the app
+	OnlineID  int64     `json:"onlineId"`
+	Username  string    `json:"username"`
+	Password  string    `json:"password,omitempty"`
+	Created   time.Time `json:"created,omitempty"`
+	LastLogin time.Time `json:"lastLogin,omitempty"` // <- what do we need this information for? would only be relevant when displaying or using this in the app
 }
 
 // ------------------------------------------------------------
@@ -43,9 +43,9 @@ type ListCreator struct {
 }
 
 type List struct {
-	ListId      int64       `json:"listId"`
-	Title       string      `json:"title"`
-	Elements    int32       `json:"elements"`
+	ListId int64  `json:"listId"`
+	Title  string `json:"title"`
+	// Elements    int32       `json:"elements"`
 	CreatedBy   ListCreator `json:"createdBy"`
 	CreatedAt   time.Time   `json:"createdAt,omitempty"`
 	LastUpdated time.Time   `json:"lastUpdated"`
@@ -61,9 +61,9 @@ type Item struct {
 type ItemWire struct {
 	Name     string `json:"name"`
 	Icon     string `json:"icon"`
-	Quantity int64  `json:"quantity,omitempty"`
-	Checked  bool   `json:"checked,omitempty"`
-	AddedBy  int64  `json:"addedBy,omitempty"`
+	Quantity int64  `json:"quantity"`
+	Checked  bool   `json:"checked"`
+	AddedBy  int64  `json:"addedBy"`
 }
 
 type ListItem struct {
