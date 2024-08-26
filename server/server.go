@@ -88,10 +88,14 @@ func getMatchingUsers(c *gin.Context) {
 		return
 	}
 	// Remove the user itself
-	finalUsers := make([]data.User, 0)
+	finalUsers := make([]data.ListCreator, 0)
 	for _, user := range users {
 		if user.OnlineID != int64(userId) {
-			finalUsers = append(finalUsers, user)
+			listCreator := data.ListCreator{
+				ID:   user.OnlineID,
+				Name: user.Username,
+			}
+			finalUsers = append(finalUsers, listCreator)
 		}
 	}
 	if len(finalUsers) == 0 {
