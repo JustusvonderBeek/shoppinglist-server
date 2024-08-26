@@ -15,9 +15,9 @@ import (
 func TestGetAllItems(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "New Item",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "New Item",
+		Icon:   "Abc",
 	}
 	_, err := InsertItemStruct(item)
 	if err != nil {
@@ -42,9 +42,9 @@ func TestGetAllItems(t *testing.T) {
 func TestGetAllItemsFromName(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "New Item A",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "New Item A",
+		Icon:   "Abc",
 	}
 	_, err := InsertItemStruct(item)
 	if err != nil {
@@ -93,9 +93,9 @@ func TestGetAllItemsFromName(t *testing.T) {
 func TestInsertItem(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "New Item",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "New Item",
+		Icon:   "Abc",
 	}
 	created, err := InsertItemStruct(item)
 	if err != nil {
@@ -128,9 +128,9 @@ func TestInsertItem(t *testing.T) {
 func TestModifyItemName(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "Old Item",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "Old Item",
+		Icon:   "Abc",
 	}
 	created, err := InsertItemStruct(item)
 	if err != nil {
@@ -169,9 +169,9 @@ func TestModifyItemName(t *testing.T) {
 func TestModifyItemIcon(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "Old Item",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "Old Item",
+		Icon:   "Abc",
 	}
 	created, err := InsertItemStruct(item)
 	if err != nil {
@@ -183,7 +183,7 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created {
+	if getItem.ItemId != created {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -208,9 +208,9 @@ func TestModifyItemIcon(t *testing.T) {
 func TestDeleteItem(t *testing.T) {
 	connectDatabase()
 	item := data.Item{
-		ID:   12,
-		Name: "New Item",
-		Icon: "Abc",
+		ItemId: 12,
+		Name:   "New Item",
+		Icon:   "Abc",
 	}
 	created, err := InsertItemStruct(item)
 	if err != nil {
@@ -223,7 +223,7 @@ func TestDeleteItem(t *testing.T) {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ID != created {
+	if getItem.ItemId != created {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -237,7 +237,7 @@ func TestDeleteItem(t *testing.T) {
 		t.FailNow()
 	}
 	getItem, err = GetItem(created)
-	if err == nil || getItem.ID != 0 {
+	if err == nil || getItem.ItemId != 0 {
 		log.Printf("Can still retrieve item!")
 		t.FailNow()
 	}
