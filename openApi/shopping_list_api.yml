@@ -553,6 +553,16 @@ components:
           nullable: true
           example: 2024-08-09T19:37:21Z
       description: The online user for operations
+    ListUser:
+      type: object
+      properties:
+        onlineId:
+          type: integer
+          format: int32
+          example: 12344
+        username:
+          type: string
+          example: "list creator"
     Sharing:
       type: object
       properties:
@@ -574,10 +584,6 @@ components:
     Item:
       type: object
       properties:
-        itemId:
-          type: integer
-          format: int32
-          example: 120
         name:
           maxLength: 100
           type: string
@@ -602,6 +608,9 @@ components:
           checked:
             type: boolean
             example: true
+          addedBy:
+            type: integer
+            example: 12663
     List:
       type: object
       properties:
@@ -618,8 +627,7 @@ components:
           format: int32
           example: 2
         createdBy:
-          type: integer
-          example: 121600
+          $ref: '#/components/schemas/ListUser'
         createdAt:
           type: string
           format: date-time
