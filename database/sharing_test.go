@@ -13,7 +13,7 @@ func createDefaultSharing() data.ListShared {
 		ID:         0,
 		ListId:     1,
 		CreatedBy:  1234,
-		SharedWith: 2222,
+		SharedWith: []int64{2222},
 		Created:    time.Now().Local(),
 	}
 }
@@ -39,8 +39,8 @@ func TestCreateSharing(t *testing.T) {
 	}
 	shared := createDefaultSharing()
 	shared.CreatedBy = user.OnlineID
-	shared.SharedWith = sharedUser.OnlineID
-	sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
+	shared.SharedWith = []int64{sharedUser.OnlineID}
+	sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith[0])
 	if err != nil {
 		log.Printf("Failed to create list sharing")
 		t.FailNow()
