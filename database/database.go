@@ -132,14 +132,14 @@ func convertTimeToString(timeToFormat time.Time) string {
 	// log.Printf("Time before format: %v", timeToFormat)
 
 	// We need to omit the Z at the end for our database
-	formatTime := timeToFormat.Format("2006-01-02T03:04:05")
+	formatTime := timeToFormat.Format("2006-01-02T03:04:05+07:00")
 	// log.Printf("Converted time: %s", formatTime)
 	return formatTime
 }
 
 func convertStringToTime(strTime string) time.Time {
 	trimmedString := strings.Trim(strTime, "\t")
-	parsedTime, err := time.Parse("2006-01-02T03:04:05Z07:00", trimmedString)
+	parsedTime, err := time.Parse("2006-01-02T03:04:05+07:00", trimmedString)
 	if err != nil {
 		log.Printf("Failed to parse time: %s", trimmedString)
 		return time.Now().UTC()
@@ -194,8 +194,9 @@ func GetUserFromMatchingUsername(name string) ([]data.User, error) {
 			return []data.User{}, err
 		}
 		// convert the time into a string
-		timeConv := convertTimeToString(lastLogin)
-		user.LastLogin = timeConv
+		// timeConv := convertTimeToString(lastLogin)
+		// user.LastLogin = timeConv
+		user.LastLogin = lastLogin
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
@@ -236,13 +237,13 @@ func createUser(username string, passwd string) (data.User, error) {
 	}
 	// created := time.Now().Local().Format(time.RFC3339)
 	now := time.Now().UTC()
-	created := convertTimeToString(now)
+	// created := convertTimeToString(now)
 	newUser := data.User{
 		OnlineID:  int64(userId),
 		Username:  username,
 		Password:  hashedPw,
-		Created:   created,
-		LastLogin: created,
+		Created:   now,
+		LastLogin: now,
 	}
 	return newUser, nil
 }
@@ -399,7 +400,7 @@ func GetShoppingListsFromUserId(id int64) ([]data.List, error) {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.List{}, err
 		}
-		user, err := GetUser(list.CreatedBy.ID)
+		user, err := GetUser(list.CreatedBy.ID) // TODO: Cache this to reduce the db hits necessary
 		if err != nil {
 			return []data.List{}, err
 		}
