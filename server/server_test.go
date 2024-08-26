@@ -572,13 +572,13 @@ func TestUnissuedToken(t *testing.T) {
 // Testing the list methods
 // ------------------------------------------------------------
 
-func createListOffline(name string, userId int64, items []data.ItemWire) (data.Shoppinglist, error) {
+func createListOffline(name string, userId int64, items []data.ItemWire) (data.List, error) {
 	creator := data.ListCreator{
 		ID:   userId,
 		Name: USERNAME,
 	}
 	timeNow := time.Now().UTC()
-	list := data.Shoppinglist{
+	list := data.List{
 		ListId:     rand.Int63(),
 		Name:       name,
 		CreatedBy:  creator,
@@ -588,10 +588,10 @@ func createListOffline(name string, userId int64, items []data.ItemWire) (data.S
 	}
 	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
-		return data.Shoppinglist{}, err
+		return data.List{}, err
 	}
 	if list.ListId == 0 || list.Name != name || list.CreatedBy.ID != userId {
-		return data.Shoppinglist{}, errors.New("list was incorrectly stored")
+		return data.List{}, errors.New("list was incorrectly stored")
 	}
 	return list, nil
 }
@@ -642,7 +642,7 @@ func TestCreatingList(t *testing.T) {
 		Name: user.Username,
 	}
 	timeNow := time.Now().UTC()
-	list := data.Shoppinglist{
+	list := data.List{
 		ListId:     rand.Int63(),
 		Name:       listName,
 		CreatedBy:  creator,
@@ -701,7 +701,7 @@ func TestGetAllOwnLists(t *testing.T) {
 	}
 
 	// Add two lists for our user behind the curtains
-	var offlineList []data.Shoppinglist
+	var offlineList []data.List
 	for i := 0; i < 2; i++ {
 		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{}); err != nil {
 			log.Printf("Failed to create list: %s", err)
@@ -728,7 +728,7 @@ func TestGetAllOwnLists(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var allOwnLists []data.Shoppinglist
+	var allOwnLists []data.List
 	if json.Unmarshal(w.Body.Bytes(), &allOwnLists) != nil {
 		log.Printf("Failed to parse server answer. Expected lists JSON: %s", err)
 		t.FailNow()
@@ -774,7 +774,7 @@ func TestGetAllLists(t *testing.T) {
 	}
 
 	// Creating two own lists
-	var offlineList []data.Shoppinglist
+	var offlineList []data.List
 	for i := 0; i < 2; i++ {
 		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{}); err != nil {
 			log.Printf("Failed to create list: %s", err)
@@ -819,7 +819,7 @@ func TestGetAllLists(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var allLists []data.Shoppinglist
+	var allLists []data.List
 	if json.Unmarshal(w.Body.Bytes(), &allLists) != nil {
 		log.Printf("Failed to parse server answer. Expected lists JSON: %s", err)
 		t.FailNow()
@@ -865,7 +865,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 	}
 
 	// Creating two own lists
-	var offlineList []data.Shoppinglist
+	var offlineList []data.List
 	for i := 0; i < 2; i++ {
 		items := createItemsWire("Item", i+1)
 		if list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, items); err != nil {
@@ -911,7 +911,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var allLists []data.Shoppinglist
+	var allLists []data.List
 	if json.Unmarshal(w.Body.Bytes(), &allLists) != nil {
 		log.Printf("Failed to parse server answer. Expected lists JSON: %s", err)
 		t.FailNow()
@@ -959,7 +959,7 @@ func TestRemoveList(t *testing.T) {
 		Name: user.Username,
 	}
 	timeNow := time.Now().UTC()
-	list := data.Shoppinglist{
+	list := data.List{
 		ListId:     rand.Int63(),
 		Name:       listName,
 		CreatedBy:  creator,
@@ -1026,7 +1026,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 
 	// Creating two own lists and share one with a random user
 	sharedWithUserId := 12345
-	var offlineList []data.Shoppinglist
+	var offlineList []data.List
 	for i := 0; i < 2; i++ {
 		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{})
 		if err != nil {
@@ -1096,7 +1096,7 @@ func TestCreateSharing(t *testing.T) {
 
 	// Creating two own lists and share one with a random user
 	sharedWithUserId := sharedWithUser.OnlineID
-	var offlineList []data.Shoppinglist
+	var offlineList []data.List
 	for i := 0; i < 2; i++ {
 		list, err := createListOffline("own list "+strconv.Itoa(i+1), user.OnlineID, []data.ItemWire{})
 		if err != nil {
