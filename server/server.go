@@ -526,6 +526,29 @@ func updateSharing(c *gin.Context) {
 }
 
 // ------------------------------------------------------------
+// Handling of receipts
+// ------------------------------------------------------------
+
+func createReceipt(c *gin.Context) {
+	log.Print("Creating new receipt")
+	// TODO:
+}
+
+func readReceipt(c *gin.Context) {
+	log.Print("Reading receipt")
+	// TODO:
+}
+
+func updateReceipt(c *gin.Context) {
+	log.Print("Updating receipt")
+}
+
+func deleteReceipt(c *gin.Context) {
+	log.Print("Deleting receipt")
+	// TODO:
+}
+
+// ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
 
@@ -586,6 +609,12 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.POST("/share/:listId", shareList)
 		authorized.PUT("/share/:listId", updateSharing)
 		authorized.DELETE("/share/:listId", unshareList)
+
+		// TODO: implement and test them
+		authorized.POST("/receipt", createReceipt)
+		authorized.GET("/receipt/:receiptId", readReceipt)
+		authorized.PUT("/receipt/:receiptId", updateReceipt)
+		authorized.DELETE("/receipt/:receiptId", deleteReceipt)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
 		authorized.GET("/test/auth", returnUnauth)
