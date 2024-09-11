@@ -98,19 +98,53 @@ type ListSharedWire struct {
 // The recipe data structures
 // ------------------------------------------------------------
 
-type Recipe struct {
-	ID                  int64
-	Name                string
-	DescriptionFilePath string
-	CreatedBy           int64
-	DefaultPortion      int
+type Receipt struct {
+	ReceiptId      int64                `json:"receiptId"`
+	Name           string               `json:"name"`
+	CreatedBy      int64                `json:"createdBy"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	LastUpdate     time.Time            `json:"lastUpdated"`
+	DefaultPortion int                  `json:"defaultPortion"`
+	Ingredients    []Ingredient         `json:"ingredients"`
+	Description    []ReceiptDescription `json:"description"`
 }
 
-type ItemPerRecipe struct {
-	ID       int64
-	RecipeId int64
-	ItemId   int64
-	Quantity float32
+type DbReceipt struct {
+	ReceiptId      int64
+	Name           string
+	CreatedBy      int64
+	CreatedAt      time.Time
+	LastUpdated    time.Time
+	DefaultPortion int
+}
+
+type Ingredient struct {
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	Quantity     int    `json:"quantity"`
+	QuantityType string `json:"quantityType"`
+}
+
+type ReceiptDescription struct {
+	Order int    `json:"descriptionOrder"`
+	Step  string `json:"step"`
+}
+
+type IngredientPerReceipt struct {
+	ID           int64
+	RecipeId     int64
+	CreatedBy    int64
+	ItemId       int64
+	Quantity     float32
+	QuantityType string
+}
+
+type DescriptionPerReceipt struct {
+	ID               int64
+	ReceiptId        int64
+	CreatedBy        int64
+	Description      string
+	DescriptionOrder int
 }
 
 type RecipeShared struct {
