@@ -1097,6 +1097,23 @@ func ResetItemTable() {
 }
 
 // ------------------------------------------------------------
+// Recipes Handling
+// ------------------------------------------------------------
+
+var recipeTable = "recipe"
+
+func CreateRecipe(recipe data.Recipe) error {
+	log.Printf("Creating new recipe with name '%s'", recipe.Name)
+	query := fmt.Sprintf("INSERT INTO %s VALUES (?, ?, ?, ?, ?)", recipeTable)
+	_, err := db.Exec(query, recipe.ReceiptId, recipe.Name, recipe.CreatedBy, recipe.CreatedAt, recipe.DefaultPortion)
+	if err != nil {
+		log.Printf("Failed to insert values into database: %s", err)
+		return err
+	}
+	return nil
+}
+
+// ------------------------------------------------------------
 // Debug printout and functionality
 // ------------------------------------------------------------
 
