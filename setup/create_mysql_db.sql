@@ -88,10 +88,12 @@ CREATE TABLE itemsPerList (
 
 CREATE TABLE recipe(
     id                  INT AUTO_INCREMENT  NOT NULL,
+    recipeId            BIGINT              NOT NULL,
     name                VARCHAR(256)        NOT NULL,
-    descriptionFile     VARCHAR(256)        NOT NULL,
     createdBy           BIGINT              NOT NULL,
-    defaultQuantity     INT                 NOT NULL,
+    createdAt           DATETIME            NOT NULL,
+    lastUpdate          DATETIME            NOT NULL,
+    defaultPortion      INT                 NOT NULL,
     PRIMARY KEY (`id`)
 );
 
