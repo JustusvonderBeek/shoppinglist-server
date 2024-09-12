@@ -98,18 +98,18 @@ type ListSharedWire struct {
 // The recipe data structures
 // ------------------------------------------------------------
 
-type Receipt struct {
-	ReceiptId      int64                `json:"receiptId"`
-	Name           string               `json:"name"`
-	CreatedBy      int64                `json:"createdBy"`
-	CreatedAt      time.Time            `json:"createdAt"`
-	LastUpdate     time.Time            `json:"lastUpdated"`
-	DefaultPortion int                  `json:"defaultPortion"`
-	Ingredients    []Ingredient         `json:"ingredients"`
-	Description    []ReceiptDescription `json:"description"`
+type Recipe struct {
+	ReceiptId      int64               `json:"receiptId"`
+	Name           string              `json:"name"`
+	CreatedBy      int64               `json:"createdBy"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	LastUpdate     time.Time           `json:"lastUpdated"`
+	DefaultPortion int                 `json:"defaultPortion"`
+	Ingredients    []Ingredient        `json:"ingredients"`
+	Description    []RecipeDescription `json:"description"`
 }
 
-type DbReceipt struct {
+type DBRecipe struct {
 	ReceiptId      int64
 	Name           string
 	CreatedBy      int64
@@ -125,12 +125,12 @@ type Ingredient struct {
 	QuantityType string `json:"quantityType"`
 }
 
-type ReceiptDescription struct {
+type RecipeDescription struct {
 	Order int    `json:"descriptionOrder"`
 	Step  string `json:"step"`
 }
 
-type IngredientPerReceipt struct {
+type IngredientPerRecipe struct {
 	ID           int64
 	RecipeId     int64
 	CreatedBy    int64
@@ -139,7 +139,7 @@ type IngredientPerReceipt struct {
 	QuantityType string
 }
 
-type DescriptionPerReceipt struct {
+type DescriptionPerRecipe struct {
 	ID               int64
 	ReceiptId        int64
 	CreatedBy        int64
