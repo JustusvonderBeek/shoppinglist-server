@@ -523,6 +523,31 @@ paths:
           description: Ok
         "404":
           description: Not found
+  /price/{itemName}:
+    get:
+      tags:
+      - Price Handling
+      description: Receive possible prices for an item with the queried name
+      parameters:
+      - name: itemName
+        in: query
+        required: true
+        allowEmptyValue: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Price'
+        "404":
+          description: Not found
 components:
   schemas:
     User:
@@ -711,6 +736,24 @@ components:
           items:
             type: integer
             example: 1066
+    Price:
+      type: object
+      properties:
+        article:
+          type: string
+          example: "apfel"
+        price:
+          type: integer
+          example: 1.99
+        promotionPrice:
+          type: integer
+          example: 1.12
+        currency:
+          type: string
+          example: "€"
+        retailer:
+          type: string
+          example: "lidl"
   responses:
     UnauthorizedError:
       description: API key required but not provided
