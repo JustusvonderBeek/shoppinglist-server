@@ -28,7 +28,8 @@ DROP TABLE IF EXISTS shoppinglist; -- Holding generic list information
 DROP TABLE IF EXISTS sharedList; -- Which user can access which list
 DROP TABLE IF EXISTS itemsPerList;     -- The mapping of items to lists
 DROP TABLE IF EXISTS recipe; -- The description of recipes
-DROP TABLE IF EXISTS itemsPerRecipe; -- The items that make a recipe
+DROP TABLE IF EXISTS ingredientPerRecipe; -- The items that make a recipe
+DROP TABLE IF EXISTS descriptionPerRecipe; -- The descriptions that make a recipe
 DROP TABLE IF EXISTS sharedRecipe; -- Which user can access which recipe
 DROP TABLE IF EXISTS history; -- What has been bought in the past
 
@@ -97,12 +98,23 @@ CREATE TABLE recipe(
     PRIMARY KEY (`id`)
 );
 
-CREATE TABLE itemsPerRecipe(
-    id          INT AUTO_INCREMENT  NOT NULL,
-    recipeId    INT                 NOT NULL,
-    itemId      INT                 NOT NULL,
-    quantity    INT                 NOT NULL,
+CREATE TABLE ingredientPerRecipe(
+    id              INT AUTO_INCREMENT  NOT NULL,
+    recipeId        INT                 NOT NULL,
+    createdBy       BIGINT              NOT NULL,
+    itemId          INT                 NOT NULL,
+    quantity        INT                 NOT NULL,
+    quantityType    VARCHAR(32)         NOT NULL,
     PRIMARY KEY (`id`)
+);
+
+CREATE TABLE descriptionPerRecipe(
+    id                  INT AUTO_INCREMENT      NOT NULL,
+    recipeId            BIGINT                  NOT NULL,
+    createdBy           BIGINT                  NOT NULL,
+    description         VARCHAR(30000)          NOT NULL,
+    descriptionOrder    INT                     NOT NULL,
+    PRIMARY KEY(`id`)
 );
 
 CREATE TABLE sharedRecipe(
