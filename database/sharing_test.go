@@ -45,7 +45,7 @@ func TestCreateSharing(t *testing.T) {
 		log.Printf("Failed to create list sharing")
 		t.FailNow()
 	}
-	if shared.ListId != sharedWith.ListId || shared.CreatedBy != sharedWith.CreatedBy || shared.SharedWith != sharedWith.SharedWith {
+	if shared.ListId != sharedWith.ListId || shared.CreatedBy != sharedWith.CreatedBy || shared.SharedWith[0] != sharedWith.SharedWith[0] {
 		log.Printf("Incorrectly inserted")
 		t.FailNow()
 	}
@@ -60,7 +60,7 @@ func TestCreateSharing(t *testing.T) {
 	}
 	onlySharing := getSharing[0]
 	log.Printf("onlySharing: %v", onlySharing)
-	if onlySharing.ListId != shared.ListId || onlySharing.CreatedBy != shared.CreatedBy || onlySharing.SharedWith != shared.SharedWith {
+	if onlySharing.ListId != shared.ListId || onlySharing.CreatedBy != shared.CreatedBy || onlySharing.SharedWith[0] != shared.SharedWith[0] {
 		log.Printf("Incorrectly inserted")
 		t.FailNow()
 	}
@@ -72,7 +72,7 @@ func TestCreateSharing(t *testing.T) {
 func TestCreateSharingWithoutUser(t *testing.T) {
 	connectDatabase()
 	shared := createDefaultSharing()
-	if _, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith); err == nil {
+	if _, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith[0]); err == nil {
 		log.Printf("Should fail because of non-existing user")
 		t.FailNow()
 	}
@@ -106,14 +106,16 @@ func TestCreatingMultipleSharings(t *testing.T) {
 	}
 	shared := createDefaultSharing()
 	shared.CreatedBy = user.OnlineID
-	shared.SharedWith = sharedUser.OnlineID
+	sharingList := make([]int64, 0)
+	sharingList = append(sharingList, sharedUser.OnlineID)
+	shared.SharedWith = sharingList
 	for i := 0; i < 3; i++ {
-		sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
+		sharedWith, err := CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith[0])
 		if err != nil {
 			log.Printf("Failed to create list sharing")
 			t.FailNow()
 		}
-		if shared.ListId != sharedWith.ListId || shared.CreatedBy != sharedWith.CreatedBy || shared.SharedWith != sharedWith.SharedWith {
+		if shared.ListId != sharedWith.ListId || shared.CreatedBy != sharedWith.CreatedBy || shared.SharedWith[0] != sharedWith.SharedWith[0] {
 			log.Printf("Incorrectly inserted")
 			t.FailNow()
 		}
@@ -127,7 +129,7 @@ func TestCreatingMultipleSharings(t *testing.T) {
 			t.FailNow()
 		}
 		onlySharing := getSharing[0]
-		if onlySharing.ListId != shared.ListId || onlySharing.CreatedBy != shared.CreatedBy || onlySharing.SharedWith != shared.SharedWith {
+		if onlySharing.ListId != shared.ListId || onlySharing.CreatedBy != shared.CreatedBy || onlySharing.SharedWith[0] != shared.SharedWith[0] {
 			log.Printf("Incorrectly inserted")
 			t.FailNow()
 		}
@@ -167,13 +169,15 @@ func TestDeleteSharing(t *testing.T) {
 	}
 	shared := createDefaultSharing()
 	shared.CreatedBy = user.OnlineID
-	shared.SharedWith = sharedUser.OnlineID
-	_, err = CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith)
+	sharingList := make([]int64, 0)
+	sharingList = append(sharingList, sharedUser.OnlineID)
+	shared.SharedWith = sharingList
+	_, err = CreateOrUpdateSharedList(shared.ListId, shared.CreatedBy, shared.SharedWith[0])
 	if err != nil {
 		log.Printf("Failed to create list sharing")
 		t.FailNow()
 	}
-	err = DeleteSharingForUser(shared.ListId, shared.CreatedBy, shared.SharedWith)
+	err = DeleteSharingForUser(shared.ListId, shared.CreatedBy, shared.SharedWith[0])
 	if err != nil {
 		log.Printf("Failed to delete sharing: %s", err)
 		t.FailNow()
