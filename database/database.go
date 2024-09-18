@@ -29,7 +29,7 @@ var db *sql.DB
 
 type DBConf struct {
 	DBUser      string
-	DBPass      string
+	DBPwd       string
 	Addr        string
 	NetworkType string
 	DBName      string
@@ -40,7 +40,7 @@ func createDefaultConfiguration(confFile string) {
 	// It is not meant to create a config file holding a working configuration
 	conf := DBConf{
 		DBUser:      "",
-		DBPass:      "",
+		DBPwd:       "",
 		Addr:        "127.0.0.1:3306",
 		NetworkType: "tcp",
 		DBName:      "shoppinglist",
@@ -103,7 +103,7 @@ func CheckDatabaseOnline(cfg configuration.Config) {
 	}
 	mysqlCfg := mysql.Config{
 		User:                 config.DBUser,
-		Passwd:               config.DBPass,
+		Passwd:               config.DBPwd,
 		Net:                  config.NetworkType,
 		Addr:                 config.Addr,
 		DBName:               config.DBName,
@@ -1104,8 +1104,8 @@ var recipeTable = "recipe"
 
 func CreateRecipe(recipe data.Recipe) error {
 	log.Printf("Creating new recipe with name '%s'", recipe.Name)
-	query := fmt.Sprintf("INSERT INTO %s VALUES (?, ?, ?, ?, ?)", recipeTable)
-	_, err := db.Exec(query, recipe.ReceiptId, recipe.Name, recipe.CreatedBy, recipe.CreatedAt, recipe.DefaultPortion)
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, name, createdBy, createdAt, lastUpdate, defaultPortion) VALUES (?, ?, ?, ?, ?, ?)", recipeTable)
+	_, err := db.Exec(query, recipe.ReceiptId, recipe.Name, recipe.CreatedBy, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
@@ -1177,7 +1177,7 @@ func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingre
 
 func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient, error) {
 	log.Printf("Trying to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT (recipeId, createdBy, itemId, quantity, quantityType) FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
+	query := fmt.Sprintf("SELECT recipeId, createdBy, itemId, quantity, quantityType FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
 	rows, err := db.Query(query, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
@@ -1187,7 +1187,7 @@ func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient
 	for rows.Next() {
 		var dbIngredient data.IngredientPerRecipe
 		if err := rows.Scan(&dbIngredient.RecipeId, &dbIngredient.CreatedBy, &dbIngredient.ItemId, &dbIngredient.Quantity, &dbIngredient.QuantityType); err != nil {
-			log.Printf("Failed to retrieve ingredient for recipe")
+			log.Printf("Failed to retrieve ingredient for recipe: %s", err)
 			return []data.Ingredient{}, err
 		}
 		item, err := GetItem(dbIngredient.ItemId)
@@ -1208,7 +1208,7 @@ func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient
 
 func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDescription, error) {
 	log.Printf("Reading descriptions for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT () FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
+	query := fmt.Sprintf("SELECT description, descriptionOrder FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
 	rows, err := db.Query(query, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to retrieve descriptions for recipe %d from %d", recipeId, createdBy)
@@ -1238,7 +1238,7 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	// Read ingredients
 	ingredients, err := GetIngredientsForRecipe(recipeId, createdBy)
 	if err != nil {
-		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
+		log.Printf("Failed to retrieve recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
 	}
 	recipe.Ingredients = ingredients
