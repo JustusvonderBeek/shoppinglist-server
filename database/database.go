@@ -1110,6 +1110,215 @@ func CreateRecipe(recipe data.Recipe) error {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
 	}
+	err = insertDescription(recipe.ReceiptId, recipe.CreatedBy, recipe.Description)
+	if err != nil {
+		log.Printf("Failed to create recipe '%s' because of descriptions: %s", recipe.Name, err)
+		return err
+	}
+	err = insertIngredients(recipe.ReceiptId, recipe.CreatedBy, recipe.Ingredients)
+	if err != nil {
+		log.Printf("Failed to create recipe '%s' because of ingredients: %s", recipe.Name, err)
+		return err
+	}
+	return nil
+}
+
+var recipeDescriptionTable = "descriptionPerRecipe"
+
+func insertDescription(recipeId int64, createdBy int64, descriptions []data.RecipeDescription) error {
+	log.Printf("Inserting %d recipe descriptions", len(descriptions))
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, description, descriptionOrder) VALUES (?, ?, ?, ?)", recipeDescriptionTable)
+	for _, v := range descriptions {
+		_, err := db.Exec(query, recipeId, createdBy, v.Step, v.Order)
+		if err != nil {
+			log.Printf("Failed to insert %v into table: %s", v, err)
+			return err
+		}
+	}
+	return nil
+}
+
+var recipeIngredientTable = "ingredientPerRecipe"
+
+func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingredient) error {
+	log.Printf("Insert %d recipe ingredients", len(ingredients))
+	// We need to check if an item exists and reference this item rather than creating a new one
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, itemId, quantity, quantityType) VALUES (?, ?, ?, ?, ?)", recipeIngredientTable)
+	for _, v := range ingredients {
+		existingItems, err := GetAllItemsFromName(v.Name)
+		if err != nil {
+			return err
+		}
+		itemId := int64(0)
+		exists := false
+		for _, item := range existingItems {
+			if item.Name == v.Name {
+				itemId = item.ItemId
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			log.Printf("Item '%s' does not exist yet", v.Name)
+			itemId, err = InsertItem(v.Name, v.Icon)
+			if err != nil {
+				log.Printf("Failed to create new item '%s'", v.Name)
+				continue
+			}
+		}
+		_, err = db.Exec(query, recipeId, createdBy, itemId, v.Quantity, v.QuantityType)
+		if err != nil {
+			log.Printf("Failed to insert %v into table: %s", v, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient, error) {
+	log.Printf("Trying to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
+	query := fmt.Sprintf("SELECT (recipeId, createdBy, itemId, quantity, quantityType) FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
+	rows, err := db.Query(query, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
+		return []data.Ingredient{}, err
+	}
+	var ingredients []data.Ingredient
+	for rows.Next() {
+		var dbIngredient data.IngredientPerRecipe
+		if err := rows.Scan(&dbIngredient.RecipeId, &dbIngredient.CreatedBy, &dbIngredient.ItemId, &dbIngredient.Quantity, &dbIngredient.QuantityType); err != nil {
+			log.Printf("Failed to retrieve ingredient for recipe")
+			return []data.Ingredient{}, err
+		}
+		item, err := GetItem(dbIngredient.ItemId)
+		if err != nil {
+			log.Printf("Failed to get item %d: %s", dbIngredient.ItemId, err)
+			continue
+		}
+		ingredient := data.Ingredient{
+			Name:         item.Name,
+			Icon:         item.Icon,
+			Quantity:     int(dbIngredient.Quantity),
+			QuantityType: dbIngredient.QuantityType,
+		}
+		ingredients = append(ingredients, ingredient)
+	}
+	return ingredients, nil
+}
+
+func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDescription, error) {
+	log.Printf("Reading descriptions for recipe %d from %d", recipeId, createdBy)
+	query := fmt.Sprintf("SELECT () FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
+	rows, err := db.Query(query, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to retrieve descriptions for recipe %d from %d", recipeId, createdBy)
+		return []data.RecipeDescription{}, err
+	}
+	var descriptions []data.RecipeDescription
+	for rows.Next() {
+		var description data.RecipeDescription
+		if err := rows.Scan(&description.Step, &description.Order); err != nil {
+			log.Printf("Failed to retrieve description for recipe %d from %d", recipeId, createdBy)
+			return []data.RecipeDescription{}, err
+		}
+		descriptions = append(descriptions, description)
+	}
+	return descriptions, nil
+}
+
+func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
+	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
+	query := fmt.Sprintf("SELECT (recipeId, name, createdBy, createdAt, lastUpdated, defaultPortion) FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	row := db.QueryRow(query, recipeId, createdBy)
+	var recipe data.Recipe
+	if err := row.Scan(&recipe.ReceiptId, &recipe.Name, &recipe.CreatedBy, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion); err == nil {
+		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
+		return data.Recipe{}, nil
+	}
+	// Read ingredients
+	ingredients, err := GetIngredientsForRecipe(recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
+		return data.Recipe{}, err
+	}
+	recipe.Ingredients = ingredients
+	descriptions, err := GetDescriptionsForRecipe(recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
+		return data.Recipe{}, nil
+	}
+	recipe.Description = descriptions
+	return recipe, nil
+}
+
+func updateIngredients(recipeId int64, createdBy int64, ingredients []data.Ingredient) error {
+	err := deleteIngredients(recipeId, createdBy)
+	if err != nil {
+		return err
+	}
+	err = insertIngredients(recipeId, createdBy, ingredients)
+	return err
+}
+
+func updateDescriptions(recipeId int64, createdBy int64, descriptions []data.RecipeDescription) error {
+	err := deleteDescriptions(recipeId, createdBy)
+	if err != nil {
+		return err
+	}
+	err = insertDescription(recipeId, createdBy, descriptions)
+	return err
+}
+
+func UpdateRecipe(recipe data.Recipe) error {
+	log.Printf("Updating recipe '%s'", recipe.Name)
+	query := fmt.Sprintf("SELECT () FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	row := db.QueryRow(query, recipe.ReceiptId, recipe.CreatedBy)
+	var existingRecipe data.Recipe
+	if err := row.Scan(&existingRecipe.ReceiptId, &existingRecipe.Name, &existingRecipe.CreatedBy, &existingRecipe.CreatedAt, &existingRecipe.LastUpdate); err != nil {
+		log.Printf("Recipe to update not found: %s", err)
+		return err
+	}
+	if recipe.LastUpdate.Sub(existingRecipe.LastUpdate).Abs() < time.Duration(3*time.Second) {
+		log.Printf("The list was recently updated")
+		return nil
+	}
+	if err := updateDescriptions(recipe.ReceiptId, recipe.CreatedBy, recipe.Description); err != nil {
+		log.Printf("Failed to update descriptions: %s", err)
+		return err
+	}
+	if err := updateIngredients(recipe.ReceiptId, recipe.CreatedBy, recipe.Ingredients); err != nil {
+		log.Printf("Failed to update ingredients: %s", err)
+		return err
+	}
+	return nil
+}
+
+func deleteIngredients(recipeId int64, createdBy int64) error {
+	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
+	_, err := db.Exec(query, recipeId, createdBy)
+	return err
+}
+
+func deleteDescriptions(recipeId int64, createdBy int64) error {
+	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
+	_, err := db.Exec(query, recipeId, createdBy)
+	return err
+}
+
+func DeleteRecipe(recipeId int64, createdBy int64) error {
+	log.Printf("Deleting recipe %d from %d", recipeId, createdBy)
+	if err := deleteDescriptions(recipeId, createdBy); err != nil {
+		return err
+	}
+	if err := deleteIngredients(recipeId, createdBy); err != nil {
+		return err
+	}
+	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	_, err := db.Exec(query, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to delete recipe %d from %d: %s", recipeId, createdBy, err)
+		return err
+	}
 	return nil
 }
 
