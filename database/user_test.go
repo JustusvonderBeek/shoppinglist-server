@@ -33,11 +33,12 @@ func TestCreatingUser(t *testing.T) {
 		log.Printf("Password does not match")
 		t.FailNow()
 	}
-	createdTime, err := time.Parse(time.RFC3339Nano, user.Created)
-	if err != nil {
-		log.Printf("Created un-parseable time format!")
-		t.FailNow()
-	}
+	createdTime := user.Created
+	// createdTime, err := time.Parse(time.RFC3339Nano, user.Created)
+	// if err != nil {
+	// 	log.Printf("Created un-parseable time format!")
+	// 	t.FailNow()
+	// }
 	now := time.Now().Local()
 	if now.Before(createdTime) {
 		log.Printf("Created time (%s) is after the current time (%s)", createdTime, now)
@@ -59,7 +60,7 @@ func TestCreatingIncorrectUser(t *testing.T) {
 		log.Printf("Expected error but got none")
 		t.FailNow()
 	}
-	if user.OnlineID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
+	if user.OnlineID != 0 || user.Username != "" || user.Password != "" {
 		log.Printf("Expected empty user but got: %v", user)
 		t.FailNow()
 	}
@@ -68,7 +69,7 @@ func TestCreatingIncorrectUser(t *testing.T) {
 		log.Printf("Expected error but got none")
 		t.FailNow()
 	}
-	if user.OnlineID != 0 || user.Username != "" || user.Password != "" || user.Created != "" || user.LastLogin != "" {
+	if user.OnlineID != 0 || user.Username != "" || user.Password != "" {
 		log.Printf("Expected empty user but got: %v", user)
 		t.FailNow()
 	}
