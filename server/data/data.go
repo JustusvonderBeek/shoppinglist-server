@@ -141,7 +141,7 @@ type IngredientPerRecipe struct {
 
 type DescriptionPerRecipe struct {
 	ID               int64
-	ReceiptId        int64
+	RecipeId         int64
 	CreatedBy        int64
 	Description      string
 	DescriptionOrder int
