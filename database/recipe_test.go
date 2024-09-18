@@ -9,6 +9,7 @@ import (
 )
 
 func TestCreatingRecipe(t *testing.T) {
+	connectDatabase()
 	log.Print("Testing creating a new recipe")
 	recipe := data.Recipe{
 		ReceiptId:      0,
@@ -59,6 +60,8 @@ func TestCreatingRecipe(t *testing.T) {
 	}
 	if recipe.CreatedAt != dbRecipe.CreatedAt || recipe.LastUpdate != dbRecipe.LastUpdate || len(recipe.Description) != len(dbRecipe.Description) || len(recipe.Ingredients) != len(dbRecipe.Ingredients) {
 		log.Printf("The retrieved recipe and the created one do not match")
+		log.Printf("Org: %v", recipe)
+		log.Printf("Retr: %v", dbRecipe)
 		t.FailNow()
 	}
 
