@@ -148,7 +148,7 @@ type DescriptionPerRecipe struct {
 }
 
 type RecipeShared struct {
-	ID         int64
-	RecipeId   int64
-	SharedWith int64
+	ID         int64 `json:"id,omitempty"`
+	RecipeId   int64 `json:"recipeId"`
+	SharedWith int64 `json:"sharedWith"`
 }
