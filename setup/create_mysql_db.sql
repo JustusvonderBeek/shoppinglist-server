@@ -112,15 +112,16 @@ CREATE TABLE descriptionPerRecipe(
     id                  INT AUTO_INCREMENT      NOT NULL,
     recipeId            BIGINT                  NOT NULL,
     createdBy           BIGINT                  NOT NULL,
-    description         VARCHAR(30000)          NOT NULL,
+    description         VARCHAR(16000)          NOT NULL,
     descriptionOrder    INT                     NOT NULL,
     PRIMARY KEY(`id`)
 );
 
 CREATE TABLE sharedRecipe(
-    id          INT AUTO_INCREMENT  NOT NULL,
-    recipeId    INT                 NOT NULL,
-    sharedWith  BIGINT              NOT NULL,
+    id          INT AUTO_INCREMENT      NOT NULL,
+    recipeId    BIGINT                  NOT NULL,
+    createdBy   BIGINT                  NOT NULL,
+    sharedWith  BIGINT                  NOT NULL,
     PRIMARY KEY (`id`)
 );
 
