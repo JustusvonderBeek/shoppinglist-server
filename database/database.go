@@ -1228,12 +1228,12 @@ func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDes
 
 func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT (recipeId, name, createdBy, createdAt, lastUpdated, defaultPortion) FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	query := fmt.Sprintf("SELECT recipeId, name, createdBy, createdAt, lastUpdate, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
 	row := db.QueryRow(query, recipeId, createdBy)
 	var recipe data.Recipe
-	if err := row.Scan(&recipe.ReceiptId, &recipe.Name, &recipe.CreatedBy, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion); err == nil {
+	if err := row.Scan(&recipe.ReceiptId, &recipe.Name, &recipe.CreatedBy, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion); err != nil {
 		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
-		return data.Recipe{}, nil
+		return data.Recipe{}, err
 	}
 	// Read ingredients
 	ingredients, err := GetIngredientsForRecipe(recipeId, createdBy)
@@ -1271,15 +1271,13 @@ func updateDescriptions(recipeId int64, createdBy int64, descriptions []data.Rec
 
 func UpdateRecipe(recipe data.Recipe) error {
 	log.Printf("Updating recipe '%s'", recipe.Name)
-	query := fmt.Sprintf("SELECT () FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	row := db.QueryRow(query, recipe.ReceiptId, recipe.CreatedBy)
-	var existingRecipe data.Recipe
-	if err := row.Scan(&existingRecipe.ReceiptId, &existingRecipe.Name, &existingRecipe.CreatedBy, &existingRecipe.CreatedAt, &existingRecipe.LastUpdate); err != nil {
-		log.Printf("Recipe to update not found: %s", err)
+	existingRecipe, err := GetRecipe(recipe.ReceiptId, recipe.CreatedBy)
+	if err != nil {
+		log.Printf("The recipe to update was not found: %s", err)
 		return err
 	}
-	if recipe.LastUpdate.Sub(existingRecipe.LastUpdate).Abs() < time.Duration(3*time.Second) {
-		log.Printf("The list was recently updated")
+	if recipe.LastUpdate.Sub(existingRecipe.LastUpdate).Abs() < time.Duration(1*time.Second) {
+		log.Printf("The list was recently updated, rejecting update")
 		return nil
 	}
 	if err := updateDescriptions(recipe.ReceiptId, recipe.CreatedBy, recipe.Description); err != nil {
@@ -1317,6 +1315,49 @@ func DeleteRecipe(recipeId int64, createdBy int64) error {
 	_, err := db.Exec(query, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete recipe %d from %d: %s", recipeId, createdBy, err)
+		return err
+	}
+	return nil
+}
+
+func ResetRecipeTables() {
+	log.Print("RESETTING ALL RECIPES. CANNOT BE REVERTED!")
+
+	query := "DELETE FROM " + recipeTable
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to remove all recipes: %s", err)
+		return
+	}
+	query = "DELETE FROM " + recipeDescriptionTable
+	_, err = db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to remove all recipe descriptions: %s", err)
+		return
+	}
+	query = "DELETE FROM " + recipeIngredientTable
+	_, err = db.Exec(query)
+	if err != nil {
+		log.Printf("Failed to remove all recipe ingredients: %s", err)
+		return
+	}
+
+	log.Print("RESET RECIPE TABLES")
+}
+
+// ------------------------------------------------------------
+// Recipe Sharing Handling
+// ------------------------------------------------------------
+
+var recipeSharingTable = "sharedRecipe"
+
+func CreateRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) error {
+	log.Printf("Creating new sharing for %d of recipe %d from %d", sharedWith, recipeId, createdBy)
+
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, sharedWith) VALUES (?, ?, ?)", recipeSharingTable)
+	_, err := db.Exec(query, recipeId, createdBy, sharedWith)
+	if err != nil {
+		log.Printf("Failed to insert sharing for user %d into database: %s", sharedWith, err)
 		return err
 	}
 	return nil
