@@ -452,16 +452,16 @@ paths:
               explode: false
               schema:
                 type: string
-  /receipt:
+  /recipe:
     post:
       tags:
-      - Receipt Handling
-      description: Create a new receipt at the server
+      - Recipe Handling
+      description: Create a new recipe at the server
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Receipt'
+              $ref: '#/components/schemas/Recipe'
       responses:
         "201":
           description: Created
@@ -475,8 +475,8 @@ paths:
                 type: string
     get:
       tags:
-        - Receipt Handling
-      description: Get all own and shared receipts.
+        - Recipe Handling
+      description: Get all own and shared recipes.
       responses:
         "200":
           description: Ok
@@ -485,30 +485,30 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Receipt'
-  /receipt/{receiptId}:
+                  $ref: '#/components/schemas/Recipe'
+  /recipe/{recipeId}:
     get:
       tags:
-      - Receipt Handling
-      description: Retrieve the selected receipt.
+      - Recipe Handling
+      description: Retrieve the selected recipe.
       responses:
         "200":
           description: Ok
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Receipt'
+                $ref: '#/components/schemas/Recipe'
         "404":
           description: Not found
     put:
       tags:
-      - Receipt Handling
-      description: Update a given receipt
+      - Recipe Handling
+      description: Update a given recipe
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Receipt'
+              $ref: '#/components/schemas/Recipe'
       responses:
         "200":
           description: Ok
@@ -516,8 +516,8 @@ paths:
           description: Not found
     delete:
       tags:
-        - Receipt Handling
-      description: Delete an own receipt.
+        - Recipe Handling
+      description: Delete an own recipe.
       responses:
         "200":
           description: Ok
@@ -685,14 +685,14 @@ components:
       allOf:
       - $ref: '#/components/schemas/Item'
       - $ref: '#/components/schemas/Quantity'
-    ReceiptStep:
+    RecipeStep:
       type: object
       properties:
         step:
           type: string
           example: mix the eggs and milk together
       description: "A single step in a receipt, including what items to use, how much and the order and description of the actions."
-    Receipt:
+    Recipe:
       type: object
       properties:
         receiptId:
@@ -722,7 +722,7 @@ components:
         description:
           type: array
           items:
-            $ref: '#/components/schemas/ReceiptStep'
+            $ref: '#/components/schemas/RecipeStep'
       description: A receipt to cook or buy
     inline_response_200:
       type: object
