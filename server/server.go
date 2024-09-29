@@ -592,7 +592,7 @@ func updateRecipe(c *gin.Context) {
 		return
 	}
 	// TODO: Include updating a shared recipe
-	if recipeId != int(recipeToUpdate.ReceiptId) || userId != recipeToUpdate.CreatedBy {
+	if recipeId != int(recipeToUpdate.RecipeId) || userId != recipeToUpdate.CreatedBy {
 		log.Printf("User is not allowed to update the recipe")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
