@@ -88,41 +88,37 @@ CREATE TABLE itemsPerList (
 -- Table holding recipes + mapping of items per recipe
 
 CREATE TABLE recipe(
-    id                  INT AUTO_INCREMENT  NOT NULL,
     recipeId            BIGINT              NOT NULL,
-    name                VARCHAR(256)        NOT NULL,
     createdBy           BIGINT              NOT NULL,
+    name                VARCHAR(256)        NOT NULL,
     createdAt           DATETIME            NOT NULL,
     lastUpdate          DATETIME            NOT NULL,
     defaultPortion      INT                 NOT NULL,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (recipeId, createdBy)
 );
 
 CREATE TABLE ingredientPerRecipe(
-    id              INT AUTO_INCREMENT  NOT NULL,
     recipeId        INT                 NOT NULL,
     createdBy       BIGINT              NOT NULL,
     itemId          INT                 NOT NULL,
     quantity        INT                 NOT NULL,
     quantityType    VARCHAR(32)         NOT NULL,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (recipeId, createdBy, itemId)
 );
 
 CREATE TABLE descriptionPerRecipe(
-    id                  INT AUTO_INCREMENT      NOT NULL,
     recipeId            BIGINT                  NOT NULL,
     createdBy           BIGINT                  NOT NULL,
     description         VARCHAR(16000)          NOT NULL,
     descriptionOrder    INT                     NOT NULL,
-    PRIMARY KEY(`id`)
+    PRIMARY KEY(recipeId, createdBy, descriptionOrder)
 );
 
 CREATE TABLE sharedRecipe(
-    id          INT AUTO_INCREMENT      NOT NULL,
     recipeId    BIGINT                  NOT NULL,
     createdBy   BIGINT                  NOT NULL,
     sharedWith  BIGINT                  NOT NULL,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (recipeId, createdBy, sharedWith)
 );
 
 -- Keeping track of the shopping history to suggest items
