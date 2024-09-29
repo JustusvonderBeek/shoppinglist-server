@@ -297,16 +297,16 @@ func CheckIPWhitelisted(clientIP string, whitelist map[string]bool) error {
 func CreateAccount(c *gin.Context) {
 	// Creating a new user and inserting into the database
 	// First checking if the creation is from a whitelisted IP address
-	origin := c.ClientIP()
-	err := CheckIPWhitelisted(origin, IPWhitelist)
-	if err != nil {
-		log.Printf("Request origin %s not from a whitelisted IP address!", origin)
-		c.AbortWithStatus(http.StatusForbidden)
-		return
-	}
+	// origin := c.ClientIP()
+	// err := CheckIPWhitelisted(origin, IPWhitelist)
+	// if err != nil {
+	// 	log.Printf("Request origin %s not from a whitelisted IP address!", origin)
+	// 	c.AbortWithStatus(http.StatusForbidden)
+	// 	return
+	// }
 	// Extracting username and password from request
 	var user data.User
-	err = c.ShouldBindJSON(&user)
+	err := c.ShouldBindJSON(&user)
 	if err != nil {
 		log.Printf("Failed decode given user: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
