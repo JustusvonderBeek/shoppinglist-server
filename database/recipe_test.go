@@ -13,7 +13,7 @@ func TestCreatingRecipe(t *testing.T) {
 	ResetRecipeTables()
 	log.Print("Testing creating a new recipe")
 	recipe := data.Recipe{
-		ReceiptId:      0,
+		RecipeId:       0,
 		Name:           "new recipe",
 		CreatedBy:      12345,
 		CreatedAt:      time.Now(),
@@ -54,7 +54,7 @@ func TestCreatingRecipe(t *testing.T) {
 	}
 	log.Printf("Recipe created")
 	// Now checking again by reading the recipe
-	dbRecipe, err := GetRecipe(recipe.ReceiptId, recipe.CreatedBy)
+	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to read created recipe: %s", err)
 		t.FailNow()
@@ -72,7 +72,7 @@ func TestUpdateRecipe(t *testing.T) {
 	connectDatabase()
 	ResetRecipeTables()
 	recipe := data.Recipe{
-		ReceiptId:      0,
+		RecipeId:       0,
 		Name:           "new recipe",
 		CreatedBy:      12345,
 		CreatedAt:      time.Now(),
@@ -129,7 +129,7 @@ func TestUpdateRecipe(t *testing.T) {
 		log.Printf("Failed to update recipe: %s", err)
 		t.FailNow()
 	}
-	dbRecipe, err := GetRecipe(recipe.ReceiptId, recipe.CreatedBy)
+	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
 	if err != nil {
 		log.Printf("Failed to get recipe: %s", err)
 		t.FailNow()
@@ -148,7 +148,7 @@ func TestDeleteRecipe(t *testing.T) {
 	connectDatabase()
 	ResetRecipeTables()
 	recipe := data.Recipe{
-		ReceiptId:      0,
+		RecipeId:       0,
 		Name:           "new recipe",
 		CreatedBy:      12345,
 		CreatedAt:      time.Now(),
@@ -188,11 +188,11 @@ func TestDeleteRecipe(t *testing.T) {
 		t.FailNow()
 	}
 	log.Printf("Recipe created")
-	if err := DeleteRecipe(recipe.ReceiptId, recipe.CreatedBy); err != nil {
+	if err := DeleteRecipe(recipe.RecipeId, recipe.CreatedBy); err != nil {
 		log.Printf("Failed to delete recipe: %s", err)
 		t.FailNow()
 	}
-	if _, err := GetRecipe(recipe.ReceiptId, recipe.CreatedBy); err == nil {
+	if _, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy); err == nil {
 		log.Print("Recipe can be retrieved after deletion")
 		t.FailNow()
 	}
