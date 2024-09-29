@@ -99,18 +99,18 @@ type ListSharedWire struct {
 // ------------------------------------------------------------
 
 type Recipe struct {
-	ReceiptId      int64               `json:"receiptId"`
+	RecipeId       int64               `json:"receiptId" db:"recipeId"`
 	Name           string              `json:"name"`
-	CreatedBy      int64               `json:"createdBy"`
-	CreatedAt      time.Time           `json:"createdAt"`
-	LastUpdate     time.Time           `json:"lastUpdated"`
-	DefaultPortion int                 `json:"defaultPortion"`
+	CreatedBy      int64               `json:"createdBy" db:"createdBy"`
+	CreatedAt      time.Time           `json:"createdAt" db:"createdAt"`
+	LastUpdate     time.Time           `json:"lastUpdated" db:"lastUpdate"`
+	DefaultPortion int                 `json:"defaultPortion" db:"defaultPortion"`
 	Ingredients    []Ingredient        `json:"ingredients"`
 	Description    []RecipeDescription `json:"description"`
 }
 
 type DBRecipe struct {
-	ReceiptId      int64
+	RecipeId       int64
 	Name           string
 	CreatedBy      int64
 	CreatedAt      time.Time
@@ -119,32 +119,30 @@ type DBRecipe struct {
 }
 
 type Ingredient struct {
-	Name         string `json:"name"`
-	Icon         string `json:"icon"`
-	Quantity     int    `json:"quantity"`
-	QuantityType string `json:"quantityType"`
+	Name         string `json:"name" db:"name"`
+	Icon         string `json:"icon" db:"icon"`
+	Quantity     int    `json:"quantity" db:"quantity"`
+	QuantityType string `json:"quantityType" db:"quantityType"`
 }
 
 type RecipeDescription struct {
-	Order int    `json:"descriptionOrder"`
+	Order int    `json:"order"`
 	Step  string `json:"step"`
 }
 
 type IngredientPerRecipe struct {
-	ID           int64
-	RecipeId     int64
-	CreatedBy    int64
-	ItemId       int64
-	Quantity     float32
-	QuantityType string
+	RecipeId     int64   `json:"recipeId" db:"description"`
+	CreatedBy    int64   `json:"createdBy" db:"createdBy"`
+	ItemId       int64   `json:"itemId" db:"itemId"`
+	Quantity     float32 `json:"quantity" db:"quantity"`
+	QuantityType string  `json:"quantityType" db:"quantityType"`
 }
 
 type DescriptionPerRecipe struct {
-	ID               int64
-	RecipeId         int64
-	CreatedBy        int64
-	Description      string
-	DescriptionOrder int
+	RecipeId         int64  `json:"recipeId" db:"recipeId"`
+	CreatedBy        int64  `json:"createdBy" db:"createdBy"`
+	Description      string `json:"step" db:"description"`
+	DescriptionOrder int    `json:"order" db:"descriptionOrder"`
 }
 
 type RecipeShared struct {
