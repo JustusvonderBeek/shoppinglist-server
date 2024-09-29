@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 	"shop.cloudsheeptech.com/server/configuration"
 	"shop.cloudsheeptech.com/server/data"
 )
@@ -1104,18 +1105,18 @@ var recipeTable = "recipe"
 
 func CreateRecipe(recipe data.Recipe) error {
 	log.Printf("Creating new recipe with name '%s'", recipe.Name)
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, name, createdBy, createdAt, lastUpdate, defaultPortion) VALUES (?, ?, ?, ?, ?, ?)", recipeTable)
-	_, err := db.Exec(query, recipe.ReceiptId, recipe.Name, recipe.CreatedBy, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion) VALUES (?, ?, ?, ?, ?, ?)", recipeTable)
+	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
 	}
-	err = insertDescription(recipe.ReceiptId, recipe.CreatedBy, recipe.Description)
+	err = insertDescription(recipe.RecipeId, recipe.CreatedBy, recipe.Description)
 	if err != nil {
 		log.Printf("Failed to create recipe '%s' because of descriptions: %s", recipe.Name, err)
 		return err
 	}
-	err = insertIngredients(recipe.ReceiptId, recipe.CreatedBy, recipe.Ingredients)
+	err = insertIngredients(recipe.RecipeId, recipe.CreatedBy, recipe.Ingredients)
 	if err != nil {
 		log.Printf("Failed to create recipe '%s' because of ingredients: %s", recipe.Name, err)
 		return err
@@ -1177,31 +1178,21 @@ func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingre
 
 func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient, error) {
 	log.Printf("Trying to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT recipeId, createdBy, itemId, quantity, quantityType FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
-	rows, err := db.Query(query, recipeId, createdBy)
+	query := fmt.Sprintf("SELECT i.name, i.icon, r.quantity, r.quantityType FROM %s r JOIN items i ON r.itemId = i.id WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
+	dbx := sqlx.NewDb(db, "sql")
+	rows, err := dbx.Queryx(query, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
 		return []data.Ingredient{}, err
 	}
 	var ingredients []data.Ingredient
 	for rows.Next() {
-		var dbIngredient data.IngredientPerRecipe
-		if err := rows.Scan(&dbIngredient.RecipeId, &dbIngredient.CreatedBy, &dbIngredient.ItemId, &dbIngredient.Quantity, &dbIngredient.QuantityType); err != nil {
+		var dbIngredient data.Ingredient
+		if err := rows.StructScan(&dbIngredient); err != nil {
 			log.Printf("Failed to retrieve ingredient for recipe: %s", err)
 			return []data.Ingredient{}, err
 		}
-		item, err := GetItem(dbIngredient.ItemId)
-		if err != nil {
-			log.Printf("Failed to get item %d: %s", dbIngredient.ItemId, err)
-			continue
-		}
-		ingredient := data.Ingredient{
-			Name:         item.Name,
-			Icon:         item.Icon,
-			Quantity:     int(dbIngredient.Quantity),
-			QuantityType: dbIngredient.QuantityType,
-		}
-		ingredients = append(ingredients, ingredient)
+		ingredients = append(ingredients, dbIngredient)
 	}
 	return ingredients, nil
 }
@@ -1228,20 +1219,24 @@ func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDes
 
 func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT recipeId, name, createdBy, createdAt, lastUpdate, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	row := db.QueryRow(query, recipeId, createdBy)
+	dbx := sqlx.NewDb(db, "sql")
+
+	query := fmt.Sprintf("SELECT recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	row := dbx.QueryRowx(query, recipeId, createdBy)
+
 	var recipe data.Recipe
-	if err := row.Scan(&recipe.ReceiptId, &recipe.Name, &recipe.CreatedBy, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion); err != nil {
-		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
+	err := row.StructScan(&recipe)
+	if err != nil {
+		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
 	}
-	// Read ingredients
 	ingredients, err := GetIngredientsForRecipe(recipeId, createdBy)
 	if err != nil {
-		log.Printf("Failed to retrieve recipe %d from %d: %s", recipeId, createdBy, err)
+		log.Printf("Failed to get ingredient for recipe: %s", err)
 		return data.Recipe{}, err
 	}
 	recipe.Ingredients = ingredients
+
 	descriptions, err := GetDescriptionsForRecipe(recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to retrieve recipe %d from %d", recipeId, createdBy)
@@ -1271,7 +1266,7 @@ func updateDescriptions(recipeId int64, createdBy int64, descriptions []data.Rec
 
 func UpdateRecipe(recipe data.Recipe) error {
 	log.Printf("Updating recipe '%s'", recipe.Name)
-	existingRecipe, err := GetRecipe(recipe.ReceiptId, recipe.CreatedBy)
+	existingRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
 	if err != nil {
 		log.Printf("The recipe to update was not found: %s", err)
 		return err
@@ -1280,11 +1275,11 @@ func UpdateRecipe(recipe data.Recipe) error {
 		log.Printf("The list was recently updated, rejecting update")
 		return nil
 	}
-	if err := updateDescriptions(recipe.ReceiptId, recipe.CreatedBy, recipe.Description); err != nil {
+	if err := updateDescriptions(recipe.RecipeId, recipe.CreatedBy, recipe.Description); err != nil {
 		log.Printf("Failed to update descriptions: %s", err)
 		return err
 	}
-	if err := updateIngredients(recipe.ReceiptId, recipe.CreatedBy, recipe.Ingredients); err != nil {
+	if err := updateIngredients(recipe.RecipeId, recipe.CreatedBy, recipe.Ingredients); err != nil {
 		log.Printf("Failed to update ingredients: %s", err)
 		return err
 	}
