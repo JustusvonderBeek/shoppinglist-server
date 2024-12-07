@@ -14,14 +14,23 @@ pipeline {
         stage('Test') {
             steps {
                 echo 'Testing..'
-                sh 'go test'
+                dir('server') {
+                    sh 'go test'
+                }
+                dir('database') {
+                    sh 'go test'
+                }
             }
         }
         stage('Deploy') {
             steps {
                 echo 'Deploying....'
+                // TODO
+                // sh 'cp app-server /home/justus/shoppinglist-server/app-server'
                 sh 'go install'
             }
+        }
+        stage('Run') {
         }
     }
 
