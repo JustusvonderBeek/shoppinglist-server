@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"shop.cloudsheeptech.com/server/middleware"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -724,6 +725,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 	router := gin.Default()
 	authentication.Setup(cfg)
+	router.Use(middleware.CorsMiddleware())
 
 	// ------------- Handling Account Creation and Login ---------------
 
