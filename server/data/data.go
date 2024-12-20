@@ -35,7 +35,7 @@ type User struct {
 // The list data structures
 // ------------------------------------------------------------
 
-// Note: This can also be represented by the user format with fields omitted!!!
+// ListCreator Note: This can also be represented by the user format with fields omitted!!!
 // Deprecated: ListCreated is deprecated. Use user instead
 type ListCreator struct {
 	ID   int64  `json:"onlineId"`
@@ -50,6 +50,7 @@ type List struct {
 	CreatedAt   time.Time   `json:"createdAt,omitempty"`
 	LastUpdated time.Time   `json:"lastUpdated"`
 	Items       []ItemWire  `json:"items"`
+	Version     int64       `json:"version"`
 }
 
 type Item struct {
