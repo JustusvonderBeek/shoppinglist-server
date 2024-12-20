@@ -166,6 +166,26 @@ func GetUser(id int64) (data.User, error) {
 	return user, nil
 }
 
+func GetAllUsers() ([]data.User, error) {
+	query := "SELECT id,username,created,lastLogin FROM " + userTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to query database for users: %s", err)
+		return []data.User{}, err
+	}
+	defer rows.Close()
+	// Looping through data, assigning the columns to the given struct
+	var users []data.User
+	for rows.Next() {
+		var user data.User
+		if err := rows.Scan(&user.OnlineID, &user.Username, &user.Created, &user.LastLogin); err != nil {
+			return []data.User{}, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 func GetUserInWireFormat(id int64) (data.User, error) {
 	user, err := GetUser(id)
 	if err != nil {
@@ -488,22 +508,22 @@ func createOrUpdateShoppingListBase(list data.List) error {
 		return err
 	}
 	// Check if list exists and update / insert the values in this case
-	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, created, lastEdited) VALUES (?, ?, ?, ?, ?)"
+	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, created, lastEdited, version) VALUES (?, ?, ?, ?, ?, ?)"
 	replacing := false
 	var result sql.Result
 	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
 		// Replace existing
 		replacing = true
 		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
-		query = fmt.Sprintf("UPDATE %s SET name = ?, lastEdited = ? WHERE id = ?", shoppingListTable)
-		result, err = db.Exec(query, list.Title, list.LastUpdated, databaseListId)
+		query = fmt.Sprintf("UPDATE %s SET name = ?, lastEdited = ?, version = ? WHERE id = ?", shoppingListTable)
+		result, err = db.Exec(query, list.Title, list.LastUpdated, list.Version, databaseListId)
 		if err != nil {
 			return err
 		}
 	}
 	if !replacing {
 		var err error
-		result, err = db.Exec(query, list.ListId, list.Title, list.CreatedBy.ID, list.CreatedAt, list.LastUpdated)
+		result, err = db.Exec(query, list.ListId, list.Title, list.CreatedBy.ID, list.CreatedAt, list.LastUpdated, list.Version)
 		if err != nil {
 			return err
 		}

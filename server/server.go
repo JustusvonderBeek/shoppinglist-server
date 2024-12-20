@@ -133,7 +133,7 @@ func postShoppingList(c *gin.Context) {
 	err = database.CreateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create list: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	// No more information is gained through an answer because the client
@@ -191,7 +191,7 @@ func putShoppingList(c *gin.Context) {
 	}
 	if err = database.CreateOrUpdateShoppingList(list); err != nil {
 		log.Printf("failed to update listId %d from user %d", listId, userId)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	c.Status(http.StatusOK)
@@ -683,6 +683,20 @@ func deleteShareRecipe(c *gin.Context) {
 }
 
 // ------------------------------------------------------------
+// Admin Functionality
+// ------------------------------------------------------------
+
+func getAllUsers(c *gin.Context) {
+	users, err := database.GetAllUsers()
+	if err != nil {
+		log.Printf("Failed to get all users: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.IndentedJSON(http.StatusOK, users)
+}
+
+// ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
 
@@ -722,7 +736,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 	// Add authentication middleware to v1 router
 	authorized := router.Group("/v1")
-	authorized.Use(authentication.AuthenticationMiddleware(cfg))
+	authorized.Use(authentication.AuthenticationMiddleware())
 	{
 		// The structure is similar to the order of operations: create, update, get, delete
 
@@ -758,6 +772,11 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.POST("/test/auth", returnPostTest)
 	}
 
+	authorized.Use(authentication.AdminAuthenticationMiddleware())
+	{
+	}
+
+	router.GET("/admin/users", getAllUsers)
 	router.GET("/test/unauth", returnUnauth)
 
 	return router
