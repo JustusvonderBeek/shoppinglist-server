@@ -421,99 +421,114 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, wireToken)
 }
 
-func AuthenticationMiddleware(cfg configuration.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// body, _ := io.ReadAll(c.Request.Body)
-		// header := c.Request.Header
-		origin := c.ClientIP()
-		remote := c.RemoteIP()
-		// log.Printf("Request body: %s", body)
-		// log.Printf("Request header: %s", header)
-		log.Printf("Origin: %s, Remote: %s", origin, remote)
+func basicTokenAuthenticationFunction(c *gin.Context) {
+	// body, _ := io.ReadAll(c.Request.Body)
+	// header := c.Request.Header
+	origin := c.ClientIP()
+	remote := c.RemoteIP()
+	// log.Printf("Request body: %s", body)
+	// log.Printf("Request header: %s", header)
+	log.Printf("Origin: %s, Remote: %s", origin, remote)
 
-		// TODO: Add the API token-
-		tokenString := c.GetHeader("Authorization")
+	// TODO: Add the API token-
+	tokenString := c.GetHeader("Authorization")
+	if tokenString == "" {
+		log.Print("No token found! Abort")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no token"})
+		return
+	}
+	splits := strings.Split(tokenString, " ")
+	if len(splits) != 2 {
+		log.Printf("Token in incorrect format! '%s'", tokenString)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
+		return
+	}
+	reqToken := splits[1]
+	claims := Claims{}
+	token, err := jwt.ParseWithClaims(reqToken, &claims, func(t *jwt.Token) (interface{}, error) {
+		_, ok := t.Method.(*jwt.SigningMethodHMAC)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		// parsedClaim, ok := t.Claims.(Claims)
+		// if !ok {
+		// 	log.Print("Token in invalid format")
+		// 	return nil, errors.New("token in invalid format")
+		// }
+		// log.Printf("Token is issued for: %d", parsedClaim.Id)
+		pwd, _ := os.Getwd()
+		finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+		data, err := os.ReadFile(finalJWTFile)
+		if err != nil {
+			log.Print("Failed to find JWT secret file")
+			return nil, err
+		}
+		var jwtSecret JWTSecretFile
+		err = json.Unmarshal(data, &jwtSecret)
+		if err != nil {
+			log.Print("JWT secret file is in incorrect format")
+			return nil, err
+		}
+		if time.Now().After(jwtSecret.ValidUntil) {
+			log.Print("The given secret is no longer valid! Please renew the secret")
+			return nil, errors.New("token no longer valid")
+		}
+		secretKeyByte := []byte(jwtSecret.Secret)
+		return secretKeyByte, nil
+	})
+	// log.Printf("Parsing got: %s, %s", token.Raw, err)
+	if err != nil {
+		log.Printf("Error during token parsing: %s", err)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	// Checking if user in this form exists
+	// TODO: Find a way to extract the custom information from the token
+	parsedClaims, ok := token.Claims.(*Claims)
+	if !ok {
+		log.Print("Received token claims are in incorrect format!")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	user, err := database.GetUser(int64(parsedClaims.Id))
+	if err != nil {
+		log.Printf("User for id %d not found!", parsedClaims.Id)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	if user.Username != parsedClaims.Username {
+		log.Print("The stored user and claimed token user do not match")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	// Check if the token was issued
+	if err = checkJWTTokenIssued(reqToken); err != nil {
+		log.Printf("Error with token: %s", err)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	if token.Valid {
+		c.Set("userId", int64(claims.Id))
+		c.Next()
+	} else {
+		log.Printf("Invalid claims: %s", claims.Valid().Error())
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+	}
+}
+
+func AuthenticationMiddleware() gin.HandlerFunc {
+	return basicTokenAuthenticationFunction
+}
+
+func AdminAuthenticationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := c.GetHeader("API-Token")
 		if tokenString == "" {
 			log.Print("No token found! Abort")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no API token"})
 			return
 		}
-		splits := strings.Split(tokenString, " ")
-		if len(splits) != 2 {
-			log.Printf("Token in incorrect format! '%s'", tokenString)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
-			return
-		}
-		reqToken := splits[1]
-		claims := Claims{}
-		token, err := jwt.ParseWithClaims(reqToken, &claims, func(t *jwt.Token) (interface{}, error) {
-			_, ok := t.Method.(*jwt.SigningMethodHMAC)
-			if !ok {
-				return nil, errors.New("unauthorized")
-			}
-			// parsedClaim, ok := t.Claims.(Claims)
-			// if !ok {
-			// 	log.Print("Token in invalid format")
-			// 	return nil, errors.New("token in invalid format")
-			// }
-			// log.Printf("Token is issued for: %d", parsedClaim.Id)
-			pwd, _ := os.Getwd()
-			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
-			data, err := os.ReadFile(finalJWTFile)
-			if err != nil {
-				log.Print("Failed to find JWT secret file")
-				return nil, err
-			}
-			var jwtSecret JWTSecretFile
-			err = json.Unmarshal(data, &jwtSecret)
-			if err != nil {
-				log.Print("JWT secret file is in incorrect format")
-				return nil, err
-			}
-			if time.Now().After(jwtSecret.ValidUntil) {
-				log.Print("The given secret is no longer valid! Please renew the secret")
-				return nil, errors.New("token no longer valid")
-			}
-			secretKeyByte := []byte(jwtSecret.Secret)
-			return secretKeyByte, nil
-		})
-		// log.Printf("Parsing got: %s, %s", token.Raw, err)
-		if err != nil {
-			log.Printf("Error during token parsing: %s", err)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		// Checking if user in this form exists
-		// TODO: Find a way to extract the custom information from the token
-		parsedClaims, ok := token.Claims.(*Claims)
-		if !ok {
-			log.Print("Received token claims are in incorrect format!")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		user, err := database.GetUser(int64(parsedClaims.Id))
-		if err != nil {
-			log.Printf("User for id %d not found!", parsedClaims.Id)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		if user.Username != parsedClaims.Username {
-			log.Print("The stored user and claimed token user do not match")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		// Check if the token was issued
-		if err = checkJWTTokenIssued(reqToken); err != nil {
-			log.Printf("Error with token: %s", err)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		if token.Valid {
-			c.Set("userId", int64(claims.Id))
-			c.Next()
-		} else {
-			log.Printf("Invalid claims: %s", claims.Valid().Error())
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		}
+
+		basicTokenAuthenticationFunction(c)
 	}
 }
