@@ -697,6 +697,16 @@ func getAllUsers(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, users)
 }
 
+func getAllLists(c *gin.Context) {
+	lists, err := database.GetAllShoppingLists()
+	if err != nil {
+		log.Printf("Failed to get all lists: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.JSON(http.StatusOK, lists)
+}
+
 // ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
@@ -779,6 +789,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	}
 
 	router.GET("/admin/users", getAllUsers)
+	router.GET("/admin/lists", getAllLists)
 	router.GET("/test/unauth", returnUnauth)
 
 	return router

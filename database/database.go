@@ -401,6 +401,31 @@ func GetShoppingListWithId(id int64, createdBy int64) (int, data.List, error) {
 	return dbId, list, nil
 }
 
+func GetAllShoppingLists() ([]data.List, error) {
+	query := "SELECT * FROM " + shoppingListTable
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to retrieve any list: %s", err)
+		return []data.List{}, err
+	}
+	var lists []data.List
+	for rows.Next() {
+		var dbId int64
+		var list data.List
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
+			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
+			return []data.List{}, err
+		}
+		user, err := GetUser(list.CreatedBy.ID) // TODO: Cache this to reduce the db hits necessary
+		if err != nil {
+			return []data.List{}, err
+		}
+		list.CreatedBy.Name = user.Username
+		lists = append(lists, list)
+	}
+	return lists, nil
+}
+
 func GetShoppingList(id int64, createdBy int64) (data.List, error) {
 	_, list, err := GetShoppingListWithId(id, createdBy)
 	return list, err
@@ -1239,13 +1264,15 @@ func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDes
 
 func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
-	dbx := sqlx.NewDb(db, "sql")
+	// dbx := sqlx.NewDb(db, "sql")
 
 	query := fmt.Sprintf("SELECT recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	row := dbx.QueryRowx(query, recipeId, createdBy)
+	// row := dbx.QueryRowx(query, recipeId, createdBy)
+	row := db.QueryRow(query, recipeId, createdBy)
 
 	var recipe data.Recipe
-	err := row.StructScan(&recipe)
+	// err := row.StructScan(&recipe)
+	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
