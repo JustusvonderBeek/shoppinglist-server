@@ -442,7 +442,7 @@ func GetShoppingListsFromUserId(id int64) ([]data.List, error) {
 	for rows.Next() {
 		var dbId int64
 		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.List{}, err
 		}
@@ -1151,17 +1151,17 @@ var recipeTable = "recipe"
 func CreateRecipe(recipe data.Recipe) error {
 	log.Printf("Creating new recipe with name '%s'", recipe.Name)
 	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion) VALUES (?, ?, ?, ?, ?, ?)", recipeTable)
-	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
+	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy.ID, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
 	}
-	err = insertDescription(recipe.RecipeId, recipe.CreatedBy, recipe.Description)
+	err = insertDescription(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Description)
 	if err != nil {
 		log.Printf("Failed to create recipe '%s' because of descriptions: %s", recipe.Name, err)
 		return err
 	}
-	err = insertIngredients(recipe.RecipeId, recipe.CreatedBy, recipe.Ingredients)
+	err = insertIngredients(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Ingredients)
 	if err != nil {
 		log.Printf("Failed to create recipe '%s' because of ingredients: %s", recipe.Name, err)
 		return err
@@ -1272,7 +1272,7 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 
 	var recipe data.Recipe
 	// err := row.StructScan(&recipe)
-	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion)
+	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy.ID, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
@@ -1313,7 +1313,7 @@ func updateDescriptions(recipeId int64, createdBy int64, descriptions []data.Rec
 
 func UpdateRecipe(recipe data.Recipe) error {
 	log.Printf("Updating recipe '%s'", recipe.Name)
-	existingRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
+	existingRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
 	if err != nil {
 		log.Printf("The recipe to update was not found: %s", err)
 		return err
@@ -1322,11 +1322,11 @@ func UpdateRecipe(recipe data.Recipe) error {
 		log.Printf("The list was recently updated, rejecting update")
 		return nil
 	}
-	if err := updateDescriptions(recipe.RecipeId, recipe.CreatedBy, recipe.Description); err != nil {
+	if err := updateDescriptions(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Description); err != nil {
 		log.Printf("Failed to update descriptions: %s", err)
 		return err
 	}
-	if err := updateIngredients(recipe.RecipeId, recipe.CreatedBy, recipe.Ingredients); err != nil {
+	if err := updateIngredients(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Ingredients); err != nil {
 		log.Printf("Failed to update ingredients: %s", err)
 		return err
 	}
@@ -1502,4 +1502,28 @@ func PrintSharingTable() {
 		log.Printf("%v", sharing)
 	}
 	log.Print("---------------------------------------")
+}
+
+// Below is todo:
+type Quantity string
+
+const (
+	GRAMM  Quantity = "g"
+	KILO   Quantity = "kg"
+	ML     Quantity = "ml"
+	PIECES Quantity = "Stk."
+	SPOONS Quantity = "EL"
+)
+
+type Recipe struct {
+	Title                string
+	Subdescription       string
+	Difficulty           int
+	Duration             int
+	TotalDuration        int
+	Servings             int
+	Ingredients          []string
+	IngredientQuantities []string
+	Description          []string
+	Url                  string
 }
