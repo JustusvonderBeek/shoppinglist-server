@@ -522,13 +522,102 @@ func AuthenticationMiddleware() gin.HandlerFunc {
 
 func AdminAuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("API-Token")
-		if tokenString == "" {
+		apiKeyString := c.GetHeader("x-api-key")
+		if apiKeyString == "" {
 			log.Print("No token found! Abort")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no API token"})
+			return
+		}
+		// Validate the token to be correct
+		err := apiKeyValid(apiKeyString)
+		if err != nil {
+			log.Printf("API Key not valid: %s", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
 			return
 		}
 
 		basicTokenAuthenticationFunction(c)
 	}
+}
+
+type ApiKey struct {
+	Key        string    `json:"key"`
+	ValidUntil time.Time `json:"validUntil"`
+	UserId     string    `json:"userId"`
+	jwt.RegisteredClaims
+}
+
+type ApiKeySecret struct {
+	Secret string `json:"secret"`
+}
+
+func apiKeyValid(apiKey string) error {
+	finalTokenPath := filepath.Join(basepath, "../../resources/apiKey.jwt")
+	content, err := os.ReadFile(finalTokenPath)
+	if err != nil {
+		return nil
+	}
+	claims := ApiKey{}
+	token, err := jwt.ParseWithClaims(string(content), &claims, func(t *jwt.Token) (interface{}, error) {
+		_, ok := t.Method.(*jwt.SigningMethodHMAC)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		//parsedClaim, ok := t.Claims.(Claims)
+		//if !ok {
+		//	log.Print("Token in invalid format")
+		//	return nil, errors.New("token in invalid format")
+		//}
+		//log.Printf("Token is issued for: %d", parsedClaim.Id)
+
+		pwd, _ := os.Getwd()
+		finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+		data, err := os.ReadFile(finalJWTFile)
+		if err != nil {
+			log.Print("Failed to find JWT secret file")
+			return nil, err
+		}
+		var jwtSecret JWTSecretFile
+		err = json.Unmarshal(data, &jwtSecret)
+		if err != nil {
+			log.Print("JWT secret file is in incorrect format")
+			return nil, err
+		}
+		if time.Now().After(jwtSecret.ValidUntil) {
+			log.Print("The given secret is no longer valid! Please renew the secret")
+			return nil, errors.New("token no longer valid")
+		}
+		secretKeyByte := []byte(jwtSecret.Secret)
+		return secretKeyByte, nil
+	})
+	if claims.Valid() != nil {
+		return errors.New("token invalid")
+	}
+	customClaims, ok := token.Claims.(*ApiKey)
+	if !ok {
+		return errors.New("token in invalid format")
+	}
+	if time.Now().After(customClaims.ValidUntil) {
+		return errors.New("api key no longer valid")
+	}
+	if customClaims.UserId != "admin" {
+		return errors.New("invalid user")
+	}
+	finalApiKeySecretPath := filepath.Join(basepath, "../../resources/apiKey.secret")
+	content, err = os.ReadFile(finalApiKeySecretPath)
+	if err != nil {
+		log.Printf("Error during API Key verification. API Key Secret file not found at: '%s'", finalApiKeySecretPath)
+		return errors.New("api key secret not found")
+	}
+	var apiKeySecret ApiKeySecret
+	err = json.Unmarshal(content, &apiKeySecret)
+	if err != nil {
+		log.Printf("Error during API Key verification. API Key Secret file is in incorrect format")
+		return errors.New("api key secret in incorrect format")
+	}
+	if customClaims.Key != apiKeySecret.Secret {
+		return errors.New("invalid secret")
+	}
+	log.Printf("API Key is valid")
+	return nil
 }
