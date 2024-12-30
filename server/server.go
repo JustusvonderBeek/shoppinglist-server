@@ -784,11 +784,12 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.POST("/test/auth", returnPostTest)
 	}
 
-	authorized.Use(authentication.AdminAuthenticationMiddleware())
+	admin := router.Group("v1/admin")
+	admin.Use(authentication.AdminAuthenticationMiddleware())
 	{
+		admin.GET("/users", getAllUsers)
 	}
 
-	router.GET("/admin/users", getAllUsers)
 	router.GET("/admin/lists", getAllLists)
 	router.GET("/test/unauth", returnUnauth)
 
