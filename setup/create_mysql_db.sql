@@ -9,16 +9,16 @@ CREATE DATABASE IF NOT EXISTS shoppinglist;
 
 use shoppinglist;
 
-DROP USER IF EXISTS 'cloudsheeptech'@'localhost';
-CREATE USER IF NOT EXISTS 'cloudsheeptech'@'localhost' IDENTIFIED BY '<password>';
+DROP USER IF EXISTS '<username>'@'<locality>';
+CREATE USER IF NOT EXISTS '<username>'@'<locality>' IDENTIFIED BY '<password>';
 
 SELECT User FROM mysql.user;
 
-GRANT ALL PRIVILEGES ON shoppinglist.* TO 'cloudsheeptech'@'localhost' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON shoppinglist.* TO '<username>'@'<locality>' WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
 
-SHOW GRANTS FOR 'cloudsheeptech'@'localhost';
+SHOW GRANTS FOR '<username>'@'<locality>';
 
 -- Start creating the database tables
 
@@ -62,6 +62,7 @@ CREATE TABLE shoppinglist(
     createdBy   BIGINT              NOT NULL,
     created     DATETIME            NOT NULL,
     lastEdited  DATETIME            NOT NULL,
+    version     BIGINT              NOT NULL,
     PRIMARY KEY (`id`)
 );
 

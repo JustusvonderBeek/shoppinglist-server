@@ -100,9 +100,9 @@ type ListSharedWire struct {
 // ------------------------------------------------------------
 
 type Recipe struct {
-	RecipeId       int64               `json:"receiptId" db:"recipeId"`
-	CreatedBy      int64               `json:"createdBy" db:"createdBy"`
-	Name           string              `json:"name" db:"name"`
+	RecipeId       int64               `json:"onlineId" db:"recipeId"`
+	Name           string              `json:"name"`
+	CreatedBy      ListCreator         `json:"createdBy" db:"createdBy"`
 	CreatedAt      time.Time           `json:"createdAt" db:"createdAt"`
 	LastUpdate     time.Time           `json:"lastUpdated" db:"lastUpdate"`
 	DefaultPortion int                 `json:"defaultPortion" db:"defaultPortion"`
