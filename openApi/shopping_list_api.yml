@@ -330,8 +330,8 @@ paths:
       parameters:
       - name: listId
         in: path
-        description: The id of the list which is deleted
-        required: true
+        description: The id of the list which is deleted. If non is given, all lists are deleted.
+        required: false
         style: simple
         explode: false
         schema:
@@ -523,6 +523,31 @@ paths:
           description: Ok
         "404":
           description: Not found
+  /recipe/{websiteName}:
+    post:
+      tags:
+      - Recipe Handling
+      description: Convert and download a recipe from the given website.
+      parameters:
+      - name: websiteName
+        in: path
+        required: true
+        allowEmptyValue: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+        "404":
+          description: Not found
+        "400":
+          description: Bad request
   /price/{itemName}:
     get:
       tags:
