@@ -101,8 +101,8 @@ type ListSharedWire struct {
 
 type Recipe struct {
 	RecipeId       int64               `json:"receiptId" db:"recipeId"`
-	Name           string              `json:"name"`
 	CreatedBy      int64               `json:"createdBy" db:"createdBy"`
+	Name           string              `json:"name" db:"name"`
 	CreatedAt      time.Time           `json:"createdAt" db:"createdAt"`
 	LastUpdate     time.Time           `json:"lastUpdated" db:"lastUpdate"`
 	DefaultPortion int                 `json:"defaultPortion" db:"defaultPortion"`
@@ -111,12 +111,12 @@ type Recipe struct {
 }
 
 type DBRecipe struct {
-	RecipeId       int64
-	Name           string
-	CreatedBy      int64
-	CreatedAt      time.Time
-	LastUpdated    time.Time
-	DefaultPortion int
+	RecipeId       int64     `db:"recipeId"`
+	CreatedBy      int64     `db:"createdBy"`
+	Name           string    `db:"name"`
+	CreatedAt      time.Time `db:"createdAt"`
+	LastUpdated    time.Time `db:"lastUpdate"`
+	DefaultPortion int       `db:"defaultPortion"`
 }
 
 type Ingredient struct {
