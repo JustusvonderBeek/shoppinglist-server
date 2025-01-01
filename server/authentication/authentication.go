@@ -528,10 +528,16 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no API token"})
 			return
 		}
+		log.Printf("ApiKey: %s", apiKeyString)
 		// Validate the token to be correct
-		err := apiKeyValid(apiKeyString)
+		apiKeyClaims, err := apiKeyValid(apiKeyString)
 		if err != nil {
 			log.Printf("API Key not valid: %s", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
+			return
+		}
+		// Validate the user
+		if apiKeyClaims.UserId != "admin" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
 			return
 		}
@@ -548,36 +554,27 @@ type ApiKey struct {
 }
 
 type ApiKeySecret struct {
-	Secret string `json:"secret"`
+	Secret     string    `json:"Secret"`
+	ValidUntil time.Time `json:"ValidUntil"`
 }
 
-func apiKeyValid(apiKey string) error {
-	finalTokenPath := filepath.Join(basepath, "../../resources/apiKey.jwt")
-	content, err := os.ReadFile(finalTokenPath)
-	if err != nil {
-		return nil
-	}
+func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
+	apiKey = strings.TrimSpace(apiKey)
 	claims := ApiKey{}
-	token, err := jwt.ParseWithClaims(string(content), &claims, func(t *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(apiKey, &claims, func(t *jwt.Token) (interface{}, error) {
 		_, ok := t.Method.(*jwt.SigningMethodHMAC)
 		if !ok {
-			return nil, errors.New("unauthorized")
+			return nil, errors.New("invalid signing method")
 		}
-		//parsedClaim, ok := t.Claims.(Claims)
-		//if !ok {
-		//	log.Print("Token in invalid format")
-		//	return nil, errors.New("token in invalid format")
-		//}
-		//log.Printf("Token is issued for: %d", parsedClaim.Id)
 
 		pwd, _ := os.Getwd()
-		finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+		finalJWTFile := filepath.Join(pwd, secretFile)
 		data, err := os.ReadFile(finalJWTFile)
 		if err != nil {
 			log.Print("Failed to find JWT secret file")
 			return nil, err
 		}
-		var jwtSecret JWTSecretFile
+		var jwtSecret ApiKeySecret
 		err = json.Unmarshal(data, &jwtSecret)
 		if err != nil {
 			log.Print("JWT secret file is in incorrect format")
@@ -590,34 +587,40 @@ func apiKeyValid(apiKey string) error {
 		secretKeyByte := []byte(jwtSecret.Secret)
 		return secretKeyByte, nil
 	})
-	if claims.Valid() != nil {
-		return errors.New("token invalid")
+	if err != nil {
+		return ApiKey{}, err
 	}
-	customClaims, ok := token.Claims.(*ApiKey)
-	if !ok {
-		return errors.New("token in invalid format")
+	return claims, nil
+}
+
+func apiKeyValid(apiKey string) (ApiKey, error) {
+	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "resources/jwtSecret.json")
+	if err != nil {
+		return ApiKey{}, err
 	}
-	if time.Now().After(customClaims.ValidUntil) {
-		return errors.New("api key no longer valid")
+	if httpRequestClaims.Valid() != nil {
+		return ApiKey{}, errors.New("token invalid")
 	}
-	if customClaims.UserId != "admin" {
-		return errors.New("invalid user")
+	if time.Now().After(httpRequestClaims.ValidUntil) {
+		return ApiKey{}, errors.New("api key no longer valid")
+	}
+	if httpRequestClaims.UserId != "admin" {
+		return ApiKey{}, errors.New("invalid user")
 	}
 	finalApiKeySecretPath := filepath.Join(basepath, "../../resources/apiKey.secret")
-	content, err = os.ReadFile(finalApiKeySecretPath)
+	content, err := os.ReadFile(finalApiKeySecretPath)
 	if err != nil {
-		log.Printf("Error during API Key verification. API Key Secret file not found at: '%s'", finalApiKeySecretPath)
-		return errors.New("api key secret not found")
+		return ApiKey{}, errors.New("current master API key not valid")
 	}
 	var apiKeySecret ApiKeySecret
 	err = json.Unmarshal(content, &apiKeySecret)
 	if err != nil {
 		log.Printf("Error during API Key verification. API Key Secret file is in incorrect format")
-		return errors.New("api key secret in incorrect format")
+		return ApiKey{}, errors.New("api key secret in incorrect format")
 	}
-	if customClaims.Key != apiKeySecret.Secret {
-		return errors.New("invalid secret")
+	if httpRequestClaims.Key != apiKeySecret.Secret {
+		return ApiKey{}, errors.New("invalid secret")
 	}
 	log.Printf("API Key is valid")
-	return nil
+	return httpRequestClaims, nil
 }

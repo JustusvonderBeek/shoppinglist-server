@@ -33,11 +33,10 @@ echo "Creating new API key..."
 
 secretFile="../resources/apiKey.secret"
 jwtFile="../resources/apiKey.jwt"
-
 randomData=$(openssl rand -base64 32)
-echo "{\"secret\":\"$randomData\"}" > "$secretFile"
-
 validUntil=$(date -d "90 days" --iso-8601=seconds)
+echo "{\"secret\":\"$randomData\",\"validUntil\":\"$validUntil\"}" > "$secretFile"
+
 base64Payload=$(echo -n "{\"key\":\"$randomData\",\"validUntil\":\"$validUntil\",\"userId\":\"admin\"}")
 base64Payload=$(echo $base64Payload | base64 | sed s/\+/-/g | sed 's/\//_/g' |  sed -E s/=+$//)
 
