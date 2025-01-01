@@ -788,9 +788,9 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	admin.Use(authentication.AdminAuthenticationMiddleware())
 	{
 		admin.GET("/users", getAllUsers)
+		admin.GET("/lists", getAllLists)
 	}
 
-	router.GET("/admin/lists", getAllLists)
 	router.GET("/test/unauth", returnUnauth)
 
 	return router
