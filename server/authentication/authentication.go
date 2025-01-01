@@ -528,7 +528,6 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no API token"})
 			return
 		}
-		log.Printf("ApiKey: %s", apiKeyString)
 		// Validate the token to be correct
 		apiKeyClaims, err := apiKeyValid(apiKeyString)
 		if err != nil {
@@ -537,7 +536,7 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 		// Validate the user
-		if apiKeyClaims.UserId != "admin" {
+		if apiKeyClaims.Admin != true {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
 			return
 		}
@@ -549,7 +548,7 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 type ApiKey struct {
 	Key        string    `json:"key"`
 	ValidUntil time.Time `json:"validUntil"`
-	UserId     string    `json:"userId"`
+	Admin      bool      `json:"admin"`
 	jwt.RegisteredClaims
 }
 
@@ -604,8 +603,8 @@ func apiKeyValid(apiKey string) (ApiKey, error) {
 	if time.Now().After(httpRequestClaims.ValidUntil) {
 		return ApiKey{}, errors.New("api key no longer valid")
 	}
-	if httpRequestClaims.UserId != "admin" {
-		return ApiKey{}, errors.New("invalid user")
+	if httpRequestClaims.Admin != true {
+		return ApiKey{}, errors.New("invalid user rights")
 	}
 	finalApiKeySecretPath := filepath.Join(basepath, "../../resources/apiKey.secret")
 	content, err := os.ReadFile(finalApiKeySecretPath)

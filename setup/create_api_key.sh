@@ -37,7 +37,7 @@ randomData=$(openssl rand -base64 32)
 validUntil=$(date -d "90 days" --iso-8601=seconds)
 echo "{\"secret\":\"$randomData\",\"validUntil\":\"$validUntil\"}" > "$secretFile"
 
-privateClaims=$(echo -n "{\"key\":\"$randomData\",\"validUntil\":\"$validUntil\",\"userId\":\"admin\"}" )
+privateClaims=$(echo -n "{\"key\":\"$randomData\",\"validUntil\":\"$validUntil\",\"admin\":true}" )
 #echo "$privateClaims"
 base64PrivateClaims=$(echo "$privateClaims" | base64 -w 0 | sed 's/\+/-/g' | sed 's/\//_/g' |  sed -E 's/=+$//' )
 #echo "Base64: '$base64PrivateClaims'"
