@@ -412,7 +412,7 @@ func GetAllShoppingLists() ([]data.List, error) {
 	for rows.Next() {
 		var dbId int64
 		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
+		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
 			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
 			return []data.List{}, err
 		}
