@@ -105,6 +105,7 @@ type Recipe struct {
 	CreatedBy      ListCreator         `json:"createdBy" db:"createdBy"`
 	CreatedAt      time.Time           `json:"createdAt" db:"createdAt"`
 	LastUpdate     time.Time           `json:"lastUpdated" db:"lastUpdate"`
+	Version        int                 `json:"version" db:"version"`
 	DefaultPortion int                 `json:"defaultPortion" db:"defaultPortion"`
 	Ingredients    []Ingredient        `json:"ingredients"`
 	Description    []RecipeDescription `json:"description"`

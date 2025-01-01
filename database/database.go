@@ -1150,8 +1150,8 @@ var recipeTable = "recipe"
 
 func CreateRecipe(recipe data.Recipe) error {
 	log.Printf("Creating new recipe with name '%s'", recipe.Name)
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion) VALUES (?, ?, ?, ?, ?, ?)", recipeTable)
-	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy.ID, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.DefaultPortion)
+	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, name, createdAt, lastUpdate, version, defaultPortion) VALUES (?, ?, ?, ?, ?, ?, ?)", recipeTable)
+	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy.ID, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.Version, recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
@@ -1266,13 +1266,13 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
 	// dbx := sqlx.NewDb(db, "sql")
 
-	query := fmt.Sprintf("SELECT recipeId, createdBy, name, createdAt, lastUpdate, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	query := fmt.Sprintf("SELECT recipeId, createdBy, name, createdAt, lastUpdate, version, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
 	// row := dbx.QueryRowx(query, recipeId, createdBy)
 	row := db.QueryRow(query, recipeId, createdBy)
 
 	var recipe data.Recipe
 	// err := row.StructScan(&recipe)
-	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy.ID, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.DefaultPortion)
+	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy.ID, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.Version, &recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
@@ -1318,9 +1318,14 @@ func UpdateRecipe(recipe data.Recipe) error {
 		log.Printf("The recipe to update was not found: %s", err)
 		return err
 	}
-	if recipe.LastUpdate.Sub(existingRecipe.LastUpdate).Abs() < time.Duration(1*time.Second) {
-		log.Printf("The list was recently updated, rejecting update")
-		return nil
+	if existingRecipe.Version >= recipe.Version {
+		return errors.New(" recipe to update has the same or lower version than existing recipe")
+	}
+	updateRecipeVersionQuery := fmt.Sprintf("UPDATE %s SET version = ?, lastUpdate = ? WHERE recipeId = ? AND createdBy = ?", recipeTable)
+	_, err = db.Exec(updateRecipeVersionQuery, recipe.Version, time.Now(), recipe.RecipeId, recipe.CreatedBy.ID)
+	if err != nil {
+		log.Printf("Failed to update recipe version: %s", err)
+		return err
 	}
 	if err := updateDescriptions(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Description); err != nil {
 		log.Printf("Failed to update descriptions: %s", err)
