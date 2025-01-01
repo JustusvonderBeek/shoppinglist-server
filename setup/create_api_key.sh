@@ -7,7 +7,7 @@ function generateJWT() {
 #  echo "Destination: $destination"
 
   # Construct the header
-  jwt_header=$(echo -n '{"alg":"HS256","typ":"JWT"}' | base64 | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//)
+  jwt_header=$(echo -n '{"alg":"HS256","typ":"JWT"}' | base64 -w 0 | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//)
 
   # Read the secret from the jwtSecret.json file create by the other script
   if [ ! -f ../resources/jwtSecret.json ]; then
@@ -20,7 +20,7 @@ function generateJWT() {
   hexsecret=$(echo -n "$secret" | xxd -p | paste -sd "")
 
   # Calculate hmac signature -- note option to pass in the key as hex bytes
-  hmac_signature=$(echo -n "${jwt_header}.${payload}" |  openssl dgst -sha256 -mac HMAC -macopt hexkey:$hexsecret -binary | base64  | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//)
+  hmac_signature=$(echo -n "${jwt_header}.${payload}" |  openssl dgst -sha256 -mac HMAC -macopt hexkey:$hexsecret -binary | base64 -w 0 | sed 's/\+/-/g' | sed 's/\//_/g' | sed -E 's/=+$//' )
 
   # Create the full token
   jwt="${jwt_header}.${payload}.${hmac_signature}"
@@ -37,11 +37,13 @@ randomData=$(openssl rand -base64 32)
 validUntil=$(date -d "90 days" --iso-8601=seconds)
 echo "{\"secret\":\"$randomData\",\"validUntil\":\"$validUntil\"}" > "$secretFile"
 
-base64Payload=$(echo -n "{\"key\":\"$randomData\",\"validUntil\":\"$validUntil\",\"userId\":\"admin\"}")
-base64Payload=$(echo $base64Payload | base64 | sed s/\+/-/g | sed 's/\//_/g' |  sed -E s/=+$//)
+privateClaims=$(echo -n "{\"key\":\"$randomData\",\"validUntil\":\"$validUntil\",\"userId\":\"admin\"}" )
+#echo "$privateClaims"
+base64PrivateClaims=$(echo "$privateClaims" | base64 -w 0 | sed 's/\+/-/g' | sed 's/\//_/g' |  sed -E 's/=+$//' )
+#echo "Base64: '$base64PrivateClaims'"
 
 # Convert the payload into a JWT token
-generateJWT "$base64Payload" "$jwtFile"
+generateJWT "$base64PrivateClaims" "$jwtFile"
 
 echo "Secret stored into '$secretFile'"
 echo "API key successfully created"
