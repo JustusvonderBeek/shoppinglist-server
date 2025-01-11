@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"shop.cloudsheeptech.com/server/data"
+	"github.com/justusvonderbeek/shopping-list-server/internal/data"
 )
 
 // ------------------------------------------------------------

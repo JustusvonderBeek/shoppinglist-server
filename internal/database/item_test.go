@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"shop.cloudsheeptech.com/server/data"
+	"github.com/justusvonderbeek/shopping-list-server/internal/data"
 )
 
 // ------------------------------------------------------------

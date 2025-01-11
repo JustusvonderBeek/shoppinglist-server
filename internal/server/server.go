@@ -1,16 +1,17 @@
 package server
 
 import (
+	"github.com/JustusvonderBeek/shopping-list-server/internal/authentication"
+	"github.com/JustusvonderBeek/shopping-list-server/internal/configuration"
+	"github.com/JustusvonderBeek/shopping-list-server/internal/database"
+	"github.com/JustusvonderBeek/shopping-list-server/internal/middleware"
 	"log"
 	"net/http"
-	"shop.cloudsheeptech.com/server/middleware"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"shop.cloudsheeptech.com/database"
-	"shop.cloudsheeptech.com/server/authentication"
-	"shop.cloudsheeptech.com/server/configuration"
-	"shop.cloudsheeptech.com/server/data"
+
+	"github.com/JustusvonderBeek/shopping-list-server/internal/data"
 )
 
 // ------------------------------------------------------------
@@ -707,6 +708,16 @@ func getAllLists(c *gin.Context) {
 	c.JSON(http.StatusOK, lists)
 }
 
+func getAllRecipes(c *gin.Context) {
+	recipes, err := database.GetAllRecipes()
+	if err != nil {
+		log.Printf("Failed to get all recipes: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.JSON(http.StatusOK, recipes)
+}
+
 // ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
@@ -789,6 +800,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	{
 		admin.GET("/users", getAllUsers)
 		admin.GET("/lists", getAllLists)
+		admin.GET("/recipes", getAllRecipes)
 	}
 
 	router.GET("/test/unauth", returnUnauth)

@@ -15,8 +15,9 @@ import (
 	"github.com/alexedwards/argon2id"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"shop.cloudsheeptech.com/server/configuration"
-	"shop.cloudsheeptech.com/server/data"
+
+	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
+	"github.com/justusvonderbeek/shopping-list-server/internal/data"
 )
 
 // A small database wrapper allowing to access a MySQL database
@@ -1291,6 +1292,40 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	}
 	recipe.Description = descriptions
 	return recipe, nil
+}
+
+func GetAllRecipes() ([]data.Recipe, error) {
+	log.Print("Retrieving all recipes")
+	query := fmt.Sprintf("SELECT recipeId, name, createdBy, createdAt, lastUpdate, version, defaultPortion FROM %s", recipeTable)
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Failed to retrieve all recipes: %s", err)
+		return nil, err
+	}
+	recipes := make([]data.Recipe, 0)
+	for rows.Next() {
+		var recipe data.Recipe
+		if err := rows.Scan(&recipe.RecipeId, &recipe.Name, &recipe.CreatedBy.ID, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.Version, &recipe.DefaultPortion); err != nil {
+			log.Printf("Failed to get data from table: %s: %s", recipeTable, err)
+			return nil, err
+		}
+		ingredients, err := GetIngredientsForRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
+		if err != nil {
+			log.Printf("Failed to retrieve ingredients for recipe %s: %s", recipe.Name, err)
+			recipes = append(recipes, recipe)
+			continue
+		}
+		recipe.Ingredients = ingredients
+		descriptions, err := GetDescriptionsForRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
+		if err != nil {
+			log.Printf("Failed to retrieve descriptions for recipe %s: %s", recipe.Name, err)
+			recipes = append(recipes, recipe)
+			continue
+		}
+		recipe.Description = descriptions
+		recipes = append(recipes, recipe)
+	}
+	return recipes, nil
 }
 
 func updateIngredients(recipeId int64, createdBy int64, ingredients []data.Ingredient) error {

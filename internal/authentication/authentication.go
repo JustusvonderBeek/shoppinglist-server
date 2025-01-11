@@ -15,10 +15,9 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
-	"shop.cloudsheeptech.com/database"
-	"shop.cloudsheeptech.com/server/configuration"
-	"shop.cloudsheeptech.com/server/data"
+	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
+	"github.com/justusvonderbeek/shopping-list-server/internal/data"
+	"github.com/justusvonderbeek/shopping-list-server/internal/database"
 )
 
 var IPWhitelist = map[string]bool{

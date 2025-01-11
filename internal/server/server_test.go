@@ -18,13 +18,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
-	"shop.cloudsheeptech.com/database"
-	"shop.cloudsheeptech.com/server"
-	"shop.cloudsheeptech.com/server/authentication"
-	"shop.cloudsheeptech.com/server/configuration"
-	"shop.cloudsheeptech.com/server/data"
+
+	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
+	"github.com/justusvonderbeek/shopping-list-server/internal/data"
+	"github.com/justusvonderbeek/shopping-list-server/internal/database"
+	"github.com/justusvonderbeek/shopping-list-server/internal/server"
+	"github.com/justusvonderbeek/shopping-list-serverinternal/authentication"
 )
 
 // ------------------------------------------------------------

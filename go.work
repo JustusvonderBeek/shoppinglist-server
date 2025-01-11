@@ -1,7 +1,5 @@
-go 1.20
+go 1.23
 
-use (
-    ./server
-    ./database
-    ./
-)
+toolchain go1.23.1
+
+use .

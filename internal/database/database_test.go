@@ -3,7 +3,7 @@ package database
 import (
 	"testing"
 
-	"shop.cloudsheeptech.com/server/configuration"
+	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
 )
 
 // ------------------------------------------------------------
