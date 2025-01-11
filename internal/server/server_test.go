@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
@@ -40,10 +41,10 @@ const USER_FILE = "user.json"
 var cfg = configuration.Config{
 	ListenAddr:     "0.0.0.0",
 	ListenPort:     "46152",
-	DatabaseConfig: "../resources/db.json",
-	TLSCertificate: "../resources/shoppinglist.crt",
-	TLSKeyfile:     "../resources/shoppinglist.pem",
-	JWTSecretFile:  "../resources/jwtSecret.json",
+	DatabaseConfig: "resources/db.json",
+	TLSCertificate: "resources/shoppinglist.crt",
+	TLSKeyfile:     "resources/shoppinglist.pem",
+	JWTSecretFile:  "resources/jwtSecret.json",
 	JWTTimeout:     1200, // 20 minutes; ONLY for testing
 }
 
@@ -104,7 +105,7 @@ func readJwtFromFile() (string, error) {
 
 func connectDatabase() {
 	cfg := configuration.Config{
-		DatabaseConfig: "../resources/db.json",
+		DatabaseConfig: "resources/db.json",
 	}
 	database.CheckDatabaseOnline(cfg)
 }
@@ -579,18 +580,18 @@ func createListOffline(name string, userId int64, items []data.ItemWire) (data.L
 	}
 	timeNow := time.Now().UTC()
 	list := data.List{
-		ListId:     rand.Int63(),
-		Name:       name,
-		CreatedBy:  creator,
-		Created:    timeNow,
-		LastEdited: timeNow,
-		Items:      items,
+		ListId:      rand.Int63(),
+		Title:       name,
+		CreatedBy:   creator,
+		CreatedAt:   timeNow,
+		LastUpdated: timeNow,
+		Items:       items,
 	}
 	err := database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		return data.List{}, err
 	}
-	if list.ListId == 0 || list.Name != name || list.CreatedBy.ID != userId {
+	if list.ListId == 0 || list.Title != name || list.CreatedBy.ID != userId {
 		return data.List{}, errors.New("list was incorrectly stored")
 	}
 	return list, nil
@@ -615,7 +616,7 @@ func createListSharing(listId int64, createdBy int64, userId int64) (data.ListSh
 	if err != nil {
 		return data.ListShared{}, err
 	}
-	if sharing.ID == 0 || sharing.ListId != listId || sharing.SharedWith != userId {
+	if sharing.ID == 0 || sharing.ListId != listId || sharing.SharedWith[0] != userId {
 		return data.ListShared{}, errors.New("sharing was incorrectly stored")
 	}
 	return sharing, nil
@@ -643,11 +644,11 @@ func TestCreatingList(t *testing.T) {
 	}
 	timeNow := time.Now().UTC()
 	list := data.List{
-		ListId:     rand.Int63(),
-		Name:       listName,
-		CreatedBy:  creator,
-		Created:    timeNow,
-		LastEdited: timeNow,
+		ListId:      rand.Int63(),
+		Title:       listName,
+		CreatedBy:   creator,
+		CreatedAt:   timeNow,
+		LastUpdated: timeNow,
 		Items: []data.ItemWire{
 			{
 				Name:     "Item",
@@ -738,9 +739,9 @@ func TestGetAllOwnLists(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, user.OnlineID, allOwnLists[i].CreatedBy.ID)
 		assert.Equal(t, user.Username, allOwnLists[i].CreatedBy.Name)
-		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allOwnLists[i].LastEdited).Format(time.RFC3339))
-		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allOwnLists[i].Created).Format(time.RFC3339))
-		assert.Equal(t, offlineList[i].Name, allOwnLists[i].Name)
+		assert.Equal(t, roundTime(offlineList[i].LastUpdated).Format(time.RFC3339), roundTime(allOwnLists[i].LastUpdated).Format(time.RFC3339))
+		assert.Equal(t, roundTime(offlineList[i].CreatedAt).Format(time.RFC3339), roundTime(allOwnLists[i].CreatedAt).Format(time.RFC3339))
+		assert.Equal(t, offlineList[i].Title, allOwnLists[i].Title)
 		assert.Equal(t, offlineList[i].ListId, allOwnLists[i].ListId)
 	}
 
@@ -828,9 +829,9 @@ func TestGetAllLists(t *testing.T) {
 	assert.Equal(t, 4, len(allLists))
 	for i := 0; i < 4; i++ {
 		assert.Equal(t, offlineList[i].CreatedBy, allLists[i].CreatedBy)
-		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allLists[i].LastEdited).Format(time.RFC3339))
-		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allLists[i].Created).Format(time.RFC3339))
-		assert.Equal(t, offlineList[i].Name, allLists[i].Name)
+		assert.Equal(t, roundTime(offlineList[i].LastUpdated).Format(time.RFC3339), roundTime(allLists[i].LastUpdated).Format(time.RFC3339))
+		assert.Equal(t, roundTime(offlineList[i].CreatedAt).Format(time.RFC3339), roundTime(allLists[i].CreatedAt).Format(time.RFC3339))
+		assert.Equal(t, offlineList[i].Title, allLists[i].Title)
 		assert.Equal(t, offlineList[i].ListId, allLists[i].ListId)
 	}
 
@@ -920,9 +921,9 @@ func TestGetAllListsWithItems(t *testing.T) {
 	assert.Equal(t, 4, len(allLists))
 	for i := 0; i < 4; i++ {
 		assert.Equal(t, offlineList[i].CreatedBy, allLists[i].CreatedBy)
-		assert.Equal(t, roundTime(offlineList[i].LastEdited).Format(time.RFC3339), roundTime(allLists[i].LastEdited).Format(time.RFC3339))
-		assert.Equal(t, roundTime(offlineList[i].Created).Format(time.RFC3339), roundTime(allLists[i].Created).Format(time.RFC3339))
-		assert.Equal(t, offlineList[i].Name, allLists[i].Name)
+		assert.Equal(t, roundTime(offlineList[i].LastUpdated).Format(time.RFC3339), roundTime(allLists[i].LastUpdated).Format(time.RFC3339))
+		assert.Equal(t, roundTime(offlineList[i].CreatedAt).Format(time.RFC3339), roundTime(allLists[i].CreatedAt).Format(time.RFC3339))
+		assert.Equal(t, offlineList[i].Title, allLists[i].Title)
 		assert.Equal(t, offlineList[i].ListId, allLists[i].ListId)
 		assert.Equal(t, offlineList[i].Items, allLists[i].Items)
 		log.Printf("All Lists: %v", allLists[i].Items)
@@ -960,11 +961,11 @@ func TestRemoveList(t *testing.T) {
 	}
 	timeNow := time.Now().UTC()
 	list := data.List{
-		ListId:     rand.Int63(),
-		Name:       listName,
-		CreatedBy:  creator,
-		Created:    timeNow,
-		LastEdited: timeNow,
+		ListId:      rand.Int63(),
+		Title:       listName,
+		CreatedBy:   creator,
+		CreatedAt:   timeNow,
+		LastUpdated: timeNow,
 		Items: []data.ItemWire{
 			{
 				Name:     "Item",
@@ -1051,7 +1052,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 		ID:         0,
 		ListId:     offlineList[0].ListId,
 		CreatedBy:  user.OnlineID,
-		SharedWith: int64(sharedWithUserId),
+		SharedWith: []int64{int64(sharedWithUserId)},
 		Created:    time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
@@ -1121,7 +1122,7 @@ func TestCreateSharing(t *testing.T) {
 		ID:         0,
 		ListId:     offlineList[0].ListId,
 		CreatedBy:  user.OnlineID,
-		SharedWith: int64(sharedWithUserId),
+		SharedWith: []int64{sharedWithUserId},
 		Created:    time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
@@ -1183,7 +1184,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 		ID:         0,
 		ListId:     list.ListId,
 		CreatedBy:  user.OnlineID,
-		SharedWith: int64(sharedWithUserId),
+		SharedWith: []int64{int64(sharedWithUserId)},
 		Created:    time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)

@@ -18,6 +18,7 @@ import (
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/util"
 )
 
 // A small database wrapper allowing to access a MySQL database
@@ -51,37 +52,48 @@ func createDefaultConfiguration(confFile string) {
 	storeConfiguration(confFile)
 }
 
-func loadConfig(confFile string) {
-	if confFile == "" {
-		log.Fatal("Cannot load database configuration")
-	}
-	content, err := os.ReadFile(confFile)
-	if err != nil {
-		createDefaultConfiguration(confFile)
-		log.Fatalf("Failed to read database configuration file: %s", err)
-	}
-	var configuration DBConf
-	err = json.Unmarshal(content, &configuration)
-	if err != nil {
-		log.Fatalf("Configuration file '%s' not in correct format: %s", confFile, err)
-	}
-	config = configuration
-	log.Printf("Successfully loaded configuration from '%s'", confFile)
+func loadConfigFile(filename string) ([]byte, error) {
+	return util.ReadFileFromRoot(filename)
 }
 
-func storeConfiguration(confFile string) {
-	if confFile == "" {
+func loadDbConfig(filename string) (DBConf, error) {
+	if filename == "" {
+		return DBConf{}, errors.New("no database config file given")
+	}
+	content, err := loadConfigFile(filename)
+	if err != nil && os.IsNotExist(err) {
+		createDefaultConfiguration(filename)
+		return DBConf{}, errors.New("no config file found, created default one but missing entries")
+	} else if err != nil {
+		return DBConf{}, err
+	}
+	var conf DBConf
+	err = json.Unmarshal(content, &conf)
+	if err != nil {
+		return DBConf{}, err
+	}
+	return conf, nil
+}
+
+func loadConfig(confFile string) {
+	loadedConfig, err := loadDbConfig(confFile)
+	if err != nil {
+		log.Fatalf("Failed to load DB loadedConfig: %s", err)
+	}
+	config = loadedConfig
+	log.Printf("Successfully loaded loadedConfig from '%s'", confFile)
+}
+
+func storeConfiguration(filename string) {
+	if filename == "" {
 		log.Fatal("Cannot store configuration file due to empty location")
 	}
 	encoded, err := json.Marshal(config)
 	if err != nil {
 		log.Fatalf("Failed to convert configuration to file format")
 	}
-	err = os.WriteFile(confFile, encoded, 0660)
-	if err != nil {
-		log.Fatalf("Failed to store configuration to file: %s", err)
-	}
-	log.Printf("Stored configuration to file: %s", confFile)
+	storedFilename, err := util.WriteFileAtRoot(filename, encoded)
+	log.Printf("Stored configuration to file: %s", storedFilename)
 }
 
 // ------------------------------------------------------------

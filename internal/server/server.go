@@ -663,7 +663,7 @@ func createShareRecipe(c *gin.Context) {
 		return
 	}
 	if recipe.CreatedBy.ID != userId {
-		log.Printf("User %d is not allowed to share recipe %d created by %d", userId, recipeId, recipe.CreatedBy)
+		log.Printf("User %d is not allowed to share recipe %d created by %d", userId, recipeId, recipe.CreatedBy.ID)
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
