@@ -31,8 +31,12 @@ db.json
 *.crt
 *.pem
 
-# Ignore the JWT secret
-jwtSecret.json
+# Ignore the secret information
+*/jwtSecret.json
+*/admin.json
+*/apiKey.jwt
+*/create_admin_user_pwd.sh
+*/filled_database.sql
 
 # Ignore testing
 */testing/*
