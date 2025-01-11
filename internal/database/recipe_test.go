@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/justusvonderbeek/shopping-list-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 )
 
 func TestCreatingRecipe(t *testing.T) {

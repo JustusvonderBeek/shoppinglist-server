@@ -15,9 +15,11 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/gin-gonic/gin"
-	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
-	"github.com/justusvonderbeek/shopping-list-server/internal/data"
-	"github.com/justusvonderbeek/shopping-list-server/internal/database"
+	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
 
 var IPWhitelist = map[string]bool{
@@ -324,7 +326,7 @@ func CreateAccount(c *gin.Context) {
 	if user.Username == "admin" {
 		apiKey := c.Request.Header.Get("x-api-key")
 		keyValid, err := apiKeyValid(apiKey)
-		if apiKey == "" || err != nil || keyValid.Valid() != nil {
+		if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
 			log.Print("API Key not valid!")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -545,7 +547,7 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		c.Set("userId", int64(claims.Id))
 		c.Next()
 	} else {
-		log.Printf("Invalid claims: %s", claims.Valid().Error())
+		log.Printf("Invalid claims: %v", claims)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 	}
 }
@@ -630,9 +632,6 @@ func apiKeyValid(apiKey string) (ApiKey, error) {
 	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "resources/jwtSecret.json")
 	if err != nil {
 		return ApiKey{}, err
-	}
-	if httpRequestClaims.Valid() != nil {
-		return ApiKey{}, errors.New("token invalid")
 	}
 	if time.Now().After(httpRequestClaims.ValidUntil) {
 		return ApiKey{}, errors.New("api key no longer valid")

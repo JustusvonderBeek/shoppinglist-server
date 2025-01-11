@@ -16,8 +16,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
-	"github.com/justusvonderbeek/shopping-list-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 )
 
 // A small database wrapper allowing to access a MySQL database

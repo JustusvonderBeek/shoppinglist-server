@@ -1,17 +1,17 @@
 package server
 
 import (
-	"github.com/JustusvonderBeek/shopping-list-server/internal/authentication"
-	"github.com/JustusvonderBeek/shopping-list-server/internal/configuration"
-	"github.com/JustusvonderBeek/shopping-list-server/internal/database"
-	"github.com/JustusvonderBeek/shopping-list-server/internal/middleware"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/JustusvonderBeek/shopping-list-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/middleware"
 )
 
 // ------------------------------------------------------------

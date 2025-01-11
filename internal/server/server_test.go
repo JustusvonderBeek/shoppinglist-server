@@ -20,11 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
-	"github.com/justusvonderbeek/shopping-list-server/internal/data"
-	"github.com/justusvonderbeek/shopping-list-server/internal/database"
-	"github.com/justusvonderbeek/shopping-list-server/internal/server"
-	"github.com/justusvonderbeek/shopping-list-serverinternal/authentication"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/server"
 )
 
 // ------------------------------------------------------------

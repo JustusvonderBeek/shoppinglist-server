@@ -3,7 +3,7 @@ package database
 import (
 	"testing"
 
-	"github.com/justusvonderbeek/shopping-list-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 )
 
 // ------------------------------------------------------------

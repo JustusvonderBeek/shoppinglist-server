@@ -4,14 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/JustusvonderBeek/shopping-list-server/internal/configuration"
 	"io"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/Justusvonderbeek/shopping-list-server/internal/database"
-	"github.com/Justusvonderbeek/shopping-list-server/internal/server"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/server"
 )
 
 func main() {
