@@ -70,7 +70,8 @@ func GenerateNewJWTToken(id int, username string) (string, error) {
 		return "", err
 	}
 	updatedTokens := append(tokens, signedToken)
-	err = storeTokensToDisk(updatedTokens, "tokens.txt", false)
+	tokens = updatedTokens
+	err = storeTokensToDisk(updatedTokens, "resources/tokens.txt", false)
 	if err != nil {
 		return "", err
 	}
@@ -86,13 +87,12 @@ func setup() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	storeTokensToDisk(validTokens, "tokens.txt", true)
+	storeTokensToDisk(validTokens, "resources/tokens.txt", true)
 	return validTokens, nil
 }
 
 func readTokensFromDisk() ([]string, error) {
-	finalTokenPath := filepath.Join(basepath, "../../resources/tokens.txt")
-	content, err := os.ReadFile(finalTokenPath)
+	content, err := util.ReadFileFromRoot("resources/tokens.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func storeTokensToDisk(tokens []string, filename string, overwrite bool) error {
 	// Dont overwrite if already existing
 	joinedStrings := strings.Join(tokens, ",")
 	if overwrite {
-		writtenFilepath, _, err := util.WriteFileAtRoot([]byte(joinedStrings), filename, overwrite)
+		writtenFilepath, _, err := util.OverwriteFileAtRoot([]byte(joinedStrings), filename)
 		log.Printf("Stored %d tokens to file: %s", len(joinedStrings), writtenFilepath)
 		return err
 	}
