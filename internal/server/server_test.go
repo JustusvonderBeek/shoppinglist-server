@@ -41,10 +41,10 @@ const USER_FILE = "user.json"
 var cfg = configuration.Config{
 	ListenAddr:     "0.0.0.0",
 	ListenPort:     "46152",
-	DatabaseConfig: "resources/db.json",
-	TLSCertificate: "resources/shoppinglist.crt",
-	TLSKeyfile:     "resources/shoppinglist.pem",
-	JWTSecretFile:  "resources/jwtSecret.json",
+	DatabaseConfig: "../../resources/db.json",
+	TLSCertificate: "../../resources/shoppinglist.crt",
+	TLSKeyfile:     "../../resources/shoppinglist.pem",
+	JWTSecretFile:  "../../resources/jwtSecret.json",
 	JWTTimeout:     1200, // 20 minutes; ONLY for testing
 }
 
@@ -105,7 +105,7 @@ func readJwtFromFile() (string, error) {
 
 func connectDatabase() {
 	cfg := configuration.Config{
-		DatabaseConfig: "resources/db.json",
+		DatabaseConfig: "../../resources/db.json",
 	}
 	database.CheckDatabaseOnline(cfg)
 }
@@ -203,7 +203,6 @@ func loadUserAndSetupFields(id int64, name string, password string) (io.Reader, 
 	return reader, nil
 }
 
-// TODO: Fix the whitelisted IP not showing in the test
 func TestUserCreation(t *testing.T) {
 	log.Print("Testing creating new user")
 	connectDatabase()
@@ -224,7 +223,7 @@ func TestUserCreation(t *testing.T) {
 	}
 	reader := bytes.NewReader(rawUser)
 	authentication.Setup(cfg)
-	r.POST("/auth/create", authentication.CreateAccount)
+	r.POST("/auth/create", server.CreateAccount)
 
 	c.Request, _ = http.NewRequest("POST", "/auth/create", reader)
 	// Set a custom IP address for the request
