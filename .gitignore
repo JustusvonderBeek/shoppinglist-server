@@ -42,3 +42,7 @@ db.json
 
 # Ignore resources
 resources/*
+
+# Ignore application executable
+app-server
+shop_server
