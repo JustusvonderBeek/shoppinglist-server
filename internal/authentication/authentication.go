@@ -22,44 +22,11 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
 
-var IPWhitelist = map[string]bool{
-	"127.0.0.1":      true,
-	"188.100.243.67": true,
-	"138.246.0.0":    true,
-	"131.159.0.0":    true,
-	"88.77.0.0":      true,
-	"178.1.0.0":      true,
-}
-
-type IpWhiteList struct {
-	IPs []string `json:"ips"`
-}
-
 var config configuration.Config
-var tokens []string
 var (
 	_, b, _, _ = runtime.Caller(0)
 	basepath   = filepath.Dir(b)
 )
-
-// ------------------------------------------------------------
-// The authentication and login data structures
-// ------------------------------------------------------------
-
-type Claims struct {
-	Id       int    `json:"id"`
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
-
-type JWTSecretFile struct {
-	Secret     string
-	ValidUntil time.Time
-}
-
-type Token struct {
-	Token string `json:"token"`
-}
 
 // ------------------------------------------------------------
 // Setup and configuration
@@ -67,195 +34,19 @@ type Token struct {
 
 func Setup(cfg configuration.Config) {
 	config = cfg
-	if ips, err := readIpWhitelistFromFile(); err != nil {
-		log.Printf("Failed to read ips from disk: %s", err)
-	} else if len(ips) > 0 {
-		IPWhitelist = ips
+	err := SetupWhitelistedIPs()
+	if err != nil {
+		log.Fatalf("Failed to setup whitelisted IPs: %s", err)
 	}
-	if tkns, err := readTokensFromDisk(); err != nil {
-		log.Printf("Failed to read tokens from disk: %s", err)
-	} else {
-		validTokens, err := removeInvalidTokens(tkns)
-		if err != nil {
-			log.Printf("Tokens invalid")
-			return
-		}
-		tokens = validTokens
-		storeTokensToDisk(true)
+	err = SetupTokenHandler()
+	if err != nil {
+		log.Fatalf("Failed to setup token handler: %s", err)
 	}
 }
 
 // ------------------------------------------------------------
 // Helping methods and auxiliary functions
 // ------------------------------------------------------------
-
-func writeDefaultJWTSecretFile() {
-	secretFile := JWTSecretFile{
-		Secret:     "<enter secret here>",
-		ValidUntil: time.Now().AddDate(0, 3, 0), // Adding 3 months as duration
-		// ValidUntil: time.Now(), // For testing purposes
-	}
-	raw, err := json.MarshalIndent(secretFile, "", "\t")
-	if err != nil {
-		log.Printf("Failed to convert JWT file struct to raw data: %s", err)
-		return
-	}
-	pwd, _ := os.Getwd()
-	finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
-	err = os.WriteFile(finalJWTFile, raw, 0760)
-	if err != nil {
-		log.Printf("Failed to store JWT secret to file: %s", err)
-	}
-	log.Printf("Stored default JWT secret file in: %s", finalJWTFile)
-}
-
-func storeTokensToDisk(overwrite bool) error {
-	// Dont overwrite if already existing
-	finalTokenPath := filepath.Join(basepath, "../../resources/tokens.txt")
-
-	exists := true
-	if _, err := os.Stat(finalTokenPath); errors.Is(err, os.ErrNotExist) {
-		exists = false
-	}
-	fileMode := os.O_CREATE | os.O_WRONLY
-	if overwrite {
-		fileMode = fileMode | os.O_TRUNC
-	} else {
-		fileMode = fileMode | os.O_APPEND
-	}
-	file, err := os.OpenFile(finalTokenPath, fileMode, 0660)
-	if err != nil {
-		return err
-	}
-	for i, token := range tokens {
-		if i == 0 && !exists { // Only use this mode for the very first token written to the file
-			_, err := file.Write([]byte(token))
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		_, err := file.Write([]byte("," + token))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func readTokensFromDisk() ([]string, error) {
-	finalTokenPath := filepath.Join(basepath, "../../resources/tokens.txt")
-	content, err := os.ReadFile(finalTokenPath)
-	if err != nil {
-		return nil, err
-	}
-	readTokens := strings.Split(string(content), ",")
-	log.Printf("Read %d tokens from disk", len(readTokens))
-	return readTokens, nil
-}
-
-func removeInvalidTokens(tokens []string) ([]string, error) {
-	claims := Claims{}
-	var validTokens []string
-	for _, token := range tokens {
-		_, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (interface{}, error) {
-			_, ok := t.Method.(*jwt.SigningMethodHMAC)
-			if !ok {
-				return nil, errors.New("unauthorized")
-			}
-			pwd, _ := os.Getwd()
-			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
-			data, err := os.ReadFile(finalJWTFile)
-			if err != nil {
-				log.Print("Failed to find JWT secret file")
-				return nil, err
-			}
-			var jwtSecret JWTSecretFile
-			if err = json.Unmarshal(data, &jwtSecret); err != nil {
-				log.Print("JWT secret file is in incorrect format")
-				return nil, err
-			}
-			if time.Now().After(jwtSecret.ValidUntil) {
-				log.Print("The given secret is no longer valid! Please renew the secret")
-				return nil, errors.New("token no longer valid")
-			}
-			secretKeyByte := []byte(jwtSecret.Secret)
-			return secretKeyByte, nil
-		})
-		if err != nil {
-			// log.Printf("Token no longer valid? %s", err)
-			continue
-		}
-		validTokens = append(validTokens, token)
-	}
-	log.Printf("Removed %d tokens", len(tokens)-len(validTokens))
-	return validTokens, nil
-}
-
-func generateJWT(id int, username string) (string, error) {
-	// Give enough time for a few requests
-	expirationTime := time.Now().Add(time.Duration(config.JWTTimeout) * time.Second)
-	claims := &Claims{
-		Id:       id,
-		Username: username,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	// Load the secret from the file system and sign the token
-	pwd, _ := os.Getwd()
-	finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
-	content, err := os.ReadFile(finalJWTFile)
-	if err != nil {
-		log.Printf("Error during token generation. Cannot read token secret file! %s", err)
-		writeDefaultJWTSecretFile()
-		return "", err
-	}
-	var jwtSecretFile JWTSecretFile
-	err = json.Unmarshal(content, &jwtSecretFile)
-	if err != nil {
-		log.Printf("The given jwt secret file is in incorrect format! %s", err)
-		return "", err
-	}
-	if time.Now().After(jwtSecretFile.ValidUntil) {
-		log.Print("The given secret is no longer valid! Please renew the secret")
-		return "", errors.New("token no longer valid")
-	}
-	return token.SignedString([]byte(jwtSecretFile.Secret))
-}
-
-func checkJWTTokenIssued(token string) error {
-	storedTokens, err := readTokensFromDisk()
-	if err != nil {
-		return errors.New("no stored tokens found")
-	}
-	allTokens := append(storedTokens, tokens...)
-	for _, storedTkn := range allTokens {
-		if storedTkn == token {
-			return nil
-		}
-	}
-	return errors.New("token not found")
-}
-
-func readIpWhitelistFromFile() (map[string]bool, error) {
-	finalTokenPath := filepath.Join(basepath, "../../resources/whitelisted_ips.json")
-	content, err := os.ReadFile(finalTokenPath)
-	if err != nil {
-		return nil, err
-	}
-	var ips IpWhiteList
-	if err = json.Unmarshal(content, &ips); err != nil {
-		return nil, err
-	}
-	log.Printf("Found IP Whitelist with %d IPs", len(ips.IPs))
-	whiteIps := make(map[string]bool, len(ips.IPs))
-	for _, ip := range ips.IPs {
-		whiteIps[ip] = true
-	}
-	return whiteIps, nil
-}
 
 func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
 	f := func(c *gin.Context) {
@@ -274,21 +65,6 @@ func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
 		c.Next()
 	}
 	return f
-}
-
-func CheckIPWhitelisted(clientIP string, whitelist map[string]bool) error {
-	// If the IP isn't in the whitelist, forbid the request.
-	// log.Printf("IP: %s", clientIP)
-
-	re := regexp.MustCompile(`([\d]+).([\d]+).[\d]+.[\d]+`)
-	ipRange := re.ReplaceAllString(clientIP, "$1.$2.0.0")
-	// log.Printf("Ip Range: %s", ipRange)
-	if !whitelist[clientIP] && !whitelist[ipRange] {
-		log.Printf("Unauthorized access from IP '%s'", clientIP)
-		errString := "ip address '" + clientIP + "' not authorized."
-		return errors.New(errString)
-	}
-	return nil
 }
 
 // ------------------------------------------------------------
@@ -390,7 +166,7 @@ func Login(c *gin.Context) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		token, err := generateJWT(int(user.OnlineID), specialUser)
+		token, err := GenerateNewJWTToken(int(user.OnlineID), specialUser)
 		if err != nil {
 			log.Printf("Failed to generate JWT token: %s", err)
 			c.AbortWithStatus(http.StatusInternalServerError)
@@ -429,16 +205,11 @@ func Login(c *gin.Context) {
 	}
 
 	// Generate a new token that is valid for a few minutes to make a few requests
-	token, err := generateJWT(int(user.OnlineID), user.Username)
+	token, err := GenerateNewJWTToken(int(user.OnlineID), user.Username)
 	if err != nil {
 		log.Printf("Failed to generate JWT token: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
-	}
-	tokens = append(tokens, token)
-	// Store the token to disk, in case of failure and persistency
-	if err = storeTokensToDisk(false); err != nil {
-		log.Printf("Failed to store tokens to disk: %s", err)
 	}
 
 	log.Print("User found and token generated")
@@ -461,7 +232,6 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 	// log.Printf("Request header: %s", header)
 	log.Printf("Origin: %s, Remote: %s", origin, remote)
 
-	// TODO: Add the API token-
 	tokenString := c.GetHeader("Authorization")
 	if tokenString == "" {
 		log.Print("No token found! Abort")
@@ -538,7 +308,7 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		return
 	}
 	// Check if the token was issued
-	if err = checkJWTTokenIssued(reqToken); err != nil {
+	if err = IsTokenValid(reqToken); err != nil {
 		log.Printf("Error with token: %s", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
