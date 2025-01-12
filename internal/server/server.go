@@ -43,8 +43,9 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 	// ------------- Handling Account Creation and Login ---------------
 
+	// TODO: Outsource the handling of users into it's own Service
 	// Independent of API version, therefore not in the auth bracket
-	router.POST("/v1/users", authentication.CreateAccount)
+	router.POST("/v1/users", CreateAccount)
 	// JWT BASED AUTHENTICATION
 	router.POST("/v1/users/:userId/login", authentication.Login)
 
@@ -60,7 +61,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		// therefore, it is handled in the unauthorized part above
 		authorized.PUT("/users/:userId", updateUserinfo)
 		authorized.GET("/users/:userId", getUserInfos)
-		authorized.DELETE("/users/:userId", authentication.DeleteAccount)
+		authorized.DELETE("/users/:userId", DeleteAccount)
 
 		authorized.GET("/users/name", getMatchingUsers) // Includes search query parameter
 

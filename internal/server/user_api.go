@@ -1,15 +1,80 @@
 package server
 
 import (
+	"errors"
+	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
+
+func CreateAccount(c *gin.Context) {
+	// Extracting username and password from request
+	var user data.User
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		log.Printf("Failed decode given user: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	createdUser, err := validateUserAndCreateAccount(user, c.Request.Header.Get("apiKey"))
+	if err != nil {
+		log.Printf("Failed to create user: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.JSON(http.StatusCreated, createdUser)
+}
+
+func validateUserAndCreateAccount(user data.User, apiKey string) (data.User, error) {
+	if user.OnlineID != 0 {
+		return data.User{}, errors.New("user id already set")
+	}
+	if user.Username == "" || user.Password == "" {
+		return data.User{}, errors.New("invalid username or password")
+	}
+	if user.Username == "admin" {
+		keyValid, err := authentication.ApiKeyValid(apiKey)
+		if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
+			return data.User{}, errors.New("invalid api key")
+		}
+	}
+	loginUser, err := database.CreateUserAccountInDatabase(user.Username, user.Password)
+	if err != nil {
+		return data.User{}, err
+	}
+	// Don't include hashed password information in answer
+	loginUser.Password = "accepted"
+	return loginUser, nil
+}
+
+func DeleteAccount(c *gin.Context) {
+	sId := c.Param("userId")
+	id, err := strconv.Atoi(sId)
+	if err != nil {
+		log.Printf("Failed to parse given userId: %s: %s", sId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId != int64(id) {
+		log.Printf("Authenticated user is not user that should be deleted!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.DeleteUserAccount(int64(userId)); err != nil {
+		log.Printf("Failed to delete user account")
+		c.AbortWithStatus(http.StatusGone)
+		return
+	}
+	c.Status(http.StatusOK)
+}
 
 func updateUserinfo(c *gin.Context) {
 	var user data.User

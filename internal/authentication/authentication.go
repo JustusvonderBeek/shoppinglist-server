@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -65,80 +64,6 @@ func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
 		c.Next()
 	}
 	return f
-}
-
-// ------------------------------------------------------------
-// Account creation
-// ------------------------------------------------------------
-
-func CreateAccount(c *gin.Context) {
-	// Creating a new user and inserting into the database
-	// First checking if the creation is from a whitelisted IP address
-	// origin := c.ClientIP()
-	// err := CheckIPWhitelisted(origin, IPWhitelist)
-	// if err != nil {
-	// 	log.Printf("Request origin %s not from a whitelisted IP address!", origin)
-	// 	c.AbortWithStatus(http.StatusForbidden)
-	// 	return
-	// }
-	// Extracting username and password from request
-	var user data.User
-	err := c.ShouldBindJSON(&user)
-	if err != nil {
-		log.Printf("Failed decode given user: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if user.OnlineID != 0 {
-		log.Print("Given user has ID already set!")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if user.Username == "" || user.Password == "" {
-		log.Print("Username or password not set!")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if user.Username == "admin" {
-		apiKey := c.Request.Header.Get("x-api-key")
-		keyValid, err := apiKeyValid(apiKey)
-		if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
-			log.Print("API Key not valid!")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-	}
-	loginUser, err := database.CreateUserAccountInDatabase(user.Username, user.Password)
-	if err != nil {
-		log.Printf("Failed to create user: %s", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	// Dont include hashed password information in answer
-	loginUser.Password = "accepted"
-	c.JSON(http.StatusCreated, loginUser)
-}
-
-func DeleteAccount(c *gin.Context) {
-	sId := c.Param("userId")
-	id, err := strconv.Atoi(sId)
-	if err != nil {
-		log.Printf("Failed to parse given userId: %s: %s", sId, err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	userId := c.GetInt64("userId")
-	if userId != int64(id) {
-		log.Printf("Authenticated user is not user that should be deleted!")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if err := database.DeleteUserAccount(int64(userId)); err != nil {
-		log.Printf("Failed to delete user account")
-		c.AbortWithStatus(http.StatusGone)
-		return
-	}
-	c.Status(http.StatusOK)
 }
 
 // ------------------------------------------------------------
@@ -335,7 +260,7 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 		// Validate the token to be correct
-		apiKeyClaims, err := apiKeyValid(apiKeyString)
+		apiKeyClaims, err := ApiKeyValid(apiKeyString)
 		if err != nil {
 			log.Printf("API Key not valid: %s", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
@@ -398,8 +323,8 @@ func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
 	return claims, nil
 }
 
-func apiKeyValid(apiKey string) (ApiKey, error) {
-	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "resources/jwtSecret.json")
+func ApiKeyValid(apiKey string) (ApiKey, error) {
+	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "../../resources/jwtSecret.json")
 	if err != nil {
 		return ApiKey{}, err
 	}
