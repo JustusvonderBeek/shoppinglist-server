@@ -8,10 +8,6 @@ import (
 	"log"
 )
 
-type IpWhiteList struct {
-	IPs []string
-}
-
 var whitelistedIPs map[string]bool
 
 func SetupWhitelistedIPs() error {
@@ -24,17 +20,17 @@ func SetupWhitelistedIPs() error {
 }
 
 func readIpWhitelistFromFile() (map[string]bool, error) {
-	content, err := util.ReadFileFromRoot("../../resources/whitelisted_ips.json")
+	content, err := util.ReadFileFromRoot("resources/whitelisted_ips.json")
 	if err != nil {
 		return nil, err
 	}
-	var whitelistedIPs IpWhiteList
+	var whitelistedIPs []string
 	if err = json.Unmarshal(content, &whitelistedIPs); err != nil {
 		return nil, err
 	}
-	log.Printf("Found IP Whitelist with %d IPs", len(whitelistedIPs.IPs))
-	whiteIps := make(map[string]bool, len(whitelistedIPs.IPs))
-	for _, ip := range whitelistedIPs.IPs {
+	log.Printf("Found IP Whitelist with %d IPs", len(whitelistedIPs))
+	whiteIps := make(map[string]bool, len(whitelistedIPs))
+	for _, ip := range whitelistedIPs {
 		whiteIps[ip] = true
 	}
 	return whiteIps, nil

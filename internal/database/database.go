@@ -92,7 +92,7 @@ func storeConfiguration(filename string) {
 	if err != nil {
 		log.Fatalf("Failed to convert configuration to file format")
 	}
-	storedFilename, err := util.WriteFileAtRoot(filename, encoded)
+	storedFilename, _, err := util.WriteFileAtRoot(encoded, filename, false)
 	log.Printf("Stored configuration to file: %s", storedFilename)
 }
 
