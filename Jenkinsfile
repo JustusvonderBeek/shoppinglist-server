@@ -19,11 +19,13 @@ pipeline {
         stage('Test') {
             steps {
                 echo 'Testing..'
-                dir('server') {
-                    sh 'go test'
-                }
-                dir('database') {
-                    sh 'go test'
+                dir('internal') {
+                    dir('server') {
+                        sh 'go test'
+                    }
+                    dir('database') {
+                        sh 'go test'
+                    }
                 }
             }
         }
