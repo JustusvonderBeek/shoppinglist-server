@@ -17,4 +17,11 @@ sudo mysql < ./create_mysql_db.sql
 # Create the JWT secret
 ./create_jwt_secret.sh
 
+# Create the API key
+./create_api_key.sh
+
+# Create the admin user
+./fill_admin_pwd.sh
+./create_admin_user.sh
+
 echo "Setup done"

@@ -24,8 +24,8 @@ replaced_locality=$(sed -e "s/$placeholder_locality/$locality/g" <<< $replaced_u
 # Can make problems if the password contains the same character as the delimiter of sed!
 replaced_password=$(sed -e "s|$placeholder_password|$password|g" <<< $replaced_locality)
 
-echo "--THIS FILE WAS AUTOMATICALLY GENERATED!" > "$replaced_database_file"
-echo "--DO NOT MANUALLY MODIFY THIS FILE" >> "$replaced_database_file"
+echo "-- THIS FILE WAS AUTOMATICALLY GENERATED!" > "$replaced_database_file"
+echo "-- DO NOT MANUALLY MODIFY THIS FILE" >> "$replaced_database_file"
 echo "" >> "$replaced_database_file"
 echo "$replaced_password" >> "$replaced_database_file"
 
