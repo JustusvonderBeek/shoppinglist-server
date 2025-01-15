@@ -11,46 +11,6 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
 
-func createShareRecipe(c *gin.Context) {
-	strRecipeId := c.Param("recipeId")
-	recipeId, err := strconv.Atoi(strRecipeId)
-	if err != nil {
-		log.Printf("Failed to parse given list id: %s: %s", strRecipeId, err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	userId := c.GetInt64("userId")
-	if userId == 0 {
-		log.Printf("User is not correctly authenticated")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	// Ignore the 'id' field in the struct
-	var shared data.RecipeShared
-	if err = c.BindJSON(&shared); err != nil {
-		log.Printf("Failed to bind given data: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	recipe, err := database.GetRecipe(int64(recipeId), userId)
-	if err != nil {
-		log.Printf("Recipe to share does not exist")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if recipe.CreatedBy.ID != userId {
-		log.Printf("User %d is not allowed to share recipe %d created by %d", userId, recipeId, recipe.CreatedBy.ID)
-		c.AbortWithStatus(http.StatusForbidden)
-		return
-	}
-	if err := database.CreateRecipeSharing(int64(recipeId), userId, shared.SharedWith); err != nil {
-		log.Printf("Failed to create recipe sharing: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	c.Status(http.StatusCreated)
-}
-
 func createRecipe(c *gin.Context) {
 	log.Print("Creating new recipe")
 	var recipeToCreate data.Recipe
@@ -151,11 +111,104 @@ func deleteRecipe(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func updateShareRecipe(c *gin.Context) {
-	log.Print("Updating recipe")
+// ----------------------------------------
+// Recipe sharing
+// ----------------------------------------
 
+func createShareRecipe(c *gin.Context) {
+	log.Print("Creating recipe sharing")
+	strRecipeId := c.Param("recipeId")
+	recipeId, err := strconv.Atoi(strRecipeId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", strRecipeId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	recipe, err := database.GetRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Recipe to share does not exist")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if recipe.CreatedBy.ID != userId {
+		log.Printf("User %d is not allowed to share recipe %d created by %d", userId, recipeId, recipe.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	strSharedWithId, exists := c.GetQuery("sharedWith")
+	if !exists {
+		log.Printf("Query parameter sharedWith not found")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	sharedWith, err := strconv.Atoi(strSharedWithId)
+	if err != nil {
+		log.Printf("Failed to parse sharedWith parameter: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	_, err = database.GetUser(int64(sharedWith))
+	if err != nil {
+		log.Printf("User %d to share with does not exist", sharedWith)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.CreateRecipeSharing(int64(recipeId), userId, int64(sharedWith)); err != nil {
+		log.Printf("Failed to create recipe sharing: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.Status(http.StatusCreated)
 }
 
 func deleteShareRecipe(c *gin.Context) {
-	log.Print("Deleting recipe")
+	log.Print("Deleting recipe sharing")
+	strRecipeId := c.Param("recipeId")
+	recipeId, err := strconv.Atoi(strRecipeId)
+	if err != nil {
+		log.Printf("Failed to parse given list id: %s: %s", strRecipeId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	recipe, err := database.GetRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Recipe to share does not exist")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if recipe.CreatedBy.ID != userId {
+		log.Printf("User %d is not allowed to delete sharing of recipe %d created by %d", userId, recipeId, recipe.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	strSharedWithId, exists := c.GetQuery("sharedWith")
+	if !exists {
+		log.Printf("Query parameter sharedWith not found")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	sharedWithId, err := strconv.Atoi(strSharedWithId)
+	if err != nil {
+		log.Printf("Failed to parse sharedWith parameter: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err := database.DeleteRecipeSharing(int64(recipeId), userId, int64(sharedWithId)); err != nil {
+		log.Printf("Failed to delete recipe sharing: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.Status(http.StatusOK)
 }

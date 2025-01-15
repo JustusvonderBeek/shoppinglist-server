@@ -81,7 +81,6 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.DELETE("/recipe/:recipeId", deleteRecipe)
 
 		authorized.POST("recipe/share/:recipeId", createShareRecipe)
-		authorized.PUT("recipe/share/:recipeId", updateShareRecipe)
 		authorized.DELETE("recipe/share/:recipeId", deleteShareRecipe)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing

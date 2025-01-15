@@ -1458,6 +1458,17 @@ func CreateRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) erro
 	return nil
 }
 
+func DeleteRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) error {
+	log.Printf("Deleting sharing for %d of recipe %d from %d", sharedWith, recipeId, createdBy)
+	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ? AND sharedWith = ?", recipeSharingTable)
+	_, err := db.Exec(query, recipeId, createdBy, sharedWith)
+	if err != nil {
+		log.Printf("Failed to delete sharing for user %d from recipe %d: %s", sharedWith, recipeId, err)
+		return err
+	}
+	return nil
+}
+
 // ------------------------------------------------------------
 // Debug printout and functionality
 // ------------------------------------------------------------
