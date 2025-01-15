@@ -173,7 +173,7 @@ func GetUser(id int64) (data.User, error) {
 	query := "SELECT * FROM " + userTable + " WHERE id = ?"
 	row := db.QueryRow(query, id)
 	var user data.User
-	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Created, &user.LastLogin); err == sql.ErrNoRows {
+	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Role, &user.Created, &user.LastLogin); errors.Is(err, sql.ErrNoRows) {
 		return data.User{}, err
 	}
 	return user, nil
@@ -276,6 +276,7 @@ func createUser(username string, passwd string) (data.User, error) {
 		OnlineID:  int64(userId),
 		Username:  username,
 		Password:  hashedPw,
+		Role:      "user",
 		Created:   now,
 		LastLogin: now,
 	}
@@ -293,8 +294,8 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 	// log.Printf("Inserting new user: %v", newUser)
 	log.Printf("Creating new user %d: %s", newUser.OnlineID, username)
 	// Insert the newly created user into the database
-	query := "INSERT INTO " + userTable + " (id, username, passwd, created, lastLogin) VALUES (?, ?, ?, ?, ?)"
-	_, err = db.Exec(query, newUser.OnlineID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
+	query := "INSERT INTO " + userTable + " (id, username, passwd, role, created, lastLogin) VALUES (?, ?, ?, ?, ?, ?)"
+	_, err = db.Exec(query, newUser.OnlineID, newUser.Username, newUser.Password, newUser.Role, newUser.Created, newUser.LastLogin)
 	if err != nil {
 		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
@@ -402,7 +403,7 @@ func GetShoppingListWithId(id int64, createdBy int64) (int, data.List, error) {
 	row := db.QueryRow(query, id, createdBy)
 	var dbId int
 	var list data.List
-	if err := row.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err == sql.ErrNoRows {
+	if err := row.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); errors.Is(err, sql.ErrNoRows) {
 		return 0, data.List{}, err
 	}
 	user, err := GetUser(createdBy)

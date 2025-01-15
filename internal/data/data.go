@@ -27,6 +27,7 @@ type User struct {
 	OnlineID  int64     `json:"onlineId"`
 	Username  string    `json:"username"`
 	Password  string    `json:"password,omitempty"`
+	Role      string    `json:"userRights,omitempty"`
 	Created   time.Time `json:"created,omitempty"`
 	LastLogin time.Time `json:"lastLogin,omitempty"` // <- what do we need this information for? would only be relevant when displaying or using this in the app
 }
@@ -36,7 +37,6 @@ type User struct {
 // ------------------------------------------------------------
 
 // ListCreator Note: This can also be represented by the user format with fields omitted!!!
-// Deprecated: ListCreated is deprecated. Use user instead
 type ListCreator struct {
 	ID   int64  `json:"onlineId"`
 	Name string `json:"username"`
