@@ -12,10 +12,10 @@ use shoppinglist;
 DROP USER IF EXISTS '<username>'@'<locality>';
 CREATE USER IF NOT EXISTS '<username>'@'<locality>' IDENTIFIED BY '<password>';
 
-SELECT User
-FROM mysql.user;
+SELECT User FROM mysql.user;
 
 GRANT ALL PRIVILEGES ON shoppinglist.* TO '<username>'@'<locality>' WITH GRANT OPTION;
+GRANT FILE ON *.* TO '<username>'@'<locality>' WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
 
@@ -42,6 +42,7 @@ CREATE TABLE shoppers
     id        BIGINT       NOT NULL,
     username  VARCHAR(256) NOT NULL,
     passwd    VARCHAR(512) NOT NULL,
+    role      VARCHAR(56)  NOT NULL,
     created   DATETIME     NOT NULL,
     lastLogin DATETIME     NOT NULL,
     PRIMARY KEY (`id`)
@@ -52,8 +53,8 @@ CREATE TABLE shoppers
 CREATE TABLE items
 (
     id   INT AUTO_INCREMENT NOT NULL,
-    name VARCHAR(256)       NOT NULL,
-    icon VARCHAR(256)       NOT NULL,
+    name VARCHAR(256) NOT NULL,
+    icon VARCHAR(256) NOT NULL,
     PRIMARY KEY (`id`)
 );
 
@@ -62,34 +63,34 @@ CREATE TABLE items
 CREATE TABLE shoppinglist
 (
     id         INT AUTO_INCREMENT NOT NULL,
-    listId     BIGINT             NOT NULL,
-    name       VARCHAR(256)       NOT NULL,
-    createdBy  BIGINT             NOT NULL,
-    created    DATETIME           NOT NULL,
-    lastEdited DATETIME           NOT NULL,
-    version    BIGINT             NOT NULL,
+    listId     BIGINT       NOT NULL,
+    name       VARCHAR(256) NOT NULL,
+    createdBy  BIGINT       NOT NULL,
+    created    DATETIME     NOT NULL,
+    lastEdited DATETIME     NOT NULL,
+    version    BIGINT       NOT NULL,
     PRIMARY KEY (`id`)
 );
 
 CREATE TABLE sharedList
 (
     id           INT AUTO_INCREMENT NOT NULL,
-    listId       BIGINT             NOT NULL,
-    createdBy    BIGINT             NOT NULL,
-    sharedWithId BIGINT             NOT NULL,
-    created      DATETIME           NOT NULL,
+    listId       BIGINT   NOT NULL,
+    createdBy    BIGINT   NOT NULL,
+    sharedWithId BIGINT   NOT NULL,
+    created      DATETIME NOT NULL,
     PRIMARY KEY (`id`)
 );
 
 CREATE TABLE itemsPerList
 (
     id        INT AUTO_INCREMENT NOT NULL,
-    listId    BIGINT             NOT NULL,
-    itemId    INT                NOT NULL,
-    quantity  INT                NOT NULL,
-    checked   BOOLEAN            NOT NULL,
-    createdBy BIGINT             NOT NULL,
-    addedBy   BIGINT             NOT NULL,
+    listId    BIGINT  NOT NULL,
+    itemId    INT     NOT NULL,
+    quantity  INT     NOT NULL,
+    checked   BOOLEAN NOT NULL,
+    createdBy BIGINT  NOT NULL,
+    addedBy   BIGINT  NOT NULL,
     PRIMARY KEY (`id`)
 );
 
@@ -139,9 +140,9 @@ CREATE TABLE sharedRecipe
 CREATE TABLE history
 (
     id            BIGINT AUTO_INCREMENT NOT NULL,
-    itemId        INT                   NOT NULL,
-    totalQuantity INT                   NOT NULL,
-    since         DATETIME              NOT NULL,
-    weeklyUse     INT                   NOT NULL,
+    itemId        INT      NOT NULL,
+    totalQuantity INT      NOT NULL,
+    since         DATETIME NOT NULL,
+    weeklyUse     INT      NOT NULL,
     PRIMARY KEY (`id`)
 );
