@@ -15,7 +15,7 @@ func TestCreatingRecipe(t *testing.T) {
 	recipe := data.Recipe{
 		RecipeId:       0,
 		Name:           "new recipe",
-		CreatedBy:      12345,
+		CreatedBy:      data.ListCreator{ID: 1234, Name: "creator"},
 		CreatedAt:      time.Now(),
 		LastUpdate:     time.Now(),
 		DefaultPortion: 2,
@@ -54,7 +54,7 @@ func TestCreatingRecipe(t *testing.T) {
 	}
 	log.Printf("Recipe created")
 	// Now checking again by reading the recipe
-	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
+	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to read created recipe: %s", err)
 		t.FailNow()
@@ -74,7 +74,7 @@ func TestUpdateRecipe(t *testing.T) {
 	recipe := data.Recipe{
 		RecipeId:       0,
 		Name:           "new recipe",
-		CreatedBy:      12345,
+		CreatedBy:      data.ListCreator{ID: 12345, Name: "creator"},
 		CreatedAt:      time.Now(),
 		LastUpdate:     time.Now(),
 		DefaultPortion: 2,
@@ -129,7 +129,7 @@ func TestUpdateRecipe(t *testing.T) {
 		log.Printf("Failed to update recipe: %s", err)
 		t.FailNow()
 	}
-	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy)
+	dbRecipe, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get recipe: %s", err)
 		t.FailNow()
@@ -150,7 +150,7 @@ func TestDeleteRecipe(t *testing.T) {
 	recipe := data.Recipe{
 		RecipeId:       0,
 		Name:           "new recipe",
-		CreatedBy:      12345,
+		CreatedBy:      data.ListCreator{ID: 12345, Name: "creator"},
 		CreatedAt:      time.Now(),
 		LastUpdate:     time.Now(),
 		DefaultPortion: 2,
@@ -188,11 +188,11 @@ func TestDeleteRecipe(t *testing.T) {
 		t.FailNow()
 	}
 	log.Printf("Recipe created")
-	if err := DeleteRecipe(recipe.RecipeId, recipe.CreatedBy); err != nil {
+	if err := DeleteRecipe(recipe.RecipeId, recipe.CreatedBy.ID); err != nil {
 		log.Printf("Failed to delete recipe: %s", err)
 		t.FailNow()
 	}
-	if _, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy); err == nil {
+	if _, err := GetRecipe(recipe.RecipeId, recipe.CreatedBy.ID); err == nil {
 		log.Print("Recipe can be retrieved after deletion")
 		t.FailNow()
 	}
