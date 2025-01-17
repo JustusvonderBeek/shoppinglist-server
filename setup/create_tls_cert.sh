@@ -1,6 +1,9 @@
 #!/bin/bash
 
-outputPath="../resources/"
+outputPath="$1"
+if [[ $# -lt 2 ]]; then
+  outputPath="./"
+fi
 outputCert="shoppinglist.crt"
 outputKey="shoppinglist.pem"
 

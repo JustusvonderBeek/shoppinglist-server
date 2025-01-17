@@ -2,6 +2,11 @@
 
 echo "Creating new JWT secret"
 
+outputPath="$1"
+if [[ $# -lt 2 ]]; then
+  outputPath="./"
+fi
+
 secret=$(tr -dc 'A-Za-z0-9!#$%&'\''()*+,-./:;<=>?@[\]^_`{|}~' </dev/urandom | head -c 32; echo)
 
 echo "Secret: $secret"
@@ -12,6 +17,6 @@ echo "Valid until: $valid"
 echo """{
 	\"Secret\": \"$secret\",
 	\"ValidUntil\": \"$valid\"
-}""" > ../resources/jwtSecret.json
+}""" > "${outputPath}jwtSecret.json"
 
 echo "Secret created"

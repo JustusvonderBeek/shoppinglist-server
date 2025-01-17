@@ -2,10 +2,14 @@
 
 echo "Filling password information into 'create_admin_user.sh'"
 
+workingDir="$1"
+if [[ $# -lt 2 ]]; then
+    workingDir="./"
+fi
 script_file="create_admin_user.sh"
 replaced_script_file="create_admin_user_pwd.sh"
-api_key_file="../resources/apiKey.jwt"
-database_information="../resources/admin.json"
+api_key_file="${workingDir}apiKey.jwt"
+database_information="${workingDir}admin.json"
 placeholder_username="<username>"
 placeholder_password="<password>"
 placeholder_api_key="<api-key>"

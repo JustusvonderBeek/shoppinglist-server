@@ -31,8 +31,12 @@ function generateJWT() {
 
 echo "Creating new API key..."
 
-secretFile="../resources/apiKey.secret"
-jwtFile="../resources/apiKey.jwt"
+outputPath="$1"
+if [[ $# -lt 2 ]]; then
+  outputPath="./"
+fi
+secretFile="${outputPath}apiKey.secret"
+jwtFile="${outputPath}apiKey.jwt"
 randomData=$(openssl rand -base64 32)
 validUntil=$(date -d "90 days" --iso-8601=seconds)
 echo "{\"secret\":\"$randomData\",\"validUntil\":\"$validUntil\"}" > "$secretFile"
