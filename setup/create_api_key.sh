@@ -32,9 +32,10 @@ function generateJWT() {
 echo "Creating new API key..."
 
 outputPath="$1"
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
   outputPath="./"
 fi
+
 secretFile="${outputPath}apiKey.secret"
 jwtFile="${outputPath}apiKey.jwt"
 randomData=$(openssl rand -base64 32)

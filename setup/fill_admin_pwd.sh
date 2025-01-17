@@ -3,7 +3,7 @@
 echo "Filling password information into 'create_admin_user.sh'"
 
 workingDir="$1"
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
     workingDir="./"
 fi
 script_file="create_admin_user.sh"

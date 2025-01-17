@@ -1,7 +1,7 @@
 #!/bin/bash
 
 outputPath="$1"
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
   outputPath="./"
 fi
 outputCert="shoppinglist.crt"
