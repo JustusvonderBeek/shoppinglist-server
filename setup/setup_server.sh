@@ -24,6 +24,7 @@ sudo mysql < ./create_mysql_db.sql
 
 # Create the admin user
 ./fill_admin_pwd.sh "$outputDirectory"
+sudo chmod 0700 ./create_admin_user_pwd.sh
 ./create_admin_user_pwd.sh
 
 echo "Setup done"
