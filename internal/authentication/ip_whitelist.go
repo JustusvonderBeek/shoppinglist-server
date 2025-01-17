@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/util"
 	"log"
+	"os"
 )
 
 var whitelistedIPs map[string]bool
@@ -13,7 +14,11 @@ var whitelistedIPs map[string]bool
 func SetupWhitelistedIPs() error {
 	loadedWhitelistedIPs, err := readIpWhitelistFromFile()
 	if err != nil {
-		return err
+		if errors.Is(err, os.ErrNotExist) {
+			loadedWhitelistedIPs = make(map[string]bool)
+		} else {
+			return err
+		}
 	}
 	whitelistedIPs = loadedWhitelistedIPs
 	return nil

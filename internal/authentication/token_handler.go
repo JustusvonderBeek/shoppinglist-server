@@ -39,7 +39,11 @@ var tokens []string
 func SetupTokenHandler() error {
 	loadedTokens, err := setup()
 	if err != nil {
-		return err
+		if errors.Is(err, os.ErrNotExist) {
+			loadedTokens = []string{}
+		} else {
+			return err
+		}
 	}
 	tokens = loadedTokens
 	return nil
@@ -87,7 +91,10 @@ func setup() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	storeTokensToDisk(validTokens, "resources/tokens.txt", true)
+	err = storeTokensToDisk(validTokens, "resources/tokens.txt", true)
+	if err != nil {
+		return nil, err
+	}
 	return validTokens, nil
 }
 
