@@ -35,7 +35,11 @@ func returnPostTest(c *gin.Context) {
 // ------------------------------------------------------------
 
 func SetupRouter(cfg configuration.Config) *gin.Engine {
-	gin.SetMode(gin.DebugMode)
+	if cfg.Production {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
+	}
 
 	router := gin.Default()
 	authentication.Setup(cfg)

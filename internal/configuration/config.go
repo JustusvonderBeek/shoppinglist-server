@@ -11,6 +11,7 @@ type Config struct {
 	TLSKeyfile     string
 	JWTSecretFile  string
 	DisableTLS     bool
+	Production     bool
 
 	JWTTimeout float32 // This is only meant for testing; not for production
 }
