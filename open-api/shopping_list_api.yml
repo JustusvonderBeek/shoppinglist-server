@@ -327,16 +327,6 @@ paths:
       tags:
       - List Handling
       description: Delete an existing list. Can only be issued by the user who created the list.
-      parameters:
-      - name: listId
-        in: path
-        description: The id of the list which is deleted. If non is given, all lists are deleted.
-        required: false
-        style: simple
-        explode: false
-        schema:
-          type: integer
-          format: int32
       responses:
         "200":
           description: OK
@@ -523,20 +513,52 @@ paths:
           description: Ok
         "404":
           description: Not found
+  /recipe/share/{recipeId}:
+    post:
+      tags:
+      - Recipe Share Handling
+      description: Share the given recipe with a user whom id was obtained before.
+      parameters:
+        - name: sharedWith
+          in: query
+          required: true
+          allowEmptyValue: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+            example: 4321
+      responses:
+        "200":
+          description: Ok
+        "400":
+          description: Bad request
+    delete:
+      tags:
+      - Recipe Share Handling
+      description: Unshare the given recipe with a user whom id was obtained before.
+      parameters:
+        - name: sharedWith
+          in: query
+          required: true
+          allowEmptyValue: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+            example: 4321
+      responses:
+        "200":
+          description: Ok
+        "400":
+          description: Bad request
   /recipe/{websiteName}:
     post:
       tags:
       - Recipe Handling
       description: Convert and download a recipe from the given website.
-      parameters:
-      - name: websiteName
-        in: path
-        required: true
-        allowEmptyValue: false
-        style: form
-        explode: true
-        schema:
-          type: string
       responses:
         "200":
           description: Ok
@@ -779,6 +801,21 @@ components:
         retailer:
           type: string
           example: "lidl"
+    RecipeSharing:
+      type: object
+      properties:
+        recipeId:
+          type: integer
+          format: int32
+          example: 1
+        createdBy:
+          type: integer
+          format: int32
+          example: 1499
+        sharedWith:
+          type: integer
+          format: int32
+          example: 1234
   responses:
     UnauthorizedError:
       description: API key required but not provided
