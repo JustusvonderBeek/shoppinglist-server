@@ -1469,6 +1469,17 @@ func DeleteRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) erro
 	return nil
 }
 
+func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
+	log.Printf("Deleting all sharing for recipe %d from %d", recipeId, createdBy)
+	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeSharingTable)
+	_, err := db.Exec(query, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to delete all sharing for recipe %d from %d: %s", recipeId, createdBy, err)
+		return err
+	}
+	return nil
+}
+
 // ------------------------------------------------------------
 // Debug printout and functionality
 // ------------------------------------------------------------

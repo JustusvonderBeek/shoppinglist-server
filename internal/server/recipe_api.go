@@ -195,20 +195,28 @@ func deleteShareRecipe(c *gin.Context) {
 	}
 	strSharedWithId, exists := c.GetQuery("sharedWith")
 	if !exists {
-		log.Printf("Query parameter sharedWith not found")
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	sharedWithId, err := strconv.Atoi(strSharedWithId)
-	if err != nil {
-		log.Printf("Failed to parse sharedWith parameter: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if err := database.DeleteRecipeSharing(int64(recipeId), userId, int64(sharedWithId)); err != nil {
-		log.Printf("Failed to delete recipe sharing: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+		if recipe.CreatedBy.ID != userId {
+			log.Printf("Query parameter sharedWith not found, and only creator can remove all sharings")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if err := database.DeleteAllSharingForRecipe(int64(recipeId), userId); err != nil {
+			log.Printf("Failed to delete all recipe sharings: %s", err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	} else {
+		sharedWithId, err := strconv.Atoi(strSharedWithId)
+		if err != nil {
+			log.Printf("Failed to parse sharedWith parameter: %s", err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if err := database.DeleteRecipeSharing(int64(recipeId), userId, int64(sharedWithId)); err != nil {
+			log.Printf("Failed to delete recipe sharing: %s", err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
 	}
 	c.Status(http.StatusOK)
 }
