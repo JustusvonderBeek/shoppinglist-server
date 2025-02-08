@@ -117,13 +117,13 @@ func getUserInfos(c *gin.Context) {
 	}
 	// Make sure that the format of the user only includes name and other
 	// non critical information, especially passwords
-	user, err := database.GetUserInWireFormat(int64(queriedUserId))
+	user, err := database.GetUser(int64(queriedUserId))
 	if err != nil {
 		log.Printf("Queried user %d does not exist", queriedUserId)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, user.ToWireFormat())
 }
 
 func getMatchingUsers(c *gin.Context) {

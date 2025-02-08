@@ -99,11 +99,11 @@ func storeConfiguration(filename string) {
 // ------------------------------------------------------------
 
 func ResetDatabase() {
-	ResetUserTable()
+	DropUserTable()
 	ResetSharedListTable()
 	ResetItemTable()
 	ResetItemPerListTable()
-	ResetShoppingListTable()
+	DropShoppingListTable()
 }
 
 func CheckDatabaseOnline(cfg configuration.Config) {
@@ -167,11 +167,10 @@ func convertStringToTime(strTime string) time.Time {
 
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-const userTable = "shoppers"
+const getUserQuery = "SELECT * FROM shoppers WHERE id = ?"
 
 func GetUser(id int64) (data.User, error) {
-	query := "SELECT * FROM " + userTable + " WHERE id = ?"
-	row := db.QueryRow(query, id)
+	row := db.QueryRow(getUserQuery, id)
 	var user data.User
 	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Role, &user.Created, &user.LastLogin); errors.Is(err, sql.ErrNoRows) {
 		return data.User{}, err
@@ -179,11 +178,11 @@ func GetUser(id int64) (data.User, error) {
 	return user, nil
 }
 
+const getAllUserQuery = "SELECT id,username,created,lastLogin FROM shoppers"
+
 func GetAllUsers() ([]data.User, error) {
-	query := "SELECT id,username,created,lastLogin FROM " + userTable
-	rows, err := db.Query(query)
+	rows, err := db.Query(getAllUserQuery)
 	if err != nil {
-		log.Printf("Failed to query database for users: %s", err)
 		return []data.User{}, err
 	}
 	defer rows.Close()
@@ -199,23 +198,11 @@ func GetAllUsers() ([]data.User, error) {
 	return users, nil
 }
 
-func GetUserInWireFormat(id int64) (data.User, error) {
-	user, err := GetUser(id)
-	if err != nil {
-		return data.User{}, err
-	}
-	userWire := data.User{
-		OnlineID: user.OnlineID,
-		Username: user.Username,
-	}
-	return userWire, nil
-}
+const getUserFromUsernameSearchString = "SELECT id,username,created,lastLogin FROM shoppers WHERE INSTR(username, '?') > 0"
 
 func GetUserFromMatchingUsername(name string) ([]data.User, error) {
-	query := "SELECT id,username,lastLogin FROM " + userTable + " WHERE INSTR(username, '" + name + "') > 0"
-	rows, err := db.Query(query)
+	rows, err := db.Query(getUserFromUsernameSearchString, name)
 	if err != nil {
-		log.Printf("Failed to query database for users: %s", err)
 		return []data.User{}, err
 	}
 	defer rows.Close()
@@ -227,29 +214,25 @@ func GetUserFromMatchingUsername(name string) ([]data.User, error) {
 		if err := rows.Scan(&user.OnlineID, &user.Username, &lastLogin); err != nil {
 			return []data.User{}, err
 		}
-		// convert the time into a string
-		// timeConv := convertTimeToString(lastLogin)
-		// user.LastLogin = timeConv
 		user.LastLogin = lastLogin
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("Failed to retrieve users from database: %s", err)
 		return nil, err
 	}
 	return users, nil
 }
 
-func CheckUserExists(id int64) error {
-	log.Printf("Checking if user exists")
+func userExists(id int64) error {
 	_, err := GetUser(id)
 	return err
 }
 
+/* The reason why we don't simply use AUTO_INCREMENT is so that randomly generated IDs prevent easy guessing */
 func createNewUserId() int64 {
 	userId := random.Int31()
 	for {
-		err := CheckUserExists(int64(userId))
+		err := userExists(int64(userId))
 		if err == nil { // User already exists
 			userId = rand.Int31()
 			continue
@@ -267,87 +250,82 @@ func createUser(username string, passwd string) (data.User, error) {
 		return data.User{}, err
 	}
 	if username == "" || passwd == "" {
-		return data.User{}, errors.New("invalid username or password")
+		return data.User{}, errors.New("empty username or password")
 	}
-	// created := time.Now().Local().Format(time.RFC3339)
 	now := time.Now().UTC()
-	// created := convertTimeToString(now)
 	newUser := data.User{
-		OnlineID:  int64(userId),
+		OnlineID:  userId,
 		Username:  username,
 		Password:  hashedPw,
-		Role:      "user",
+		Role:      data.USER,
 		Created:   now,
 		LastLogin: now,
 	}
 	return newUser, nil
 }
 
+const createUserQuery = "INSERT INTO shoppers (id,username,passwd,created,lastLogin) VALUES (?, ?, ?, ?, ?)"
+const createUserRoleQuery = "INSERT INTO role (user_id,role) VALUES (?, ?)"
+
 func CreateUserAccountInDatabase(username string, passwd string) (data.User, error) {
-	log.Printf("Creating new user account: %s", username)
-	// Creating the struct we are going to insert first
 	newUser, err := createUser(username, passwd)
 	if err != nil {
-		log.Printf("Failed to create new user: %s", err)
 		return data.User{}, err
 	}
-	// log.Printf("Inserting new user: %v", newUser)
 	log.Printf("Creating new user %d: %s", newUser.OnlineID, username)
-	// Insert the newly created user into the database
-	query := "INSERT INTO " + userTable + " (id, username, passwd, role, created, lastLogin) VALUES (?, ?, ?, ?, ?, ?)"
-	_, err = db.Exec(query, newUser.OnlineID, newUser.Username, newUser.Password, newUser.Role, newUser.Created, newUser.LastLogin)
+	_, err = db.Exec(createUserQuery, newUser.OnlineID, newUser.Username, newUser.Password, newUser.Created, newUser.LastLogin)
 	if err != nil {
-		log.Printf("Failed to insert new user into database: %s", err)
 		return data.User{}, err
 	}
 	newUser, err = GetUser(newUser.OnlineID)
 	if err != nil {
-		log.Printf("Failed to create new user: %s", err)
 		return data.User{}, err
 	}
-	// log.Printf("Debug: %v", newUser)
+	// User can have more than a single role -> second table
+	_, err = db.Exec(createUserRoleQuery, newUser.OnlineID, newUser.Role)
+	if err != nil {
+		return data.User{}, err
+	}
 	return newUser, nil
 }
 
+const updateLoginTimeQuery = "UPDATE shoppers SET lastLogin = CURRENT_TIMESTAMP WHERE id = ?"
+
 func ModifyLastLogin(id int64) (data.User, error) {
-	log.Printf("Updating the last login time to now")
-	_, err := GetUser(id)
+	log.Printf("Updating the last login time for %d to now", id)
+	err := userExists(id)
 	if err != nil {
-		log.Printf("User %d not found", id)
 		return data.User{}, err
 	}
-	query := fmt.Sprintf("UPDATE %s SET lastLogin = current_timestamp() WHERE id = ?", userTable)
-	_, err = db.Exec(query, id)
+	_, err = db.Exec(updateLoginTimeQuery, id)
 	if err != nil {
-		log.Printf("Failed to update last login: %s", err)
+		log.Printf("Failed to update last login for user %d: %s", id, err)
 		return data.User{}, err
 	}
 	user, _ := GetUser(id)
 	return user, nil
 }
 
-func ModifyUserAccountName(id int64, username string) (data.User, error) {
-	log.Printf("Modifying user with ID %d", id)
+const updateUsernameQuery = "UPDATE shoppers SET username = ? WHERE id = ?"
+
+func ModifyUserAccountName(id int64, newUsername string) (data.User, error) {
 	user, err := GetUser(id)
 	if err != nil {
-		log.Printf("Failed to find user with ID %d", id)
 		return data.User{}, err
 	}
-	user.Username = username
-	query := "UPDATE " + userTable + " SET username = ? WHERE id = ?"
-	_, err = db.Exec(query, user.Username, user.OnlineID)
+	user.Username = newUsername
+	_, err = db.Exec(updateUsernameQuery, user.Username, user.OnlineID)
 	if err != nil {
-		log.Printf("Failed to update user with ID %d", id)
 		return data.User{}, err
 	}
 	return user, nil
 }
 
+const updatePasswordQuery = "UPDATE shoppers SET passwd = ? WHERE id = ?"
+
 func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
-	log.Printf("Modifying user with ID %d", id)
 	user, err := GetUser(id)
 	if err != nil {
-		log.Printf("Failed to find user with ID %d", id)
 		return data.User{}, err
 	}
 	hashedPw, err := argon2id.CreateHash(password, argon2id.DefaultParams)
@@ -356,81 +334,96 @@ func ModifyUserAccountPassword(id int64, password string) (data.User, error) {
 		return data.User{}, err
 	}
 	user.Password = hashedPw
-	query := "UPDATE " + userTable + " SET passwd = ? WHERE id = ?"
-	_, err = db.Exec(query, user.Password, user.OnlineID)
+	_, err = db.Exec(updatePasswordQuery, user.Password, user.OnlineID)
 	if err != nil {
-		log.Printf("Failed to update user with ID %d", id)
 		return data.User{}, err
 	}
 	return user, nil
 }
 
+const deleteUserQuery = "DELETE FROM shoppers WHERE id = ?"
+
 func DeleteUserAccount(id int64) error {
-	query := "DELETE FROM " + userTable + " WHERE id = ?"
-	_, err := db.Exec(query, id)
-	if err != nil {
-		log.Printf("Failed to delete user with id %d: %s", id, err)
-		return err
-	}
-	err = DeleteAllSharingForUser(id)
+	_, err := db.Exec(deleteUserQuery, id)
 	if err != nil {
 		return err
 	}
-	return DeleteShoppingListFrom(id)
+	return nil
 }
 
-func ResetUserTable() {
+const dropUserTableQuery = "DELETE FROM shoppers"
+
+func DropUserTable() {
 	log.Print("RESETTING ALL USERS. THIS DISABLES LOGIN FOR ALL EXISTING USERS")
 
-	query := "DELETE FROM " + userTable
-	_, err := db.Exec(query)
+	_, err := db.Exec(dropUserTableQuery)
 	if err != nil {
-		log.Printf("Failed to reset user table: %s", err)
 		return
 	}
 
-	log.Print("RESET USER TABLE")
+	log.Print("USER TABLE DROPPED")
 }
 
 // ------------------------------------------------------------
 // The shopping list handling
 // ------------------------------------------------------------
 
-const shoppingListTable = "shoppinglist"
+const getShoppingListQuery = "SELECT * FROM shopping_list WHERE listId = ? AND createdBy = ?"
 
-func GetShoppingListWithId(id int64, createdBy int64) (int, data.List, error) {
-	query := "SELECT * FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
-	row := db.QueryRow(query, id, createdBy)
-	var dbId int
+func GetRawShoppingListWithId(listId int64, createdBy int64) (data.List, error) {
+	row := db.QueryRow(getShoppingListQuery, listId, createdBy)
 	var list data.List
-	if err := row.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); errors.Is(err, sql.ErrNoRows) {
-		return 0, data.List{}, err
+	if err := row.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version); errors.Is(err, sql.ErrNoRows) {
+		return data.List{}, err
 	}
 	user, err := GetUser(createdBy)
 	if err != nil {
-		log.Printf("User not found: %s", err)
-		return 0, data.List{}, err
+		log.Printf("List Creator not found: %s", err)
+		return data.List{}, err
 	}
 	list.CreatedBy.Name = user.Username
-	return dbId, list, nil
+	return list, nil
 }
 
-func GetAllShoppingLists() ([]data.List, error) {
-	query := "SELECT * FROM " + shoppingListTable
-	rows, err := db.Query(query)
+const getAllShoppingListForUserQuery = "SELECT * FROM shopping_list WHERE createdBy = ?"
+
+func GetRawShoppingListsForUserId(id int64) ([]data.List, error) {
+	rows, err := db.Query(getAllShoppingListForUserQuery, id)
 	if err != nil {
-		log.Printf("Failed to retrieve any list: %s", err)
+		return []data.List{}, err
+	}
+	defer rows.Close()
+	user, err := GetUser(id)
+	if err != nil {
 		return []data.List{}, err
 	}
 	var lists []data.List
 	for rows.Next() {
-		var dbId int64
 		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
-			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
+		if err := rows.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
 			return []data.List{}, err
 		}
-		user, err := GetUser(list.CreatedBy.ID) // TODO: Cache this to reduce the db hits necessary
+		list.CreatedBy.Name = user.Username
+		lists = append(lists, list)
+	}
+	return lists, nil
+}
+
+const getAllShoppingListQuery = "SELECT * FROM shopping_list"
+
+func GetAllRawShoppingLists() ([]data.List, error) {
+	rows, err := db.Query(getAllShoppingListQuery)
+	if err != nil {
+		return []data.List{}, err
+	}
+	defer rows.Close()
+	var lists []data.List
+	for rows.Next() {
+		var list data.List
+		if err := rows.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
+			return []data.List{}, err
+		}
+		user, err := GetUser(list.CreatedBy.ID)
 		if err != nil {
 			return []data.List{}, err
 		}
@@ -440,40 +433,11 @@ func GetAllShoppingLists() ([]data.List, error) {
 	return lists, nil
 }
 
-func GetShoppingList(id int64, createdBy int64) (data.List, error) {
-	_, list, err := GetShoppingListWithId(id, createdBy)
-	return list, err
-}
-
-func GetShoppingListsFromUserId(id int64) ([]data.List, error) {
-	query := "SELECT * FROM " + shoppingListTable + " WHERE createdBy = ?"
-	rows, err := db.Query(query, id)
-	if err != nil {
-		log.Printf("Failed to retrieve any list for user %d: %s", id, err)
-		return []data.List{}, err
-	}
-	var lists []data.List
-	for rows.Next() {
-		var dbId int64
-		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
-			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
-			return []data.List{}, err
-		}
-		user, err := GetUser(list.CreatedBy.ID) // TODO: Cache this to reduce the db hits necessary
-		if err != nil {
-			return []data.List{}, err
-		}
-		list.CreatedBy.Name = user.Username
-		lists = append(lists, list)
-	}
-	return lists, nil
-}
+const getSharedWithShoppingListQuery = "SELECT * FROM shopping_list WHERE (listId, createdBy) IN ((?, ?))"
 
 func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.List, error) {
 	if len(sharedLists) == 0 {
-		log.Print("No ids given.")
-		return []data.List{}, nil
+		return []data.List{}, errors.New("no shared ids given")
 	}
 	// Extract the list ids so we can query them
 	// Join the IDs followed by the createdBy to make a fitting query
@@ -482,31 +446,34 @@ func GetShoppingListsFromSharedListIds(sharedLists []data.ListShared) ([]data.Li
 	for _, shared := range sharedLists {
 		listIds = append(listIds, strconv.FormatInt(shared.ListId, 10))
 		listIds = append(listIds, strconv.FormatInt(shared.CreatedBy, 10))
-		// listIds = append(listIds, int(shared.ListId))
 	}
 	// log.Printf("Searching for %d lists: %v", len(listIds), listIds)
-	query := "SELECT * FROM " + shoppingListTable + " WHERE (listId, createdBy) IN ((?,?)" + strings.Repeat(",(?,?)", len(sharedLists)-1) + ")"
+	query := getSharedWithShoppingListQuery
+	if len(listIds) > 1 {
+		getSharedWithShoppingListQueryInAppendableFormat := strings.TrimSuffix(getSharedWithShoppingListQuery, ")")
+		query = getSharedWithShoppingListQueryInAppendableFormat + strings.Repeat(",(?,?)", len(sharedLists)-1) + ")"
+	}
 	// log.Printf("Query string: %s", query)
 	rows, err := db.Query(query, listIds...)
 	if err != nil {
 		sharedWithId := -1
 		if len(sharedLists) > 0 {
-			sharedWithId = int(sharedLists[0].ID)
+			sharedWithId = int(sharedLists[0].SharedWithId)
 		}
 		log.Printf("Failed to retrieve any shared list for user %d: %s", sharedWithId, err)
 		return []data.List{}, err
 	}
+	defer rows.Close()
 	var lists []data.List
 	for rows.Next() {
-		var dbId int64
 		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
-			log.Printf("Failed to query table: %s: %s", shoppingListTable, err)
+		if err := rows.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
 			return []data.List{}, err
 		}
-		creatorInfo, err := GetUserInWireFormat(list.CreatedBy.ID)
+		creatorInfo, err := GetUser(list.CreatedBy.ID)
 		if err != nil {
-			log.Printf("Failed to find info of user that created the list")
+			log.Printf("Cannot find list creator %d and skip: %s", list.CreatedBy.ID, err)
+			continue
 		}
 		list.CreatedBy.Name = creatorInfo.Username
 		lists = append(lists, list)
@@ -541,31 +508,34 @@ func checkItemCorrect(item data.ItemWire) (data.Item, error) {
 	return converted, nil
 }
 
-func createOrUpdateShoppingListBase(list data.List) error {
+const updateRawShoppingListQuery = "UPDATE shopping_list SET name = ?, lastEdited = CURRENT_TIMESTAMP, version = ? WHERE listId = ? AND createdBy = ?"
+
+func updateRawShoppingList(list data.List) (data.List, error) {
+	existingList, err := GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
+	if err != nil {
+		return data.List{}, err
+	}
+	if err := checkListCorrect(list); err != nil {
+		log.Printf("List not in correct format for insertion: %s", err)
+		return data.List{}, err
+	}
+	if existingList.Version >= list.Version {
+		return data.List{}, errors.New("newer list exists")
+	}
+	_, err = db.Exec(updateRawShoppingListQuery, list.Title, list.Version, list.ListId, list.CreatedBy.ID)
+	return list, err
+}
+
+const createRawShoppingListQuery = "INSERT INTO shopping_list (listId,createdBy,name,created,lastEdited,version) VALUES (?, ?, ?, ?, ?, ?)"
+
+func createRawShoppingList(list data.List) error {
 	if err := checkListCorrect(list); err != nil {
 		log.Printf("List not in correct format for insertion: %s", err)
 		return err
 	}
-	// Check if list exists and update / insert the values in this case
-	query := "INSERT INTO " + shoppingListTable + " (listId, name, createdBy, created, lastEdited, version) VALUES (?, ?, ?, ?, ?, ?)"
-	replacing := false
-	var result sql.Result
-	if databaseListId, _, err := GetShoppingListWithId(list.ListId, list.CreatedBy.ID); err == nil {
-		// Replace existing
-		replacing = true
-		log.Printf("List %d from %d exists. Replacing...", list.ListId, list.CreatedBy.ID)
-		query = fmt.Sprintf("UPDATE %s SET name = ?, lastEdited = ?, version = ? WHERE id = ?", shoppingListTable)
-		result, err = db.Exec(query, list.Title, list.LastUpdated, list.Version, databaseListId)
-		if err != nil {
-			return err
-		}
-	}
-	if !replacing {
-		var err error
-		result, err = db.Exec(query, list.ListId, list.Title, list.CreatedBy.ID, list.CreatedAt, list.LastUpdated, list.Version)
-		if err != nil {
-			return err
-		}
+	result, err := db.Exec(createRawShoppingListQuery, list.ListId, list.CreatedBy.ID, list.Title, list.CreatedAt, list.LastUpdated, list.Version)
+	if err != nil {
+		return err
 	}
 	if _, err := result.LastInsertId(); err != nil {
 		return err
@@ -625,8 +595,11 @@ func mapItemsIntoShoppingList(list data.List, itemIds []int64, addedBy []int64) 
 
 func CreateOrUpdateShoppingList(list data.List) error {
 	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Title, list.ListId, list.CreatedBy)
-	if err := createOrUpdateShoppingListBase(list); err != nil {
-		return err
+	if err := createRawShoppingList(list); err != nil {
+		_, err = updateRawShoppingList(list)
+		if err != nil {
+			return err
+		}
 	}
 	itemIds, addedBy, err := addOrRemoveItemsInShoppingList(list)
 	if err != nil {
@@ -638,67 +611,51 @@ func CreateOrUpdateShoppingList(list data.List) error {
 	return nil
 }
 
-// TODO: rework this
-func CreateShoppingList(list data.List) error {
-	log.Printf("Creating new shopping list '%s'", list.Title)
-	// TODO: abort if the list already exists
-	// because that is bad usage of this function
-	if err := createOrUpdateShoppingListBase(list); err != nil {
-		return err
-	}
-	itemIds, addedBy, err := addOrRemoveItemsInShoppingList(list)
-	if err != nil {
-		return err
-	}
-	if err := mapItemsIntoShoppingList(list, itemIds, addedBy); err != nil {
-		return err
-	}
-	return nil
-}
+const deleteShoppingListQuery = "DELETE FROM shopping_list WHERE listId = ? AND createdBy = ?"
 
 func DeleteShoppingList(id int64, createdBy int64) error {
-	query := "DELETE FROM " + shoppingListTable + " WHERE listId = ? AND createdBy = ?"
-	_, err := db.Exec(query, id, createdBy)
+	_, err := db.Exec(deleteShoppingListQuery, id, createdBy)
 	if err != nil {
-		log.Printf("Failed to delete shopping list with id %d", id)
-		return err
-	}
-	if err := DeleteSharingOfList(id, createdBy); err != nil {
-		log.Printf("Failed to delete sharing of list %d", id)
-		return err
-	}
-	return DeleteAllItemsInList(id, createdBy)
-}
-
-func DeleteShoppingListFrom(userId int64) error {
-	query := "DELETE FROM " + shoppingListTable + " WHERE createdBy = ?"
-	_, err := db.Exec(query, userId)
-	if err != nil {
-		log.Printf("Failed to delete shopping lists for user %d: %s", userId, err)
 		return err
 	}
 	return nil
 }
 
-func ResetShoppingListTable() {
-	log.Print("RESETTING ALL SHOPPING LISTS. CANNOT BE REVERTED!")
+const deleteAllShoppingListFromQuery = "DELETE FROM shopping_list WHERE createdBy = ?"
 
-	query := "DELETE FROM " + shoppingListTable
-	_, err := db.Exec(query)
+func DeleteShoppingListFrom(createdBy int64) error {
+	_, err := db.Exec(deleteAllShoppingListFromQuery, createdBy)
 	if err != nil {
-		log.Printf("Failed to reset shopping list table: %s", err)
+		return err
+	}
+	return nil
+}
+
+const dropShoppingListTableQuery = "DELETE FROM shopping_list"
+
+func DropShoppingListTable() {
+	log.Print("DROPPING SHOPPING LIST TABLE. CANNOT BE REVERTED!")
+
+	_, err := db.Exec(dropShoppingListTableQuery)
+	if err != nil {
 		return
 	}
 
-	log.Print("RESET SHOPPING TABLE")
+	log.Print("DROPPED SHOPPING TABLE")
 }
 
 // ------------------------------------------------------------
 
-const sharedListTable = "sharedList"
+const listIsSharedWithUser = "SELECT * FROM shared_list WHERE sharedWithId = ? OR sharedWithId = -1"
+
+func GetListsSharedWithUser(userId int64) ([]data.ListShared, error) {
+	return []data.ListShared{}, nil
+}
+
+const sharedListTable = ""
 
 func GetSharedListFromUserAndListId(listId int64, createdBy int64, sharedWith int64) ([]data.ListShared, error) {
-	query := "SELECT * FROM " + sharedListTable + " WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
+	query := "SELECT * FROM " + "sharedListTable" + " WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
 	rows, err := db.Query(query, listId, createdBy, sharedWith)
 	if err != nil {
 		return []data.ListShared{}, err
@@ -706,7 +663,7 @@ func GetSharedListFromUserAndListId(listId int64, createdBy int64, sharedWith in
 	var sharedLists []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err == sql.ErrNoRows {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWithId, &shared.Created); err == sql.ErrNoRows {
 			return []data.ListShared{}, err
 		}
 		sharedLists = append(sharedLists, shared)
@@ -724,7 +681,7 @@ func GetSharedListFromListId(listId int64) ([]data.ListShared, error) {
 	var list []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWithId, &shared.Created); err != nil {
 			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
 			return []data.ListShared{}, err
 		}
@@ -743,7 +700,7 @@ func GetSharedListForUserId(userId int64) ([]data.ListShared, error) {
 	var list []data.ListShared
 	for rows.Next() {
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWithId, &shared.Created); err != nil {
 			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
 			return []data.ListShared{}, err
 		}
@@ -765,7 +722,7 @@ func IsListSharedWithUser(listId int64, createdBy int64, userId int64) error {
 			log.Printf("Expected only a single shared row but got more than one!")
 		}
 		var shared data.ListShared
-		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWith, &shared.Created); err != nil {
+		if err := rows.Scan(&shared.ID, &shared.ListId, &shared.CreatedBy, &shared.SharedWithId, &shared.Created); err != nil {
 			log.Printf("Failed to query table: %s: %s", sharedListTable, err)
 			return err
 		}
@@ -793,7 +750,7 @@ func CheckUserAndListExist(listId int64, createdBy int64, sharedWith int64) erro
 func CreateOrUpdateSharedList(listId int64, createdBy int64, sharedWith int64) (data.ListShared, error) {
 	sharedExists, err := GetSharedListFromUserAndListId(listId, createdBy, sharedWith)
 	if err == nil && len(sharedExists) > 0 {
-		log.Printf("Shared of list %d for user %d exists", listId, sharedExists[0].SharedWith)
+		log.Printf("Shared of list %d for user %d exists", listId, sharedExists[0].SharedWithId)
 		return sharedExists[0], nil
 	}
 	if err := CheckUserAndListExist(listId, createdBy, sharedWith); err != nil {
@@ -802,13 +759,13 @@ func CreateOrUpdateSharedList(listId int64, createdBy int64, sharedWith int64) (
 	}
 	query := "INSERT INTO " + sharedListTable + " (listId, createdBy, sharedWithId, created) VALUES (?, ?, ?, ?)"
 	shared := data.ListShared{
-		ID:         0,
-		ListId:     listId,
-		CreatedBy:  createdBy,
-		SharedWith: []int64{sharedWith},
-		Created:    time.Now().Local(),
+		ID:           0,
+		ListId:       listId,
+		CreatedBy:    createdBy,
+		SharedWithId: []int64{sharedWith},
+		Created:      time.Now().Local(),
 	}
-	result, err := db.Exec(query, shared.ListId, shared.CreatedBy, shared.SharedWith[0], shared.Created)
+	result, err := db.Exec(query, shared.ListId, shared.CreatedBy, shared.SharedWithId[0], shared.Created)
 	if err != nil {
 		log.Printf("Failed to insert sharing into database: %s", err)
 		return data.ListShared{}, err
@@ -1571,7 +1528,7 @@ func PrintSharingTable() {
 	log.Print("------------- Sharing Table -------------")
 	for rows.Next() {
 		var sharing data.ListShared
-		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.CreatedBy, &sharing.SharedWith, &sharing.Created); err != nil {
+		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.CreatedBy, &sharing.SharedWithId, &sharing.Created); err != nil {
 			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
 		}
 		log.Printf("%v", sharing)

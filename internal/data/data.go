@@ -1,6 +1,8 @@
 package data
 
-import "time"
+import (
+	"time"
+)
 
 // Helping file containing all data structures
 
@@ -14,7 +16,7 @@ import "time"
 // Operational data structures
 // ------------------------------------------------------------
 
-// ? Shouldn't this already be contained in the framework and http status?
+// ? Shouldn't this already be contained in the framework and http status?,
 type Answer struct {
 	Status string
 }
@@ -32,6 +34,24 @@ type User struct {
 	LastLogin time.Time `json:"lastLogin,omitempty"` // <- what do we need this information for? would only be relevant when displaying or using this in the app
 }
 
+func (u *User) ToWireFormat() User {
+	return User{
+		OnlineID: u.OnlineID,
+		Username: u.Username,
+		Role:     u.Role,
+	}
+}
+
+const (
+	USER  = "us"
+	ADMIN = "ad"
+)
+
+type Role struct {
+	UserID int64  `json:"userId"`
+	Role   string `json:"role"`
+}
+
 // ------------------------------------------------------------
 // The list data structures
 // ------------------------------------------------------------
@@ -43,18 +63,17 @@ type ListCreator struct {
 }
 
 type List struct {
-	ListId int64  `json:"listId"`
-	Title  string `json:"title"`
-	// Elements    int32       `json:"elements"`
+	ListId      int64       `json:"listId"`
 	CreatedBy   ListCreator `json:"createdBy"`
+	Title       string      `json:"title"`
 	CreatedAt   time.Time   `json:"createdAt,omitempty"`
 	LastUpdated time.Time   `json:"lastUpdated"`
-	Items       []ItemWire  `json:"items"`
 	Version     int64       `json:"version"`
+	Items       []ItemWire  `json:"items"`
 }
 
 type Item struct {
-	ItemId int64  `json:"itemId"` // Only for interal reasons
+	ItemId int64  `json:"itemId"` // Only for internal reasons
 	Name   string `json:"name"`
 	Icon   string `json:"icon,omitempty"`
 }
@@ -78,11 +97,10 @@ type ListItem struct {
 }
 
 type ListShared struct {
-	ID         int64     `json:"shareId,omitempty"`
-	ListId     int64     `json:"listId"`
-	CreatedBy  int64     `json:"createdBy"`
-	SharedWith []int64   `json:"sharedWith"`
-	Created    time.Time `json:"created,omitempty"`
+	ListId       int64     `json:"listId"`
+	CreatedBy    int64     `json:"createdBy"`
+	SharedWithId int64     `json:"sharedWithId"`
+	Created      time.Time `json:"created,omitempty"`
 }
 
 type ListSharedWire struct {

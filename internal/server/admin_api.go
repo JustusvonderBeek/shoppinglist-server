@@ -20,7 +20,7 @@ func getAllUsers(c *gin.Context) {
 }
 
 func getAllLists(c *gin.Context) {
-	lists, err := database.GetAllShoppingLists()
+	lists, err := database.GetAllRawShoppingLists()
 	if err != nil {
 		log.Printf("Failed to get all lists: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)

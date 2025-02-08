@@ -178,7 +178,7 @@ func getAllShoppingListsForUser(c *gin.Context) {
 		return
 	}
 
-	ownLists, err := database.GetShoppingListsFromUserId(int64(userId))
+	ownLists, err := database.GetRawShoppingListsForUserId(int64(userId))
 	if err != nil {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
