@@ -5,7 +5,8 @@
 -- OR directly:
 -- sudo mysql < ./create_mysql_db.sql
 
-CREATE DATABASE IF NOT EXISTS shoppinglist;
+DROP DATABASE IF EXISTS shoppinglist;
+CREATE DATABASE shoppinglist;
 
 use shoppinglist;
 
@@ -22,21 +23,6 @@ FLUSH PRIVILEGES;
 
 SHOW GRANTS FOR '<username>'@'<locality>';
 
--- Start creating the database tables
-
-DROP TABLE IF EXISTS history; -- What has been bought in the past
-DROP TABLE IF EXISTS role; -- The role and access right system of our service
-DROP TABLE IF EXISTS sharedList; -- Which user can access which list
-DROP TABLE IF EXISTS itemsPerList; -- The mapping of items to lists
-DROP TABLE IF EXISTS items; -- The items that can be shopped and shared
-DROP TABLE IF EXISTS sharedRecipe; -- Which user can access which recipe
-DROP TABLE IF EXISTS ingredientPerRecipe; -- The items that make a recipe
-DROP TABLE IF EXISTS descriptionPerRecipe; -- The descriptions that make a recipe
-DROP TABLE IF EXISTS shoppinglist; -- Holding generic list information
-DROP TABLE IF EXISTS recipe; -- The description of recipes
-DROP TABLE IF EXISTS shoppers;
--- The users of our system
-
 -- Table for AUTHENTICATION + AUTHORIZATION (mapping what lists / items can be seen)
 
 CREATE TABLE shoppers
@@ -46,13 +32,13 @@ CREATE TABLE shoppers
     passwd    VARCHAR(512) NOT NULL,
     created   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     lastLogin DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE role
 (
     user_id BIGINT NOT NULL,
-    role    VARCHAR(2) DEFAULT 'US',
+    role VARCHAR(2) NOT NULL DEFAULT 'US',
     PRIMARY KEY (user_id, role),
     FOREIGN KEY (user_id) REFERENCES shoppers (id) ON DELETE CASCADE
 );
@@ -69,7 +55,7 @@ CREATE TABLE items
 
 -- Table holding the list information + the mapping of items to lists
 
-CREATE TABLE shoppinglist
+CREATE TABLE shopping_list
 (
     listId     BIGINT       NOT NULL,
     createdBy  BIGINT       NOT NULL,
@@ -81,7 +67,7 @@ CREATE TABLE shoppinglist
     FOREIGN KEY (createdBy) REFERENCES shoppers (id) ON DELETE CASCADE
 );
 
-CREATE TABLE itemsPerList
+CREATE TABLE items_per_list
 (
     listId    BIGINT  NOT NULL,
     createdBy BIGINT  NOT NULL,
@@ -90,19 +76,19 @@ CREATE TABLE itemsPerList
     checked   BOOLEAN NOT NULL,
     addedBy   BIGINT,
     PRIMARY KEY (listId, createdBy, itemId),
-    FOREIGN KEY (listId, createdBy) REFERENCES shoppinglist (listId, createdBy) ON DELETE CASCADE,
+    FOREIGN KEY (listId, createdBy) REFERENCES shopping_list (listId, createdBy) ON DELETE CASCADE,
     FOREIGN KEY (itemId) REFERENCES items (id) ON DELETE CASCADE,
     FOREIGN KEY (addedBy) REFERENCES shoppers (id) ON DELETE SET NULL
 );
 
-CREATE TABLE sharedList
+CREATE TABLE shared_list
 (
     listId       BIGINT   NOT NULL,
     createdBy    BIGINT   NOT NULL,
     sharedWithId BIGINT   NOT NULL,
     created      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (listId, createdBy, sharedWithId),
-    FOREIGN KEY (listId, createdBy) REFERENCES shoppinglist (listId, createdBy) ON DELETE CASCADE,
+    FOREIGN KEY (listId, createdBy) REFERENCES shopping_list (listId, createdBy) ON DELETE CASCADE,
     FOREIGN KEY (sharedWithId) REFERENCES shoppers (id) ON DELETE CASCADE
 );
 
@@ -121,7 +107,7 @@ CREATE TABLE recipe
     FOREIGN KEY (createdBy) REFERENCES shoppers (id) ON DELETE CASCADE
 );
 
-CREATE TABLE ingredientPerRecipe
+CREATE TABLE ingredient_per_recipe
 (
     recipeId     INT         NOT NULL,
     createdBy    BIGINT      NOT NULL,
@@ -133,7 +119,7 @@ CREATE TABLE ingredientPerRecipe
     FOREIGN KEY (itemId) REFERENCES items (id) ON DELETE CASCADE
 );
 
-CREATE TABLE descriptionPerRecipe
+CREATE TABLE description_per_recipe
 (
     recipeId         INT           NOT NULL,
     createdBy        BIGINT        NOT NULL,
@@ -143,7 +129,7 @@ CREATE TABLE descriptionPerRecipe
     FOREIGN KEY (recipeId, createdBy) REFERENCES recipe (recipeId, createdBy) ON DELETE CASCADE
 );
 
-CREATE TABLE sharedRecipe
+CREATE TABLE shared_recipe
 (
     recipeId   INT    NOT NULL,
     createdBy  BIGINT NOT NULL,
