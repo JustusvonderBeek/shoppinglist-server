@@ -62,8 +62,8 @@ func TestCreatingList(t *testing.T) {
 	}
 	PrintShoppingListTable()
 	log.Print("TestCreatingList successfully completed")
-	ResetShoppingListTable()
-	ResetUserTable()
+	DropShoppingListTable()
+	DropUserTable()
 }
 
 func TestUpdatingList(t *testing.T) {
@@ -91,7 +91,7 @@ func TestUpdatingList(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	lists, err := GetShoppingListsFromUserId(user.OnlineID)
+	lists, err := GetRawShoppingListsForUserId(user.OnlineID)
 	if err != nil {
 		log.Printf("Failed to get lists for user: %s", err)
 		t.FailNow()
@@ -101,8 +101,8 @@ func TestUpdatingList(t *testing.T) {
 		t.FailNow()
 	}
 	log.Print("TestUpdatingList successfully completed")
-	ResetShoppingListTable()
-	ResetUserTable()
+	DropShoppingListTable()
+	DropUserTable()
 }
 
 func TestModifyListName(t *testing.T) {
@@ -150,7 +150,7 @@ func TestModifyListName(t *testing.T) {
 		t.FailNow()
 	}
 	log.Print("TestModifyListName successfully completed")
-	ResetShoppingListTable()
+	DropShoppingListTable()
 	ResetUserTable()
 }
 
@@ -189,5 +189,5 @@ func TestDeletingList(t *testing.T) {
 	}
 	PrintShoppingListTable()
 	log.Print("TestDeletingList successfully completed")
-	ResetShoppingListTable()
+	DropShoppingListTable()
 }

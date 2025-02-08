@@ -615,7 +615,7 @@ func createListSharing(listId int64, createdBy int64, userId int64) (data.ListSh
 	if err != nil {
 		return data.ListShared{}, err
 	}
-	if sharing.ID == 0 || sharing.ListId != listId || sharing.SharedWith[0] != userId {
+	if sharing.ID == 0 || sharing.ListId != listId || sharing.SharedWithId[0] != userId {
 		return data.ListShared{}, errors.New("sharing was incorrectly stored")
 	}
 	return sharing, nil
@@ -678,7 +678,7 @@ func TestCreatingList(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetItemTable()
 	database.ResetItemPerListTable()
 	// Should already delete all mappings
@@ -745,7 +745,7 @@ func TestGetAllOwnLists(t *testing.T) {
 	}
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	DeleteTestUser(t)
 }
 
@@ -835,7 +835,7 @@ func TestGetAllLists(t *testing.T) {
 	}
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetSharedListTable()
 	DeleteTestUser(t)
 }
@@ -931,7 +931,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 	database.PrintShoppingListTable()
 	database.PrintItemTable()
 	database.PrintItemPerListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetSharedListTable()
 	database.ResetItemPerListTable()
 	database.ResetItemTable()
@@ -1007,7 +1007,7 @@ func TestRemoveList(t *testing.T) {
 	assert.NotNil(t, err)
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetItemTable()
 	database.ResetItemPerListTable()
 	DeleteTestUser(t)
@@ -1048,11 +1048,11 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	}
 	bearer := "Bearer " + token
 	sharedWith := data.ListShared{
-		ID:         0,
-		ListId:     offlineList[0].ListId,
-		CreatedBy:  user.OnlineID,
-		SharedWith: []int64{int64(sharedWithUserId)},
-		Created:    time.Now().UTC(),
+		ID:           0,
+		ListId:       offlineList[0].ListId,
+		CreatedBy:    user.OnlineID,
+		SharedWithId: []int64{int64(sharedWithUserId)},
+		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
 	if err != nil {
@@ -1069,7 +1069,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetSharedListTable()
 	database.ResetItemPerListTable()
 	database.ResetItemTable()
@@ -1118,11 +1118,11 @@ func TestCreateSharing(t *testing.T) {
 	}
 	bearer := "Bearer " + token
 	sharedWith := data.ListShared{
-		ID:         0,
-		ListId:     offlineList[0].ListId,
-		CreatedBy:  user.OnlineID,
-		SharedWith: []int64{sharedWithUserId},
-		Created:    time.Now().UTC(),
+		ID:           0,
+		ListId:       offlineList[0].ListId,
+		CreatedBy:    user.OnlineID,
+		SharedWithId: []int64{sharedWithUserId},
+		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
 	if err != nil {
@@ -1142,10 +1142,10 @@ func TestCreateSharing(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, 1, len(sharedDb))
 	assert.Equal(t, sharedWith.ListId, sharedDb[0].ListId)
-	assert.Equal(t, sharedWith.SharedWith, sharedDb[0].SharedWith)
+	assert.Equal(t, sharedWith.SharedWithId, sharedDb[0].SharedWithId)
 
 	database.PrintShoppingListTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetSharedListTable()
 	DeleteTestUser(t)
 }
@@ -1180,11 +1180,11 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	bearer := "Bearer " + token
 	sharedWithUserId := 1234
 	sharedWith := data.ListShared{
-		ID:         0,
-		ListId:     list.ListId,
-		CreatedBy:  user.OnlineID,
-		SharedWith: []int64{int64(sharedWithUserId)},
-		Created:    time.Now().UTC(),
+		ID:           0,
+		ListId:       list.ListId,
+		CreatedBy:    user.OnlineID,
+		SharedWithId: []int64{int64(sharedWithUserId)},
+		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
 	if err != nil {
@@ -1200,6 +1200,6 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	database.PrintSharingTable()
-	database.ResetShoppingListTable()
+	database.DropShoppingListTable()
 	database.ResetSharedListTable()
 }
