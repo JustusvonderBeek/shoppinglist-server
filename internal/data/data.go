@@ -43,13 +43,24 @@ func (u *User) ToWireFormat() User {
 }
 
 const (
-	USER  = "us"
-	ADMIN = "ad"
+	USER  = "US"
+	ADMIN = "AD"
 )
 
 type Role struct {
 	UserID int64  `json:"userId"`
 	Role   string `json:"role"`
+}
+
+func (r *Role) ToEnumConstant() string {
+	switch r.Role {
+	case "AD":
+		return ADMIN
+	case "US":
+		return USER
+	default:
+		return USER
+	}
 }
 
 // ------------------------------------------------------------

@@ -166,14 +166,21 @@ func convertStringToTime(strTime string) time.Time {
 
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-const getUserQuery = "SELECT * FROM shoppers WHERE id = ?"
+const getUserQuery = "SELECT id,username,passwd,created,lastLogin FROM shoppers WHERE id = ?"
+const getUserRoleQuery = "SELECT role FROM role WHERE user_id = ?"
 
 func GetUser(id int64) (data.User, error) {
 	row := db.QueryRow(getUserQuery, id)
 	var user data.User
-	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Role, &user.Created, &user.LastLogin); errors.Is(err, sql.ErrNoRows) {
+	if err := row.Scan(&user.OnlineID, &user.Username, &user.Password, &user.Created, &user.LastLogin); errors.Is(err, sql.ErrNoRows) || err != nil {
 		return data.User{}, err
 	}
+	roleRow := db.QueryRow(getUserRoleQuery, id)
+	var role data.Role
+	if err := roleRow.Scan(&role.Role); err != nil {
+		return data.User{}, err
+	}
+	user.Role = role.ToEnumConstant()
 	return user, nil
 }
 
@@ -281,6 +288,7 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 		return data.User{}, err
 	}
 	// User can have more than a single role -> second table
+	log.Printf("trying to add %s", newUser.OnlineID)
 	_, err = db.Exec(createUserRoleQuery, newUser.OnlineID, newUser.Role)
 	if err != nil {
 		return data.User{}, err
