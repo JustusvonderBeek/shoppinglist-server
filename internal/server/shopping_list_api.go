@@ -31,7 +31,7 @@ func createShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	err = database.CreateShoppingList(list)
+	err = database.CreateOrUpdateShoppingList(list)
 	if err != nil {
 		log.Printf("Failed to create list: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -138,7 +138,7 @@ func getShoppingList(c *gin.Context) {
 			return
 		}
 	}
-	list, err := database.GetShoppingList(int64(listId), int64(createdBy))
+	list, err := database.GetRawShoppingListWithId(int64(listId), int64(createdBy))
 	if err != nil {
 		log.Printf("Failed to get mapping for id %d: %s", listId, err)
 		c.AbortWithStatus(http.StatusNotFound)
@@ -150,21 +150,7 @@ func getShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	for _, item := range itemsInList {
-		dbItem, err := database.GetItem(item.ItemId)
-		if err != nil {
-			log.Printf("Failed to find item '%d' in database", item.ItemId)
-			continue
-		}
-		listItem := data.ItemWire{
-			Name:     dbItem.Name,
-			Icon:     dbItem.Icon,
-			Quantity: item.Quantity,
-			Checked:  item.Checked,
-			AddedBy:  item.AddedBy,
-		}
-		list.Items = append(list.Items, listItem)
-	}
+	list.Items = itemsInList
 	c.JSON(http.StatusOK, list)
 }
 
@@ -178,57 +164,38 @@ func getAllShoppingListsForUser(c *gin.Context) {
 		return
 	}
 
-	ownLists, err := database.GetRawShoppingListsForUserId(int64(userId))
+	ownAndSharedLists, err := database.GetRawShoppingListsForUserId(int64(userId))
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	log.Printf("Got %d lists for user", len(ownLists))
+	log.Printf("Got %d lists for user", len(ownAndSharedLists))
 
 	// Asking the database for all the lists that are shared with the current user
-	sharedListIds, err := database.GetSharedListForUserId(int64(userId))
+	sharedListIds, err := database.GetListIdsSharedWithUser(int64(userId))
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	log.Printf("Got %d shared lists for user", len(sharedListIds))
 	// Get full information for the shared lists
-	sharedLists, err := database.GetShoppingListsFromSharedListIds(sharedListIds)
+	sharedLists, err := database.GetRawShoppingListsByIDs(sharedListIds)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	ownLists = append(ownLists, sharedLists...)
+	ownAndSharedLists = append(ownAndSharedLists, sharedLists...)
 	// Asking DB to get the items in this list
-	for i, list := range ownLists {
+	for i, list := range ownAndSharedLists {
 		itemsPerList, err := database.GetItemsInList(list.ListId, list.CreatedBy.ID)
 		if err != nil {
 			log.Printf("Failed to get items for list %d: %s", list.ListId, err)
-			ownLists[i].Items = []data.ItemWire{}
+			ownAndSharedLists[i].Items = []data.ItemWire{}
 			continue
 		}
-		if len(itemsPerList) == 0 {
-			ownLists[i].Items = []data.ItemWire{}
-			continue
-		}
-		// Unpack and convert into wire format
-		for _, item := range itemsPerList {
-			dbItem, err := database.GetItem(item.ItemId)
-			if err != nil {
-				log.Printf("Failed to get information for item %d in list", i)
-				continue
-			}
-			wireItem := data.ItemWire{
-				Name:     dbItem.Name,
-				Icon:     dbItem.Icon,
-				Quantity: item.Quantity,
-				Checked:  item.Checked,
-				AddedBy:  item.AddedBy,
-			}
-			ownLists[i].Items = append(ownLists[i].Items, wireItem)
-		}
+		ownAndSharedLists[i].Items = itemsPerList
 	}
-	c.JSON(http.StatusOK, ownLists)
+	c.JSON(http.StatusOK, ownAndSharedLists)
 }
 
 func deleteShoppingList(c *gin.Context) {
@@ -253,7 +220,7 @@ func deleteShoppingList(c *gin.Context) {
 	}
 	// User can only delete the own lists, therefore check only if the list
 	// is owned by the user
-	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	list, err := database.GetRawShoppingListWithId(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("Failed to get mapping for listId %d: %s", listId, err)
 		c.AbortWithStatus(http.StatusNotFound)
@@ -305,7 +272,7 @@ func shareShoppingList(c *gin.Context) {
 		return
 	}
 	// Abort if the user does not own the list
-	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	list, err := database.GetRawShoppingListWithId(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -349,7 +316,7 @@ func unshareShoppingList(c *gin.Context) {
 		return
 	}
 	// Check if the user owns the list that should be unshared
-	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	list, err := database.GetRawShoppingListWithId(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
 		c.AbortWithStatus(http.StatusForbidden)
@@ -393,7 +360,7 @@ func updateShareShoppingList(c *gin.Context) {
 		return
 	}
 	// Check if the user owns the list that should be unshared
-	list, err := database.GetShoppingList(int64(listId), int64(userId))
+	list, err := database.GetRawShoppingListWithId(int64(listId), int64(userId))
 	if err != nil {
 		log.Printf("listId %d for given user %d not found: %s", listId, userId, err)
 		c.AbortWithStatus(http.StatusForbidden)

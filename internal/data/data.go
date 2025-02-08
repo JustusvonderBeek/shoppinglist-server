@@ -62,6 +62,11 @@ type ListCreator struct {
 	Name string `json:"username"`
 }
 
+type ListPK struct {
+	ListID    int64
+	CreatedBy int64
+}
+
 type List struct {
 	ListId      int64       `json:"listId"`
 	CreatedBy   ListCreator `json:"createdBy"`
@@ -87,12 +92,11 @@ type ItemWire struct {
 }
 
 type ListItem struct {
-	ID        int64 `json:"id,omitempty"`
 	ListId    int64 `json:"listId"`
+	CreatedBy int64 `json:"createdBy"`
 	ItemId    int64 `json:"itemId"`
 	Quantity  int64 `json:"quantity,omitempty"`
 	Checked   bool  `json:"checked,omitempty"`
-	CreatedBy int64 `json:"createdBy,omitempty"`
 	AddedBy   int64 `json:"addedBy,omitempty"`
 }
 
