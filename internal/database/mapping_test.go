@@ -172,7 +172,7 @@ func TestDeleteMapping(t *testing.T) {
 		t.FailNow()
 	}
 	PrintItemPerListTable()
-	err = DeleteItemInList(created.ItemId, created.ListId, created.CreatedBy)
+	err = DeleteItemInList(created.ListId, created.CreatedBy, created.ItemId)
 	if err != nil {
 		log.Printf("Failed to delete mapping")
 		t.FailNow()

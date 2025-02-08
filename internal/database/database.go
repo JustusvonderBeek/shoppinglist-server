@@ -14,7 +14,6 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
@@ -1027,17 +1026,15 @@ func ResetItemTable() {
 // Recipes Handling
 // ------------------------------------------------------------
 
-var recipeTable = "recipe"
+const createRawRecipeQuery = "INSERT INTO recipe (recipeId,createdBy,name,createdAt,lastUpdate,version,defaultPortion) VALUES (?,?,?,?,?,?,?)"
 
 func CreateRecipe(recipe data.Recipe) error {
-	log.Printf("Creating new recipe with name '%s'", recipe.Name)
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, name, createdAt, lastUpdate, version, defaultPortion) VALUES (?, ?, ?, ?, ?, ?, ?)", recipeTable)
-	_, err := db.Exec(query, recipe.RecipeId, recipe.CreatedBy.ID, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.Version, recipe.DefaultPortion)
+	_, err := db.Exec(createRawRecipeQuery, recipe.RecipeId, recipe.CreatedBy.ID, recipe.Name, recipe.CreatedAt, recipe.LastUpdate, recipe.Version, recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to insert values into database: %s", err)
 		return err
 	}
-	err = insertDescription(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Description)
+	err = insertDescriptions(recipe.RecipeId, recipe.CreatedBy.ID, recipe.Description)
 	if err != nil {
 		log.Printf("Failed to create recipe '%s' because of descriptions: %s", recipe.Name, err)
 		return err
@@ -1050,92 +1047,82 @@ func CreateRecipe(recipe data.Recipe) error {
 	return nil
 }
 
-var recipeDescriptionTable = "descriptionPerRecipe"
+const insertRecipeDescriptionQuery = "INSERT INTO description_per_recipe (recipeId,createdBy,descriptionOrder,description) VALUE (?,?,?,?)"
 
-func insertDescription(recipeId int64, createdBy int64, descriptions []data.RecipeDescription) error {
+func insertDescriptions(recipeId int64, createdBy int64, descriptions []data.RecipeDescription) error {
 	log.Printf("Inserting %d recipe descriptions", len(descriptions))
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, description, descriptionOrder) VALUES (?, ?, ?, ?)", recipeDescriptionTable)
-	for _, v := range descriptions {
-		_, err := db.Exec(query, recipeId, createdBy, v.Step, v.Order)
-		if err != nil {
-			log.Printf("Failed to insert %v into table: %s", v, err)
-			return err
-		}
+	query := insertRecipeDescriptionQuery
+	if len(descriptions) > 1 {
+		query = insertRecipeDescriptionQuery + strings.Repeat(",(?,?,?,?)", len(descriptions)-1)
 	}
-	return nil
+	flattenedParameter := make([]interface{}, 0)
+	for _, v := range descriptions {
+		flattenedParameter = append(flattenedParameter, recipeId)
+		flattenedParameter = append(flattenedParameter, createdBy)
+		flattenedParameter = append(flattenedParameter, v.Order)
+		flattenedParameter = append(flattenedParameter, v.Step)
+	}
+	_, err := db.Exec(query, flattenedParameter...)
+	return err
 }
 
-var recipeIngredientTable = "ingredientPerRecipe"
+const insertRecipeIngredientsQuery = "INSERT INTO ingredient_per_recipe (recipeId,createdBy,itemId,quantity,quantityType) VALUES (?,?,?,?,?)"
 
 func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingredient) error {
 	log.Printf("Insert %d recipe ingredients", len(ingredients))
 	// We need to check if an item exists and reference this item rather than creating a new one
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, itemId, quantity, quantityType) VALUES (?, ?, ?, ?, ?)", recipeIngredientTable)
-	for _, v := range ingredients {
-		existingItems, err := GetAllItemsFromName(v.Name)
-		if err != nil {
-			return err
-		}
-		itemId := int64(0)
-		exists := false
-		for _, item := range existingItems {
-			if item.Name == v.Name {
-				itemId = item.ItemId
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			log.Printf("Item '%s' does not exist yet", v.Name)
-			itemId, err = InsertItem(v.Name, v.Icon)
-			if err != nil {
-				log.Printf("Failed to create new item '%s'", v.Name)
-				continue
-			}
-		}
-		_, err = db.Exec(query, recipeId, createdBy, itemId, v.Quantity, v.QuantityType)
-		if err != nil {
-			log.Printf("Failed to insert %v into table: %s", v, err)
-			return err
-		}
+	query := insertRecipeIngredientsQuery
+	if len(ingredients) > 1 {
+		query = insertRecipeIngredientsQuery + strings.Repeat(",(?,?,?,?,?)", len(ingredients)-1)
 	}
-	return nil
+	flattenedParameter := make([]interface{}, 0)
+	for _, v := range ingredients {
+		itemId, err := InsertItem(v.Name, v.Icon)
+		if err != nil {
+			return err
+		}
+		flattenedParameter = append(flattenedParameter, recipeId)
+		flattenedParameter = append(flattenedParameter, createdBy)
+		flattenedParameter = append(flattenedParameter, itemId)
+		flattenedParameter = append(flattenedParameter, v.Quantity)
+		flattenedParameter = append(flattenedParameter, v.QuantityType)
+	}
+	_, err := db.Exec(query, flattenedParameter...)
+	return err
 }
 
+const getIngredientsForRecipeQuery = "SELECT it.name,it.icon,map.quantity,map.quantityType FROM ingredient_per_recipe map JOIN items it ON map.itemId = it.id WHERE map.recipeId = ? AND map.createdBy = ?"
+
 func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient, error) {
-	log.Printf("Trying to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT i.name, i.icon, r.quantity, r.quantityType FROM %s r JOIN items i ON r.itemId = i.id WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
-	dbx := sqlx.NewDb(db, "sql")
-	rows, err := dbx.Queryx(query, recipeId, createdBy)
+	rows, err := db.Query(getIngredientsForRecipeQuery, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to retrieve ingredients for recipe %d from %d", recipeId, createdBy)
 		return []data.Ingredient{}, err
 	}
+	defer rows.Close()
 	var ingredients []data.Ingredient
 	for rows.Next() {
-		var dbIngredient data.Ingredient
-		if err := rows.StructScan(&dbIngredient); err != nil {
-			log.Printf("Failed to retrieve ingredient for recipe: %s", err)
+		var ingredient data.Ingredient
+		if err := rows.Scan(&ingredient.Name, &ingredient.Icon, &ingredient.Quantity, &ingredient.QuantityType); err != nil {
 			return []data.Ingredient{}, err
 		}
-		ingredients = append(ingredients, dbIngredient)
+		ingredients = append(ingredients, ingredient)
 	}
 	return ingredients, nil
 }
 
+const getDescriptionsForRecipeQuery = "SELECT descriptionOrder,description FROM description_per_recipe WHERE recipeId = ? AND createdBy = ?"
+
 func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDescription, error) {
-	log.Printf("Reading descriptions for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("SELECT description, descriptionOrder FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
-	rows, err := db.Query(query, recipeId, createdBy)
+	rows, err := db.Query(getDescriptionsForRecipeQuery, recipeId, createdBy)
 	if err != nil {
-		log.Printf("Failed to retrieve descriptions for recipe %d from %d", recipeId, createdBy)
 		return []data.RecipeDescription{}, err
 	}
+	defer rows.Close()
 	var descriptions []data.RecipeDescription
 	for rows.Next() {
 		var description data.RecipeDescription
-		if err := rows.Scan(&description.Step, &description.Order); err != nil {
-			log.Printf("Failed to retrieve description for recipe %d from %d", recipeId, createdBy)
+		if err := rows.Scan(&description.Order, &description.Step); err != nil {
 			return []data.RecipeDescription{}, err
 		}
 		descriptions = append(descriptions, description)
@@ -1143,16 +1130,11 @@ func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDes
 	return descriptions, nil
 }
 
+const getRawRecipeQuery = "SELECT recipeId,createdBy,name,createdAt,lastUpdate,version,defaultPortion FROM recipe WHERE recipeId = ? AND createdBy = ?"
+
 func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
-	log.Printf("Retrieving recipe '%d' from '%d'", recipeId, createdBy)
-	// dbx := sqlx.NewDb(db, "sql")
-
-	query := fmt.Sprintf("SELECT recipeId, createdBy, name, createdAt, lastUpdate, version, defaultPortion FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	// row := dbx.QueryRowx(query, recipeId, createdBy)
-	row := db.QueryRow(query, recipeId, createdBy)
-
+	row := db.QueryRow(getRawRecipeQuery, recipeId, createdBy)
 	var recipe data.Recipe
-	// err := row.StructScan(&recipe)
 	err := row.Scan(&recipe.RecipeId, &recipe.CreatedBy.ID, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.Version, &recipe.DefaultPortion)
 	if err != nil {
 		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
@@ -1174,19 +1156,19 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	return recipe, nil
 }
 
+const getAllRawRecipesQuery = "SELECT recipeId,createdBy,name,createdAt,lastUpdate,version,defaultPortion FROM recipe"
+
 func GetAllRecipes() ([]data.Recipe, error) {
-	log.Print("Retrieving all recipes")
-	query := fmt.Sprintf("SELECT recipeId, name, createdBy, createdAt, lastUpdate, version, defaultPortion FROM %s", recipeTable)
-	rows, err := db.Query(query)
+	rows, err := db.Query(getAllRawRecipesQuery)
 	if err != nil {
 		log.Printf("Failed to retrieve all recipes: %s", err)
 		return nil, err
 	}
+	defer rows.Close()
 	recipes := make([]data.Recipe, 0)
 	for rows.Next() {
 		var recipe data.Recipe
-		if err := rows.Scan(&recipe.RecipeId, &recipe.Name, &recipe.CreatedBy.ID, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.Version, &recipe.DefaultPortion); err != nil {
-			log.Printf("Failed to get data from table: %s: %s", recipeTable, err)
+		if err := rows.Scan(&recipe.RecipeId, &recipe.CreatedBy.ID, &recipe.Name, &recipe.CreatedAt, &recipe.LastUpdate, &recipe.Version, &recipe.DefaultPortion); err != nil {
 			return nil, err
 		}
 		ingredients, err := GetIngredientsForRecipe(recipe.RecipeId, recipe.CreatedBy.ID)
@@ -1222,9 +1204,11 @@ func updateDescriptions(recipeId int64, createdBy int64, descriptions []data.Rec
 	if err != nil {
 		return err
 	}
-	err = insertDescription(recipeId, createdBy, descriptions)
+	err = insertDescriptions(recipeId, createdBy, descriptions)
 	return err
 }
+
+const updateRawRecipeQuery = "UPDATE recipe SET version = ?, name = ?, lastUpdate = CURRENT_TIMESTAMP WHERE recipeId = ? AND createdBy = ?"
 
 func UpdateRecipe(recipe data.Recipe) error {
 	log.Printf("Updating recipe '%s'", recipe.Name)
@@ -1236,8 +1220,7 @@ func UpdateRecipe(recipe data.Recipe) error {
 	if existingRecipe.Version >= recipe.Version {
 		return errors.New(" recipe to update has the same or lower version than existing recipe")
 	}
-	updateRecipeVersionQuery := fmt.Sprintf("UPDATE %s SET version = ?, lastUpdate = ? WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	_, err = db.Exec(updateRecipeVersionQuery, recipe.Version, time.Now(), recipe.RecipeId, recipe.CreatedBy.ID)
+	_, err = db.Exec(updateRawRecipeQuery, recipe.Version, recipe.Name, recipe.RecipeId, recipe.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to update recipe version: %s", err)
 		return err
@@ -1253,28 +1236,30 @@ func UpdateRecipe(recipe data.Recipe) error {
 	return nil
 }
 
+const deleteIngredientsForRecipeQuery = "DELETE FROM ingredient_per_recipe WHERE recipeId = ? AND createdBy = ?"
+
 func deleteIngredients(recipeId int64, createdBy int64) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeIngredientTable)
-	_, err := db.Exec(query, recipeId, createdBy)
+	_, err := db.Exec(deleteIngredientsForRecipeQuery, recipeId, createdBy)
 	return err
 }
+
+const deleteDescriptionsForRecipeQuery = "DELETE FROM description_per_recipe WHERE recipeId = ? AND createdBy = ?"
 
 func deleteDescriptions(recipeId int64, createdBy int64) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeDescriptionTable)
-	_, err := db.Exec(query, recipeId, createdBy)
+	_, err := db.Exec(deleteDescriptionsForRecipeQuery, recipeId, createdBy)
 	return err
 }
 
+const deleteRawRecipeQuery = "DELETE FROM recipe WHERE recipeId = ? AND createdBy = ?"
+
 func DeleteRecipe(recipeId int64, createdBy int64) error {
-	log.Printf("Deleting recipe %d from %d", recipeId, createdBy)
 	if err := deleteDescriptions(recipeId, createdBy); err != nil {
 		return err
 	}
 	if err := deleteIngredients(recipeId, createdBy); err != nil {
 		return err
 	}
-	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeTable)
-	_, err := db.Exec(query, recipeId, createdBy)
+	_, err := db.Exec(deleteRawRecipeQuery, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete recipe %d from %d: %s", recipeId, createdBy, err)
 		return err
@@ -1282,25 +1267,14 @@ func DeleteRecipe(recipeId int64, createdBy int64) error {
 	return nil
 }
 
+const dropRecipeTable = "DELETE FROM recipe"
+
 func ResetRecipeTables() {
 	log.Print("RESETTING ALL RECIPES. CANNOT BE REVERTED!")
 
-	query := "DELETE FROM " + recipeTable
-	_, err := db.Exec(query)
+	_, err := db.Exec(dropRecipeTable)
 	if err != nil {
 		log.Printf("Failed to remove all recipes: %s", err)
-		return
-	}
-	query = "DELETE FROM " + recipeDescriptionTable
-	_, err = db.Exec(query)
-	if err != nil {
-		log.Printf("Failed to remove all recipe descriptions: %s", err)
-		return
-	}
-	query = "DELETE FROM " + recipeIngredientTable
-	_, err = db.Exec(query)
-	if err != nil {
-		log.Printf("Failed to remove all recipe ingredients: %s", err)
 		return
 	}
 
@@ -1311,13 +1285,11 @@ func ResetRecipeTables() {
 // Recipe Sharing Handling
 // ------------------------------------------------------------
 
-var recipeSharingTable = "sharedRecipe"
+const createRecipeSharingQuery = "INSERT INTO shared_recipe (recipeId,createdBy,sharedWith) VALUES (?,?,?)"
 
 func CreateRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) error {
 	log.Printf("Creating new sharing for %d of recipe %d from %d", sharedWith, recipeId, createdBy)
-
-	query := fmt.Sprintf("INSERT INTO %s (recipeId, createdBy, sharedWith) VALUES (?, ?, ?)", recipeSharingTable)
-	_, err := db.Exec(query, recipeId, createdBy, sharedWith)
+	_, err := db.Exec(createRecipeSharingQuery, recipeId, createdBy, sharedWith)
 	if err != nil {
 		log.Printf("Failed to insert sharing for user %d into database: %s", sharedWith, err)
 		return err
@@ -1325,10 +1297,11 @@ func CreateRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) erro
 	return nil
 }
 
+const deleteRecipeSharingForIdQuery = "DELETE FROM shared_recipe WHERE recipeId = ? AND createdBy = ? AND sharedWith = ?"
+
 func DeleteRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) error {
 	log.Printf("Deleting sharing for %d of recipe %d from %d", sharedWith, recipeId, createdBy)
-	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ? AND sharedWith = ?", recipeSharingTable)
-	_, err := db.Exec(query, recipeId, createdBy, sharedWith)
+	_, err := db.Exec(deleteRecipeSharingForIdQuery, recipeId, createdBy, sharedWith)
 	if err != nil {
 		log.Printf("Failed to delete sharing for user %d from recipe %d: %s", sharedWith, recipeId, err)
 		return err
@@ -1336,10 +1309,11 @@ func DeleteRecipeSharing(recipeId int64, createdBy int64, sharedWith int64) erro
 	return nil
 }
 
+const deleteRecipeSharingForAllQuery = "DELETE FROM shared_recipe WHERE recipeId = ? AND createdBy = ?"
+
 func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 	log.Printf("Deleting all sharing for recipe %d from %d", recipeId, createdBy)
-	query := fmt.Sprintf("DELETE FROM %s WHERE recipeId = ? AND createdBy = ?", recipeSharingTable)
-	_, err := db.Exec(query, recipeId, createdBy)
+	_, err := db.Exec(deleteRecipeSharingForAllQuery, recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to delete all sharing for recipe %d from %d: %s", recipeId, createdBy, err)
 		return err
@@ -1369,31 +1343,29 @@ func PrintUserTable(tableName string) {
 	log.Print("---------------------------------------")
 }
 
+const printShoppingListTableQuery = "SELECT * FROM shopping_list"
+
 func PrintShoppingListTable() {
-	query := "SELECT * FROM " + shoppingListTable
-	rows, err := db.Query(query)
+	rows, err := db.Query(printShoppingListTableQuery)
 	if err != nil {
-		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
 		return
 	}
 	defer rows.Close()
 	log.Print("------------- Shopping List Table -------------")
 	for rows.Next() {
-		var dbId int64
 		var list data.List
-		if err := rows.Scan(&dbId, &list.ListId, &list.Title, &list.CreatedBy.ID, &list.CreatedAt, &list.LastUpdated); err != nil {
-			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
+		if err := rows.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version); err != nil {
 		}
 		log.Printf("%v", list)
 	}
 	log.Print("---------------------------------------")
 }
 
+const printItemTableQuery = "SELECT * FROM items"
+
 func PrintItemTable() {
-	query := "SELECT * FROM " + itemTable
-	rows, err := db.Query(query)
+	rows, err := db.Query(printItemTableQuery)
 	if err != nil {
-		log.Printf("Failed to print table %s: %s", shoppingListTable, err)
 		return
 	}
 	defer rows.Close()
@@ -1401,45 +1373,42 @@ func PrintItemTable() {
 	for rows.Next() {
 		var item data.Item
 		if err := rows.Scan(&item.ItemId, &item.Name, &item.Icon); err != nil {
-			log.Printf("Failed to print table: %s: %s", shoppingListTable, err)
 		}
 		log.Printf("%v", item)
 	}
 	log.Print("---------------------------------------")
 }
 
+const printItemToShoppingListMappingTableQuery = "SELECT * FROM items_per_list"
+
 func PrintItemPerListTable() {
-	query := "SELECT * FROM " + itemPerListTable
-	rows, err := db.Query(query)
+	rows, err := db.Query(printItemToShoppingListMappingTableQuery)
 	if err != nil {
-		log.Printf("Failed to print table %s: %s", itemPerListTable, err)
 		return
 	}
 	defer rows.Close()
 	log.Print("------------- Item Table -------------")
 	for rows.Next() {
 		var mapping data.ListItem
-		if err := rows.Scan(&mapping.ID, &mapping.ListId, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.CreatedBy, &mapping.AddedBy); err != nil {
-			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
+		if err := rows.Scan(&mapping.ListId, &mapping.CreatedBy, &mapping.ItemId, &mapping.Quantity, &mapping.Checked, &mapping.AddedBy); err != nil {
 		}
 		log.Printf("%v", mapping)
 	}
 	log.Print("---------------------------------------")
 }
 
+const printShoppingListSharingTableQuery = "SELECT * FROM shared_list"
+
 func PrintSharingTable() {
-	query := "SELECT * FROM " + sharedListTable
-	rows, err := db.Query(query)
+	rows, err := db.Query(printShoppingListSharingTableQuery)
 	if err != nil {
-		log.Printf("Failed to print table %s: %s", sharedListTable, err)
 		return
 	}
 	defer rows.Close()
 	log.Print("------------- Sharing Table -------------")
 	for rows.Next() {
 		var sharing data.ListShared
-		if err := rows.Scan(&sharing.ID, &sharing.ListId, &sharing.CreatedBy, &sharing.SharedWithId, &sharing.Created); err != nil {
-			log.Printf("Failed to print table: %s: %s", itemPerListTable, err)
+		if err := rows.Scan(&sharing.ListId, &sharing.CreatedBy, &sharing.SharedWithId, &sharing.Created); err != nil {
 		}
 		log.Printf("%v", sharing)
 	}

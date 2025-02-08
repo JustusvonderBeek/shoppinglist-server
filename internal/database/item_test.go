@@ -152,7 +152,7 @@ func TestModifyItemName(t *testing.T) {
 		t.FailNow()
 	}
 	updatedName := "New Item"
-	newItem, err := ModifyItemName(created, updatedName)
+	newItem, err := ModifyItem(created, updatedName)
 	if err != nil {
 		log.Printf("Failed to modify item name: %s", err)
 		t.FailNow()
@@ -162,7 +162,7 @@ func TestModifyItemName(t *testing.T) {
 		t.FailNow()
 	}
 	PrintItemTable()
-	log.Print("ModifyItemName successfully completed")
+	log.Print("ModifyItem successfully completed")
 	ResetItemTable()
 }
 
