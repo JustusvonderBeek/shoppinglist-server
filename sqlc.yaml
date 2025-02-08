@@ -1,14 +1,14 @@
 version: "2"
-cloud:
-  organization: "cloudsheeptech.com"
-  project: "Shopping-List"
-  hostname: "localhost"
-servers: "localhost:3306"
 sql:
   - engine: "mysql"
-    schema: "schema.sql"
-    queries: "queries.sql"
+    schema: "setup/create_mysql_db.sql"
+    queries: "query.sql"
     gen:
       go:
         package: "database"
         out: "internal/database"
+        sql_package: "database/sql"
+cloud:
+  organization: "cloudsheeptech.com"
+  project: "Shopping-List"
+  hostname: "localhost"
