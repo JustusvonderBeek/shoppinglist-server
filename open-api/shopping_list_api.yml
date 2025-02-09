@@ -127,7 +127,7 @@ paths:
           description: OK
         "410":
           description: Gone
-  /users/{userId}/login:
+  /users/login/{userId}:
     post:
       tags:
       - User Handling
@@ -449,9 +449,19 @@ paths:
       description: Create a new recipe at the server
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Recipe'
+              type: object
+              properties:
+                recipeInfo:
+                  $ref: '#/components/schemas/Recipe'
+                recipeImages:
+                  type: array
+                  items:
+                    format: binary
+            encoding:
+              recipeImages:
+                contentType: image/png
       responses:
         "201":
           description: Created

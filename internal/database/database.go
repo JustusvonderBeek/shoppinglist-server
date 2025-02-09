@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -970,7 +972,7 @@ func InsertItem(name string, icon string) (data.Item, error) {
 	return InsertItemStruct(item)
 }
 
-const getItemFromNameQuery = "SELECT * FROM items WHERE name = ?"
+const getItemFromNameQuery = "SELECT id,name,icon FROM items WHERE name = ?"
 const insertItemQuery = "INSERT INTO items (name, icon) SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM items WHERE name = ?);"
 
 func InsertItemStruct(item data.Item) (data.Item, error) {
@@ -1101,13 +1103,13 @@ func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingre
 	}
 	flattenedParameter := make([]interface{}, 0)
 	for _, v := range ingredients {
-		itemId, err := InsertItem(v.Name, v.Icon)
+		item, err := InsertItem(v.Name, v.Icon)
 		if err != nil {
 			return err
 		}
 		flattenedParameter = append(flattenedParameter, recipeId)
 		flattenedParameter = append(flattenedParameter, createdBy)
-		flattenedParameter = append(flattenedParameter, itemId)
+		flattenedParameter = append(flattenedParameter, item.ItemId)
 		flattenedParameter = append(flattenedParameter, v.Quantity)
 		flattenedParameter = append(flattenedParameter, v.QuantityType)
 	}
@@ -1343,6 +1345,89 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 		return err
 	}
 	return nil
+}
+
+// ------------------------------------------------------------
+// Image handling (recipe, shopping lists, etc.)
+// ------------------------------------------------------------
+
+const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
+
+func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
+	filenames, err := storeImages(ctx, recipePK.RecipeId, "recipeImages")
+	if err != nil {
+		return err
+	}
+	if len(filenames) == 0 {
+		return nil
+	}
+	query := createImagePerRecipeQuery
+	if len(filenames) > 1 {
+		query = createImagePerRecipeQuery + strings.Repeat(",(?,?,?)", len(filenames)-1)
+	}
+	flattenedParameters := make([]interface{}, 0)
+	for _, filename := range filenames {
+		flattenedParameters = append(flattenedParameters, recipePK.RecipeId)
+		flattenedParameters = append(flattenedParameters, recipePK.CreatedBy)
+		flattenedParameters = append(flattenedParameters, filename)
+	}
+	_, err = db.Exec(query, flattenedParameters...)
+	return err
+}
+
+func storeImages(ctx *gin.Context, recipeId int64, imageFieldName string) ([]string, error) {
+	form, err := ctx.MultipartForm()
+	if err != nil {
+		return []string{}, err
+	}
+	files := form.File[imageFieldName]
+	if len(files) == 0 {
+		return []string{}, nil
+	}
+	filenames := make([]string, 0)
+	for i, file := range files {
+		contentType := file.Header.Get("Content-Type")
+		fileType := strings.TrimPrefix(contentType, "image/")
+		filename := fmt.Sprintf("%d_%d.%s", recipeId, i, fileType)
+		fileStoreLocation := filepath.Join("images", filename)
+		if err := ctx.SaveUploadedFile(file, fileStoreLocation); err != nil {
+			return []string{}, err
+		}
+		filenames = append(filenames, filename)
+	}
+	return filenames, nil
+}
+
+const getImageNamesForRecipeQuery = "SELECT filename FROM images_per_recipe WHERE recipeId = ? AND createdBy = ?"
+
+func GetImageNamesForRecipe(recipeId int64, createdBy int64) ([]string, error) {
+	rows, err := db.Query(getImageNamesForRecipeQuery, recipeId, createdBy)
+	if err != nil {
+		return []string{}, err
+	}
+	defer rows.Close()
+	filenames := make([]string, 0)
+	for rows.Next() {
+		var filename string
+		if err := rows.Scan(&filename); err != nil {
+			return []string{}, err
+		}
+		filenames = append(filenames, filename)
+	}
+	return filenames, nil
+}
+
+func GetImagesFromFilepaths(folder string, filenames []string) ([][]byte, error) {
+	fileContents := make([][]byte, 0)
+	for _, filename := range filenames {
+		fileStoreLocation := filepath.Join(folder, filename)
+		content, err := os.ReadFile(fileStoreLocation)
+		if err != nil {
+			return [][]byte{}, err
+		}
+		fileContents = append(fileContents, content)
+	}
+	return fileContents, nil
 }
 
 // ------------------------------------------------------------

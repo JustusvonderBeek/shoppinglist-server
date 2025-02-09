@@ -132,6 +132,11 @@ type ListSharedWire struct {
 // The recipe data structures
 // ------------------------------------------------------------
 
+type RecipePK struct {
+	RecipeId  int64
+	CreatedBy int64
+}
+
 type Recipe struct {
 	RecipeId       int64               `json:"onlineId" db:"recipeId"`
 	Name           string              `json:"name" db:"name"`

@@ -37,8 +37,8 @@ CREATE TABLE shoppers
 
 CREATE TABLE role
 (
-    user_id BIGINT NOT NULL,
-    role VARCHAR(2) NOT NULL DEFAULT 'US',
+    user_id BIGINT     NOT NULL,
+    role    VARCHAR(2) NOT NULL DEFAULT 'US',
     PRIMARY KEY (user_id, role),
     FOREIGN KEY (user_id) REFERENCES shoppers (id) ON DELETE CASCADE
 );
@@ -126,6 +126,15 @@ CREATE TABLE description_per_recipe
     description      VARCHAR(1000) NOT NULL,
     descriptionOrder INT           NOT NULL,
     PRIMARY KEY (recipeId, createdBy, descriptionOrder),
+    FOREIGN KEY (recipeId, createdBy) REFERENCES recipe (recipeId, createdBy) ON DELETE CASCADE
+);
+
+CREATE TABLE images_per_recipe
+(
+    recipeId  INT         NOT NULL,
+    createdBy BIGINT      NOT NULL,
+    filename  VARCHAR(50) NOT NULL,
+    PRIMARY KEY (recipeId, createdBy, filename),
     FOREIGN KEY (recipeId, createdBy) REFERENCES recipe (recipeId, createdBy) ON DELETE CASCADE
 );
 

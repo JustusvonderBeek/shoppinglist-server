@@ -128,7 +128,7 @@ func TestShowUsers(t *testing.T) {
 func TestResetUserDatabase(t *testing.T) {
 	connectDatabase()
 	database.PrintUserTable("")
-	database.ResetUserTable()
+	database.DropUserTable()
 	database.PrintUserTable("")
 }
 
@@ -223,9 +223,9 @@ func TestUserCreation(t *testing.T) {
 	}
 	reader := bytes.NewReader(rawUser)
 	authentication.Setup(cfg)
-	r.POST("/auth/create", server.CreateAccount)
+	r.POST("/v1/users", server.CreateAccount)
 
-	c.Request, _ = http.NewRequest("POST", "/auth/create", reader)
+	c.Request, _ = http.NewRequest("POST", "/v1/users", reader)
 	// Set a custom IP address for the request
 	c.Request.RemoteAddr = "192.168.1.33:41111"
 	c.Request.Header.Set("X-Real-Ip", "192.168.1.33:41111")
@@ -268,7 +268,7 @@ func login(t *testing.T) {
 		log.Printf("Failed to load user: %s", err)
 		t.FailNow()
 	}
-	req, _ := http.NewRequest("POST", "/auth/login", reader)
+	req, _ := http.NewRequest("POST", "/v1/users/login/", reader)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -615,7 +615,7 @@ func createListSharing(listId int64, createdBy int64, userId int64) (data.ListSh
 	if err != nil {
 		return data.ListShared{}, err
 	}
-	if sharing.ID == 0 || sharing.ListId != listId || sharing.SharedWithId[0] != userId {
+	if sharing.CreatedBy == 0 || sharing.ListId != listId || sharing.SharedWithId != userId {
 		return data.ListShared{}, errors.New("sharing was incorrectly stored")
 	}
 	return sharing, nil
@@ -1003,7 +1003,7 @@ func TestRemoveList(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Check if the list was really deleted
-	_, err = database.GetShoppingList(list.ListId, list.CreatedBy.ID)
+	_, err = database.GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 	assert.NotNil(t, err)
 
 	database.PrintShoppingListTable()
@@ -1048,10 +1048,9 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	}
 	bearer := "Bearer " + token
 	sharedWith := data.ListShared{
-		ID:           0,
 		ListId:       offlineList[0].ListId,
 		CreatedBy:    user.OnlineID,
-		SharedWithId: []int64{int64(sharedWithUserId)},
+		SharedWithId: int64(sharedWithUserId),
 		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
@@ -1118,10 +1117,9 @@ func TestCreateSharing(t *testing.T) {
 	}
 	bearer := "Bearer " + token
 	sharedWith := data.ListShared{
-		ID:           0,
 		ListId:       offlineList[0].ListId,
 		CreatedBy:    user.OnlineID,
-		SharedWithId: []int64{sharedWithUserId},
+		SharedWithId: sharedWithUserId,
 		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)
@@ -1137,12 +1135,14 @@ func TestCreateSharing(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	sharedDb, err := database.GetSharedListForUserId(int64(sharedWithUserId))
+	sharedListIds := make([]data.ListShared, 0)
+	sharedListIds = append(sharedListIds, sharedWith)
+	sharedDb, err := database.GetShoppingListsFromSharedListIds(sharedListIds)
 
 	assert.Equal(t, nil, err)
 	assert.Equal(t, 1, len(sharedDb))
 	assert.Equal(t, sharedWith.ListId, sharedDb[0].ListId)
-	assert.Equal(t, sharedWith.SharedWithId, sharedDb[0].SharedWithId)
+	assert.Equal(t, sharedWith.SharedWithId, sharedListIds[0].SharedWithId)
 
 	database.PrintShoppingListTable()
 	database.DropShoppingListTable()
@@ -1180,10 +1180,9 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	bearer := "Bearer " + token
 	sharedWithUserId := 1234
 	sharedWith := data.ListShared{
-		ID:           0,
 		ListId:       list.ListId,
 		CreatedBy:    user.OnlineID,
-		SharedWithId: []int64{int64(sharedWithUserId)},
+		SharedWithId: int64(sharedWithUserId),
 		Created:      time.Now().UTC(),
 	}
 	encodedShared, err := json.Marshal(sharedWith)

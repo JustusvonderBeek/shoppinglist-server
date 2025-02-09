@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,8 +14,20 @@ import (
 
 func createRecipe(c *gin.Context) {
 	log.Print("Creating new recipe")
+	_, err := c.MultipartForm()
+	if err != nil {
+		log.Printf("Wrong request format: No multipart form data found!")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	recipeInfo := c.PostForm("recipe")
+	log.Printf("RecipeInfo: %s", recipeInfo)
+	if recipeInfo == "" {
+		log.Printf("Wrong request format: No recipe info found!")
+		c.AbortWithStatus(http.StatusBadRequest)
+	}
 	var recipeToCreate data.Recipe
-	if err := c.BindJSON(&recipeToCreate); err != nil {
+	if err := json.Unmarshal([]byte(recipeInfo), &recipeToCreate); err != nil {
 		log.Printf("Failed to parse recipe to create: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -22,6 +35,14 @@ func createRecipe(c *gin.Context) {
 	// The user can specify his own id, therefore we don't return anything
 	if err := database.CreateRecipe(recipeToCreate); err != nil {
 		log.Printf("Failed to create recipe: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	recipePk := data.RecipePK{
+		RecipeId:  recipeToCreate.RecipeId,
+		CreatedBy: recipeToCreate.CreatedBy.ID,
+	}
+	if err := database.StoreImagesForRecipe(c, recipePk); err != nil {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
