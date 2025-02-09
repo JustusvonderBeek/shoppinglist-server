@@ -51,7 +51,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	// Independent of API version, therefore not in the auth bracket
 	router.POST("/v1/users", CreateAccount)
 	// JWT BASED AUTHENTICATION
-	router.POST("/v1/users/:userId/login", authentication.Login)
+	router.POST("/v1/users/login/:userId", authentication.Login)
 
 	// ------------- Handling Routes v1 (API version 1) ---------------
 
