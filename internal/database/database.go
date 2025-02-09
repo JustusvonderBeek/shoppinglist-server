@@ -283,13 +283,12 @@ func CreateUserAccountInDatabase(username string, passwd string) (data.User, err
 	if err != nil {
 		return data.User{}, err
 	}
-	newUser, err = GetUser(newUser.OnlineID)
+	// User can have more than a single role -> second table
+	_, err = db.Exec(createUserRoleQuery, newUser.OnlineID, newUser.Role)
 	if err != nil {
 		return data.User{}, err
 	}
-	// User can have more than a single role -> second table
-	log.Printf("trying to add %s", newUser.OnlineID)
-	_, err = db.Exec(createUserRoleQuery, newUser.OnlineID, newUser.Role)
+	newUser, err = GetUser(newUser.OnlineID)
 	if err != nil {
 		return data.User{}, err
 	}
@@ -574,33 +573,40 @@ func createRawShoppingList(list data.List) error {
 	return nil
 }
 
-func addOrRemoveItemsInShoppingList(list data.List) ([]int64, []int64, error) {
+type ItemMapKey struct {
+	ItemId  int64
+	AddedBy int64
+}
+
+func addOrRemoveItemsInShoppingList(list data.List) ([]ItemMapKey, error) {
 	log.Printf("Adding (%d) items in shopping list to database", len(list.Items))
-	var itemIds []int64
-	var addedBy []int64
+	var itemMapKeys []ItemMapKey
 	for _, item := range list.Items {
 		conv, err := checkItemCorrect(item)
 		if err != nil {
 			log.Printf("Failed to insert item '%s': %s", item.Name, err)
-			return []int64{}, []int64{}, err
+			return []ItemMapKey{}, err
 		}
-		itemId, err := InsertItemStruct(conv)
+		insertedItem, err := InsertItemStruct(conv)
 		if err != nil {
 			log.Printf("Failed to insert item '%s': %s", conv.Name, err)
-			return []int64{}, []int64{}, err
+			return []ItemMapKey{}, err
 		}
-		itemIds = append(itemIds, itemId)
-		addedBy = append(addedBy, item.AddedBy)
+		newMapKey := ItemMapKey{
+			ItemId:  insertedItem.ItemId,
+			AddedBy: item.AddedBy,
+		}
+		itemMapKeys = append(itemMapKeys, newMapKey)
 	}
-	return itemIds, addedBy, nil
+	return itemMapKeys, nil
 }
 
-func mapItemsIntoShoppingList(list data.List, itemIds []int64, addedBy []int64) error {
+func mapItemsIntoShoppingList(list data.List, itemMapKeys []ItemMapKey) error {
 	log.Printf("Adding (%d) items to shopping list", len(list.Items))
-	if len(list.Items) == 0 || len(itemIds) == 0 {
+	if len(list.Items) == 0 || len(itemMapKeys) == 0 {
 		return nil
 	}
-	if len(list.Items) != len(itemIds) {
+	if len(list.Items) != len(itemMapKeys) {
 		return errors.New("length of items and ids does not match")
 	}
 	if err := DeleteAllItemsInList(list.ListId, list.CreatedBy.ID); err != nil {
@@ -610,14 +616,15 @@ func mapItemsIntoShoppingList(list data.List, itemIds []int64, addedBy []int64) 
 	for i, item := range list.Items {
 		converted := data.ListItem{
 			ListId:    list.ListId,
-			ItemId:    itemIds[i],
+			ItemId:    itemMapKeys[i].ItemId,
 			Quantity:  item.Quantity,
 			Checked:   item.Checked,
 			CreatedBy: list.CreatedBy.ID,
-			AddedBy:   addedBy[i],
+			AddedBy:   itemMapKeys[i].AddedBy,
 		}
-		if _, err := InsertOrUpdateItemInList(converted); err != nil {
-			log.Printf("Failed to add '%s' to list '%s'", item.Name, list.Title)
+		_, err := InsertOrUpdateItemInList(converted)
+		if err != nil {
+			log.Printf("Failed to add '%s' to list '%s': %s", item.Name, list.Title, err)
 		}
 	}
 	return nil
@@ -631,11 +638,11 @@ func CreateOrUpdateShoppingList(list data.List) error {
 			return err
 		}
 	}
-	itemIds, addedBy, err := addOrRemoveItemsInShoppingList(list)
+	itemMapKeys, err := addOrRemoveItemsInShoppingList(list)
 	if err != nil {
 		return err
 	}
-	if err := mapItemsIntoShoppingList(list, itemIds, addedBy); err != nil {
+	if err := mapItemsIntoShoppingList(list, itemMapKeys); err != nil {
 		return err
 	}
 	return nil
@@ -799,7 +806,7 @@ func ResetSharedListTable() {
 
 // ------------------------------------------------------------
 
-const doesItemMappingExistQuery = "SELECT * FROM item_per_list WHERE listId = ? AND createdBy = ? AND itemId = ?"
+const doesItemMappingExistQuery = "SELECT * FROM items_per_list WHERE listId = ? AND createdBy = ? AND itemId = ?"
 
 func IsItemInList(listId int64, createdBy int64, itemId int64) (data.ListItem, error) {
 	row := db.QueryRow(doesItemMappingExistQuery, listId, itemId, createdBy)
@@ -830,8 +837,8 @@ func GetItemsInList(listId int64, createdBy int64) ([]data.ItemWire, error) {
 	return list, nil
 }
 
-const updateItemMappingQuery = "UPDATE item_per_list SET quantity = ?, checked = ?, addedBy = ? WHERE listId = ? AND createdBy = ? AND itemId = ?"
-const insertItemMappingQuery = "INSERT INTO item_per_list (listId,createdBy,itemId,quantity,checked,addedBy) VALUES (?, ?, ?, ?, ?, ?)"
+const updateItemMappingQuery = "UPDATE items_per_list SET quantity = ?, checked = ?, addedBy = ? WHERE listId = ? AND createdBy = ? AND itemId = ?"
+const insertItemMappingQuery = "INSERT INTO items_per_list (listId,createdBy,itemId,quantity,checked,addedBy) VALUES (?, ?, ?, ?, ?, ?)"
 
 func InsertOrUpdateItemInList(mapping data.ListItem) (data.ListItem, error) {
 	update := false
@@ -853,7 +860,7 @@ func InsertOrUpdateItemInList(mapping data.ListItem) (data.ListItem, error) {
 	return mapping, nil
 }
 
-const deleteShoppingListMappingQuery = "DELETE FROM item_per_list WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
+const deleteShoppingListMappingQuery = "DELETE FROM shared_list WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
 
 func DeleteItemInList(listId int64, createdBy int64, itemId int64) error {
 	_, err := db.Exec(deleteShoppingListMappingQuery, listId, createdBy, itemId)
@@ -864,7 +871,7 @@ func DeleteItemInList(listId int64, createdBy int64, itemId int64) error {
 	return nil
 }
 
-const deleteAllShoppingListMappingsForListQuery = "DELETE FROM item_per_list WHERE listId = ? AND createdBy = ?"
+const deleteAllShoppingListMappingsForListQuery = "DELETE FROM items_per_list WHERE listId = ? AND createdBy = ?"
 
 func DeleteAllItemsInList(listId int64, createdBy int64) error {
 	_, err := db.Exec(deleteAllShoppingListMappingsForListQuery, listId, createdBy)
@@ -875,7 +882,7 @@ func DeleteAllItemsInList(listId int64, createdBy int64) error {
 	return nil
 }
 
-const dropItemPerListTable = "DELETE FROM item_per_list"
+const dropItemPerListTable = "DELETE FROM items_per_list"
 
 func ResetItemPerListTable() {
 	log.Print("RESETTING ALL ITEMS PER LIST. CANNOT BE REVERTED!")
@@ -955,7 +962,7 @@ func GetAllItemsFromName(name string) ([]data.Item, error) {
 	return items, nil
 }
 
-func InsertItem(name string, icon string) (int64, error) {
+func InsertItem(name string, icon string) (data.Item, error) {
 	item := data.Item{
 		Name: name,
 		Icon: icon,
@@ -963,22 +970,31 @@ func InsertItem(name string, icon string) (int64, error) {
 	return InsertItemStruct(item)
 }
 
+const getItemFromNameQuery = "SELECT * FROM items WHERE name = ?"
 const insertItemQuery = "INSERT INTO items (name, icon) SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM items WHERE name = ?);"
 
-// TODO: Does this return the row number of the existing item if nothing changed?
-func InsertItemStruct(item data.Item) (int64, error) {
+func InsertItemStruct(item data.Item) (data.Item, error) {
 	trimmedName := strings.TrimSpace(item.Name)
 	trimmedIcon := strings.TrimSpace(item.Icon)
 	result, err := db.Exec(insertItemQuery, trimmedName, trimmedIcon, trimmedName)
 	if err != nil {
-		return -1, err
+		return item, err
 	}
-	id, err := result.RowsAffected()
-	if err != nil || id == 0 {
+	id, err := result.LastInsertId()
+	if err != nil {
 		log.Printf("Failed to insert item into database: %s", err)
-		return 0, err
+		return item, err
 	}
-	return id, nil
+	if id > 0 {
+		item.ItemId = id
+		return item, nil
+	}
+	row := db.QueryRow(getItemFromNameQuery, item.Name)
+	var insertedItem data.Item
+	if err := row.Scan(&insertedItem.ItemId, &insertedItem.Name, &insertedItem.Icon); err != nil {
+		return item, err
+	}
+	return insertedItem, nil
 }
 
 const updateItemNameQuery = "UPDATE items SET name = ?, icon = ? WHERE id = ?"
