@@ -247,8 +247,16 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 	}
 }
 
-func AuthenticationMiddleware() gin.HandlerFunc {
+func debugAuthentication(c *gin.Context) {
+	c.Next()
+}
+
+func AuthMiddleware() gin.HandlerFunc {
 	return basicTokenAuthenticationFunction
+}
+
+func DebugAuthenticationMiddleware() gin.HandlerFunc {
+	return debugAuthentication
 }
 
 func AdminAuthenticationMiddleware() gin.HandlerFunc {
@@ -284,8 +292,8 @@ type ApiKey struct {
 }
 
 type ApiKeySecret struct {
-	Secret     string    `json:"Secret"`
-	ValidUntil time.Time `json:"ValidUntil"`
+	Secret     string    `json:"secret"`
+	ValidUntil time.Time `json:"validUntil"`
 }
 
 func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
@@ -299,13 +307,13 @@ func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
 
 		pwd, _ := os.Getwd()
 		finalJWTFile := filepath.Join(pwd, secretFile)
-		data, err := os.ReadFile(finalJWTFile)
+		secretFileData, err := os.ReadFile(finalJWTFile)
 		if err != nil {
 			log.Print("Failed to find JWT secret file")
 			return nil, err
 		}
 		var jwtSecret ApiKeySecret
-		err = json.Unmarshal(data, &jwtSecret)
+		err = json.Unmarshal(secretFileData, &jwtSecret)
 		if err != nil {
 			log.Print("JWT secret file is in incorrect format")
 			return nil, err
@@ -324,7 +332,7 @@ func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
 }
 
 func ApiKeyValid(apiKey string) (ApiKey, error) {
-	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "../../resources/jwtSecret.json")
+	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "resources/jwtSecret.json")
 	if err != nil {
 		return ApiKey{}, err
 	}
@@ -346,6 +354,7 @@ func ApiKeyValid(apiKey string) (ApiKey, error) {
 		return ApiKey{}, errors.New("api key secret in incorrect format")
 	}
 	if httpRequestClaims.Key != apiKeySecret.Secret {
+		log.Printf("Claimed key '%s' does not match secret '%s'", httpRequestClaims.Key, apiKeySecret.Secret)
 		return ApiKey{}, errors.New("invalid secret")
 	}
 	log.Printf("API Key is valid")

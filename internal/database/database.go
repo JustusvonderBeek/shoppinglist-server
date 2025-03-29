@@ -420,6 +420,9 @@ func GetRawShoppingListsForUserId(id int64) ([]data.List, error) {
 const getShoppingListsById = "SELECT * FROM shopping_list WHERE (listId, createdBy) IN ((?, ?))"
 
 func GetRawShoppingListsByIDs(listIds []data.ListPK) ([]data.List, error) {
+	if len(listIds) == 0 {
+		return []data.List{}, nil
+	}
 	rows, err := db.Query(getShoppingListsById, listIds)
 	if err != nil {
 		return []data.List{}, err
@@ -1354,7 +1357,7 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
 
 func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
-	filenames, err := storeImages(ctx, recipePK.RecipeId, "recipeImages")
+	filenames, err := storeImages(ctx, recipePK.RecipeId, "content")
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ func createRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	recipeInfo := c.PostForm("recipe")
+	recipeInfo := c.PostForm("object")
 	log.Printf("RecipeInfo: %s", recipeInfo)
 	if recipeInfo == "" {
 		log.Printf("Wrong request format: No recipe info found!")

@@ -23,7 +23,7 @@ func CreateAccount(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	createdUser, err := validateUserAndCreateAccount(user, c.Request.Header.Get("apiKey"))
+	createdUser, err := validateUserAndCreateAccount(user, c.Request.Header.Get("x-api-key"))
 	if err != nil {
 		log.Printf("Failed to create user: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -42,6 +42,7 @@ func validateUserAndCreateAccount(user data.User, apiKey string) (data.User, err
 	if user.Username == "admin" {
 		keyValid, err := authentication.ApiKeyValid(apiKey)
 		if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
+			log.Printf("api key not valid %s - %s", err, apiKey)
 			return data.User{}, errors.New("invalid api key")
 		}
 	}
