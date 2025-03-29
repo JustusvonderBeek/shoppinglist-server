@@ -57,7 +57,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 
 	// Add authentication middleware to v1 router
 	authorized := router.Group("/v1")
-	authorized.Use(authentication.AuthenticationMiddleware())
+	authorized.Use(authentication.AuthMiddleware())
 	{
 		// The structure is similar to the order of operations: create, update, get, delete
 
