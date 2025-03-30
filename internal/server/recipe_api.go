@@ -123,7 +123,19 @@ func deleteRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	// TODO: Include deleting a shared recipe
+	filepaths, err := database.GetImageNamesForRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Failed to load image names for recipe: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	log.Printf("Deleting %d image(s) stored for recipe", len(filepaths))
+	err = database.DeleteImagesFromFilepaths("recipes", filepaths)
+	if err != nil {
+		log.Printf("Failed to delete image names for recipe: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	if err := database.DeleteRecipe(int64(recipeId), userId); err != nil {
 		log.Printf("Failed to delete recipe %d from %d: %s", recipeId, userId, err)
 		c.Copy().AbortWithStatus(http.StatusBadRequest)

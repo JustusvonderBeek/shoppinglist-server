@@ -1378,7 +1378,7 @@ func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
 	return err
 }
 
-func storeImages(ctx *gin.Context, recipeId int64, imageFieldName string) ([]string, error) {
+func storeImages(ctx *gin.Context, recipeId int64, createdBy int64, imageFieldName string, filePathPrefix string) ([]string, error) {
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		return []string{}, err
@@ -1391,8 +1391,9 @@ func storeImages(ctx *gin.Context, recipeId int64, imageFieldName string) ([]str
 	for i, file := range files {
 		contentType := file.Header.Get("Content-Type")
 		fileType := strings.TrimPrefix(contentType, "image/")
-		filename := fmt.Sprintf("%d_%d.%s", recipeId, i, fileType)
-		fileStoreLocation := filepath.Join("images", filename)
+		filename := fmt.Sprintf("%d_%d_%d.%s", recipeId, createdBy, i, fileType)
+		fileStoreLocation := filepath.Join("images", filePathPrefix, filename)
+		log.Printf("Storing image %s in %s", file.Filename, fileStoreLocation)
 		if err := ctx.SaveUploadedFile(file, fileStoreLocation); err != nil {
 			return []string{}, err
 		}
@@ -1431,6 +1432,20 @@ func GetImagesFromFilepaths(folder string, filenames []string) ([][]byte, error)
 		fileContents = append(fileContents, content)
 	}
 	return fileContents, nil
+}
+
+func DeleteImagesFromFilepaths(folder string, filenames []string) error {
+	var errorOccured error
+	errorOccured = nil
+	for _, filename := range filenames {
+		fileStoreLocation := filepath.Join("images", folder, filename)
+		err := os.Remove(fileStoreLocation)
+		if err != nil {
+			log.Printf("Failed to remove file: %s", fileStoreLocation)
+			errorOccured = err
+		}
+	}
+	return errorOccured
 }
 
 // ------------------------------------------------------------
