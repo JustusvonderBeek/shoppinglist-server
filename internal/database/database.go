@@ -1268,6 +1268,7 @@ func UpdateRecipe(recipe data.Recipe) error {
 		log.Printf("Failed to update ingredients: %s", err)
 		return err
 	}
+	// TODO: Include updating images
 	return nil
 }
 
@@ -1363,11 +1364,12 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
 
 func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
-	filenames, err := storeImages(ctx, recipePK.RecipeId, recipePK.CreatedBy, "content", "recipeImages")
+	filenames, err := storeImages(ctx, recipePK.RecipeId, recipePK.CreatedBy, "content", "recipes")
 	if err != nil {
 		return err
 	}
 	if len(filenames) == 0 {
+		log.Printf("No images for recipe %d found", recipePK.RecipeId)
 		return nil
 	}
 	query := createImagePerRecipeQuery
@@ -1397,6 +1399,9 @@ func storeImages(ctx *gin.Context, recipeId int64, createdBy int64, imageFieldNa
 	for i, file := range files {
 		contentType := file.Header.Get("Content-Type")
 		fileType := strings.TrimPrefix(contentType, "image/")
+		if len(fileType) == 0 {
+			fileType = "png"
+		}
 		filename := fmt.Sprintf("%d_%d_%d.%s", recipeId, createdBy, i, fileType)
 		fileStoreLocation := filepath.Join("images", filePathPrefix, filename)
 		log.Printf("Storing image %s in %s", file.Filename, fileStoreLocation)
