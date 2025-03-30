@@ -190,3 +190,8 @@ type RecipeShared struct {
 	RecipeId   int64 `json:"recipeId"`
 	SharedWith int64 `json:"sharedWith"`
 }
+
+type Ping struct {
+	Status      string    `json:"status"`
+	CurrentTime time.Time `json:"currentTime"`
+}

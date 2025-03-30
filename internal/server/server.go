@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
@@ -28,6 +29,20 @@ func returnPostTest(c *gin.Context) {
 		return
 	}
 	c.IndentedJSON(http.StatusOK, gin.H{"status": "post-successful"})
+}
+
+func pingTest(c *gin.Context) {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Print("Logged in user is zero")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	status := data.Ping{
+		Status:      "success",
+		CurrentTime: time.Now(),
+	}
+	c.JSON(http.StatusOK, status)
 }
 
 // ------------------------------------------------------------
@@ -74,6 +89,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.GET("/lists/:listId", getShoppingList)    // Includes search query parameter
 		authorized.GET("/lists", getAllShoppingListsForUser)
 		authorized.DELETE("/lists/:listId", deleteShoppingList)
+		authorized.DELETE("/lists", deleteAllOwnShoppingLists)
 
 		authorized.POST("/share/:listId", shareShoppingList)
 		authorized.PUT("/share/:listId", updateShareShoppingList)
@@ -88,6 +104,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.DELETE("recipe/share/:recipeId", deleteShareRecipe)
 
 		// DEBUG Purpose: TODO: Disable when no longer testing
+		authorized.GET("/ping", pingTest)
 		authorized.GET("/test/auth", returnUnauth)
 		authorized.POST("/test/auth", returnPostTest)
 	}

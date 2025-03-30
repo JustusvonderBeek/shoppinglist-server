@@ -242,6 +242,22 @@ func deleteShoppingList(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+func deleteAllOwnShoppingLists(c *gin.Context) {
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	err := database.DeleteShoppingListFrom(userId)
+	if err != nil {
+		log.Printf("Failed to delete all own lists: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
 // ------------------------------------------------------------
 // Handling of sharing
 // ------------------------------------------------------------
