@@ -1080,6 +1080,9 @@ const insertRecipeDescriptionQuery = "INSERT INTO description_per_recipe (recipe
 
 func insertDescriptions(recipeId int64, createdBy int64, descriptions []data.RecipeDescription) error {
 	log.Printf("Inserting %d recipe descriptions", len(descriptions))
+	if len(descriptions) == 0 {
+		return nil
+	}
 	query := insertRecipeDescriptionQuery
 	if len(descriptions) > 1 {
 		query = insertRecipeDescriptionQuery + strings.Repeat(",(?,?,?,?)", len(descriptions)-1)
@@ -1100,6 +1103,9 @@ const insertRecipeIngredientsQuery = "INSERT INTO ingredient_per_recipe (recipeI
 func insertIngredients(recipeId int64, createdBy int64, ingredients []data.Ingredient) error {
 	log.Printf("Insert %d recipe ingredients", len(ingredients))
 	// We need to check if an item exists and reference this item rather than creating a new one
+	if len(ingredients) == 0 {
+		return nil
+	}
 	query := insertRecipeIngredientsQuery
 	if len(ingredients) > 1 {
 		query = insertRecipeIngredientsQuery + strings.Repeat(",(?,?,?,?,?)", len(ingredients)-1)
@@ -1357,7 +1363,7 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
 
 func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
-	filenames, err := storeImages(ctx, recipePK.RecipeId, "content")
+	filenames, err := storeImages(ctx, recipePK.RecipeId, recipePK.CreatedBy, "content", "recipeImages")
 	if err != nil {
 		return err
 	}
