@@ -1400,7 +1400,7 @@ func storeImages(ctx *gin.Context, recipeId int64, createdBy int64, imageFieldNa
 		contentType := file.Header.Get("Content-Type")
 		fileType := strings.TrimPrefix(contentType, "image/")
 		if len(fileType) == 0 {
-			fileType = "png"
+			return []string{}, errors.New("invalid content-type and request")
 		}
 		filename := fmt.Sprintf("%d_%d_%d.%s", recipeId, createdBy, i, fileType)
 		fileStoreLocation := filepath.Join("images", filePathPrefix, filename)
