@@ -2,8 +2,13 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -71,6 +76,132 @@ func getRecipe(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, recipe)
+}
+
+func getRecipeImages(c *gin.Context) {
+	strRecipeId := c.Param("recipeId")
+	recipeId, err := strconv.Atoi(strRecipeId)
+	if err != nil {
+		log.Printf("Failed to parse recipeId parameter: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	imageFilepaths, err := database.GetImageNamesForRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Failed to load images for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	imageData, err := database.GetImagesFromFilepaths("recipe", imageFilepaths)
+	if err != nil {
+		log.Printf("Failed to load images for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Flatten the given image data
+	flattendedImages := make([]byte, 0)
+	for _, image := range imageData {
+		flattendedImages = append(flattendedImages, image...)
+	}
+	c.Data(http.StatusOK, "application/media", flattendedImages)
+}
+
+func getRecipeWithImages(c *gin.Context) {
+	strRecipeId := c.Param("recipeId")
+	recipeId, err := strconv.Atoi(strRecipeId)
+	if err != nil {
+		log.Printf("Failed to parse recipeId parameter: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	recipe, err := database.GetRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Failed to read recipe %d from %d from database: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	imageFilePaths, err := database.GetImageNamesForRecipe(int64(recipe.RecipeId), userId)
+	if err != nil {
+		log.Printf("Failed to load images for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	imageData, err := database.GetImagesFromFilepaths("images/recipes", imageFilePaths)
+	if err != nil {
+		log.Printf("Failed to load images for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	// Since the library doesn't support multipart responses, we need to write or own handler
+	randomBoundary := "12345555111123123123132asdkjashfdlkasf"
+	c.Writer.Header().Set("Content-Type", "multipart/mixed; boundary"+randomBoundary)
+	c.Writer.WriteHeader(http.StatusOK)
+
+	mw := multipart.NewWriter(c.Writer)
+	err = mw.SetBoundary(randomBoundary)
+	if err != nil {
+		log.Printf("Failed to set boundary for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Type", "application/json")
+	header.Add("Content-Disposition", "form-data; name=\"object\"")
+	object, err := mw.CreatePart(header)
+	if err != nil {
+		log.Printf("Failed to create object for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	rawRecipe, err := json.Marshal(recipe)
+	if err != nil {
+		log.Printf("Failed to serialize recipe for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	written, err := object.Write(rawRecipe)
+	if err != nil || written != len(rawRecipe) {
+		log.Printf("Failed to write object for recipe %d from %d: %s", recipeId, userId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	for i, elem := range imageData {
+		contentHeader := make(textproto.MIMEHeader)
+		filename := imageFilePaths[i]
+		contentHeader.Set("Content-Type", mime.TypeByExtension(filepath.Ext(filename)))
+		contentHeader.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+		content, err := mw.CreatePart(contentHeader)
+		if err != nil {
+			log.Printf("Failed to create image for recipe %d from %d: %s", recipeId, userId, err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		_, err = content.Write(elem)
+		if err != nil {
+			log.Printf("Failed to write image for recipe %d from %d: %s", recipeId, userId, err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	}
+
+	err = mw.Close()
+	if err != nil {
+		log.Printf("Failed to close content writer for recipe %d from %d: %s", recipeId, userId, err)
+	}
+	// Since we wrote directly into the stream, we are done here
 }
 
 func updateRecipe(c *gin.Context) {
