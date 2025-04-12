@@ -18,7 +18,6 @@ import (
 )
 
 func createRecipe(c *gin.Context) {
-	log.Print("Creating new recipe")
 	_, err := c.MultipartForm()
 	if err != nil {
 		log.Printf("Wrong request format: No multipart form data found!")
@@ -26,7 +25,6 @@ func createRecipe(c *gin.Context) {
 		return
 	}
 	recipeInfo := c.PostForm("object")
-	log.Printf("RecipeInfo: %s", recipeInfo)
 	if recipeInfo == "" {
 		log.Printf("Wrong request format: No recipe info found!")
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -37,6 +35,7 @@ func createRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	log.Printf("Creating new recipe '%d' with name '%s'", recipeToCreate.RecipeId, recipeToCreate.Name)
 	// The user can specify his own id, therefore we don't return anything
 	if err := database.CreateRecipe(recipeToCreate); err != nil {
 		log.Printf("Failed to create recipe: %s", err)
