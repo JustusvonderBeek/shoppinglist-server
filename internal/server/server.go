@@ -99,6 +99,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		authorized.GET("/recipe/:recipeId", getRecipe)
 		authorized.GET("/recipe/:recipeId/images", getRecipeImages)
 		authorized.GET("recipe/:recipeId/full", getRecipeWithImages)
+		authorized.GET("/recipe/full", getOwnAndSharedRecipeWithImages)
 		authorized.PUT("/recipe/:recipeId", updateRecipe)
 		authorized.DELETE("/recipe/:recipeId", deleteRecipe)
 

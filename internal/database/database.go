@@ -1135,7 +1135,7 @@ func GetIngredientsForRecipe(recipeId int64, createdBy int64) ([]data.Ingredient
 		return []data.Ingredient{}, err
 	}
 	defer rows.Close()
-	var ingredients []data.Ingredient
+	var ingredients = make([]data.Ingredient, 0)
 	for rows.Next() {
 		var ingredient data.Ingredient
 		if err := rows.Scan(&ingredient.Name, &ingredient.Icon, &ingredient.Quantity, &ingredient.QuantityType); err != nil {
@@ -1154,7 +1154,7 @@ func GetDescriptionsForRecipe(recipeId int64, createdBy int64) ([]data.RecipeDes
 		return []data.RecipeDescription{}, err
 	}
 	defer rows.Close()
-	var descriptions []data.RecipeDescription
+	var descriptions = make([]data.RecipeDescription, 0)
 	for rows.Next() {
 		var description data.RecipeDescription
 		if err := rows.Scan(&description.Order, &description.Step); err != nil {
@@ -1189,6 +1189,50 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 	}
 	recipe.Description = descriptions
 	return recipe, nil
+}
+
+const getRecipesForUserIdQuery = "SELECT recipeId,createdBy FROM recipe WHERE createdBy = ?"
+
+func GetRecipeForUserId(userId int64) ([]int64, error) {
+	log.Printf("Loading all recipes ids for user %d", userId)
+	rows, err := db.Query(getRecipesForUserIdQuery, userId)
+	if err != nil {
+		return []int64{}, err
+	}
+	defer rows.Close()
+	ownRecipeIds := make([]int64, 0)
+	for rows.Next() {
+		var recipeId int64
+		var createdBy int64
+		if err := rows.Scan(&recipeId, &createdBy); err != nil {
+			return []int64{}, err
+		}
+		ownRecipeIds = append(ownRecipeIds, recipeId)
+	}
+	return ownRecipeIds, nil
+}
+
+const getRecipeSharedWithUserIdQuery = "SELECT recipeId, createdBy FROM shared_recipe WHERE sharedWith = ?"
+
+func GetRecipeIdsSharedWithUserId(userId int64) ([]int64, []int64, error) {
+	log.Printf("Loading all recipes ids shared with user %d", userId)
+	rows, err := db.Query(getRecipeSharedWithUserIdQuery, userId)
+	if err != nil {
+		return []int64{}, []int64{}, err
+	}
+	defer rows.Close()
+	sharedWithRecipeIds := make([]int64, 0)
+	sharedWithCreatedBy := make([]int64, 0)
+	for rows.Next() {
+		var recipeId int64
+		var createdBy int64
+		if err := rows.Scan(&recipeId, &createdBy); err != nil {
+			return []int64{}, []int64{}, err
+		}
+		sharedWithRecipeIds = append(sharedWithRecipeIds, recipeId)
+		sharedWithCreatedBy = append(sharedWithCreatedBy, createdBy)
+	}
+	return sharedWithRecipeIds, sharedWithCreatedBy, nil
 }
 
 const getAllRawRecipesQuery = "SELECT recipeId,createdBy,name,createdAt,lastUpdate,version,defaultPortion FROM recipe"
