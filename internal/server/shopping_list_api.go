@@ -56,41 +56,50 @@ func updateShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	// Check if the list was created by the requesting user or might be shared
+	// Check if the updatedList was created by the requesting user or might be shared
 	userId := c.GetInt64("userId")
 	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	createdBy := int(userId)
-	strCreatedBy := c.Query("createdBy")
-	if strCreatedBy != "" {
-		// The list was not created by the requesting user!
-		// Check if the list was shared with this user, otherwise that
-		// would be an error
-		createdBy, err = strconv.Atoi(strCreatedBy)
+	var updatedList data.List
+	err = c.BindJSON(&updatedList)
+	if err != nil {
+		log.Printf("Failed to convert given data to shopping updatedList: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Checking access rights, it might be that the list was shared with the user
+	createdBy := updatedList.CreatedBy.ID
+	if createdBy != userId {
+		log.Printf("Caller and updatedList creator differ, checking access rights")
+		strCreatedBy := c.Query("createdBy")
+		if strCreatedBy == "" {
+			log.Printf("Caller and list creator are not identical but creator id not given. Preventing update...")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		queryCreatedBy, err := strconv.Atoi(strCreatedBy)
 		if err != nil {
 			log.Printf("given createdBy parameter is not an integer: %s", err)
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		if err = database.IsListSharedWithUser(int64(listId), int64(createdBy), int64(userId)); err != nil {
-			log.Printf("list %d is not shared with user %d", listId, userId)
+		if createdBy != int64(queryCreatedBy) {
+			log.Printf("query createdBy does not match list created by. Preventing update...")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if err = database.IsListSharedWithUser(int64(listId), createdBy, userId); err != nil {
+			log.Printf("updatedList %d is not shared with user %d", listId, userId)
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
 	}
-	// Now, either the requesting user created the list or the list was shared with
-	// the user that wants to update it
-	var list data.List
-	err = c.BindJSON(&list)
-	if err != nil {
-		log.Printf("Failed to convert given data to shopping list: %s", err)
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	if err = database.CreateOrUpdateShoppingList(list); err != nil {
+	// Either the user created the list or it was shared with the user
+	if err = database.CreateOrUpdateShoppingList(updatedList); err != nil {
 		log.Printf("failed to update listId %d from user %d", listId, userId)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return

@@ -636,12 +636,14 @@ func mapItemsIntoShoppingList(list data.List, itemMapKeys []ItemMapKey) error {
 }
 
 func CreateOrUpdateShoppingList(list data.List) error {
-	log.Printf("Creating shopping list '%s' with id '%d' from %v", list.Title, list.ListId, list.CreatedBy)
+	log.Printf("Creating or updating shopping list '%s' with id '%d' from %v", list.Title, list.ListId, list.CreatedBy)
 	if err := createRawShoppingList(list); err != nil {
+		log.Printf("Creating new list failed, trying update next")
 		_, err = updateRawShoppingList(list)
 		if err != nil {
 			return err
 		}
+		log.Printf("Raw list part updated")
 	}
 	itemMapKeys, err := addOrRemoveItemsInShoppingList(list)
 	if err != nil {
@@ -706,10 +708,10 @@ func GetListIdsSharedWithUser(userId int64) ([]data.ListPK, error) {
 	return list, nil
 }
 
-const istListSharedWithUserQuery = "SELECT * FROM shared_list WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
+const isListSharedWithUserQuery = "SELECT * FROM shared_list WHERE listId = ? AND createdBy = ? AND sharedWithId = ?"
 
 func IsListSharedWithUser(listId int64, createdBy int64, userId int64) error {
-	rows, err := db.Query(istListSharedWithUserQuery, listId, createdBy, userId)
+	rows, err := db.Query(isListSharedWithUserQuery, listId, createdBy, userId)
 	if err != nil {
 		log.Printf("The list %d is not shared with the user %d: %s", listId, userId, err)
 		return err
@@ -732,6 +734,21 @@ func IsListSharedWithUser(listId int64, createdBy int64, userId int64) error {
 	}
 	if counter == 1 || correctUserIdContained != true {
 		return errors.New("list is not shared with user")
+	}
+	return nil
+}
+
+const isListCreatedByUserIdQuery = "SELECT * FROM shopping_list WHERE listId = ? AND createdBy = ?"
+
+func IsListCreatedBy(listId int64, userId int64) error {
+	row := db.QueryRow(isListCreatedByUserIdQuery, listId, userId)
+	var list data.List
+	err := row.Scan(&list.ListId, &list.CreatedBy.ID, &list.Title, &list.CreatedAt, &list.LastUpdated, &list.Version)
+	if err != nil {
+		return err
+	}
+	if list.CreatedBy.ID != userId {
+		return errors.New("list is not created by user")
 	}
 	return nil
 }
