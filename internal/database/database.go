@@ -206,10 +206,11 @@ func GetAllUsers() ([]data.User, error) {
 	return users, nil
 }
 
-const getUserFromUsernameSearchString = "SELECT id,username,created,lastLogin FROM shoppers WHERE INSTR(username, '?') > 0"
+const getUserFromUsernameSearchString = "SELECT id,username,lastLogin FROM shoppers WHERE username LIKE ?"
 
 func GetUserFromMatchingUsername(name string) ([]data.User, error) {
-	rows, err := db.Query(getUserFromUsernameSearchString, name)
+	paddedName := "%" + name + "%"
+	rows, err := db.Query(getUserFromUsernameSearchString, paddedName)
 	if err != nil {
 		return []data.User{}, err
 	}
