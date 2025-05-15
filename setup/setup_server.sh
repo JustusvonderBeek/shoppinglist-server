@@ -9,12 +9,14 @@ outputDirectory="../resources/"
 # Create TLS Certificates
 ./create_tls_cert.sh "$outputDirectory"
 
-echo "Is the password for the database already correctly inserted into the SQL file?"
-
+# Extract the password from the db.json file and create a config
+echo "Is the password for the database already correctly inserted into the resources/db.json config file?"
 read -p "Press enter to continue"
 
+./fill_db_pwd.sh
+
 # Create the tables in the database
-sudo mysql < ./create_mysql_db.sql
+sudo mysql < ./filled_database.sql
 
 # Create the JWT secret
 ./create_jwt_secret.sh "$outputDirectory"
