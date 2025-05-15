@@ -1425,6 +1425,18 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 
 const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
 
+func UpdateAndReplaceImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
+	err := DeleteImagesForRecipe(recipePK.RecipeId, recipePK.CreatedBy)
+	if err != nil {
+		return err
+	}
+	err = StoreImagesForRecipe(ctx, recipePK)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
 	filenames, err := storeImages(ctx, recipePK.RecipeId, recipePK.CreatedBy, "content", "recipes")
 	if err != nil {
@@ -1519,6 +1531,27 @@ func DeleteImagesFromFilepaths(folder string, filenames []string) error {
 		}
 	}
 	return errorOccured
+}
+
+const removeImagesForRecipeQuery = "DELETE FROM images_per_recipe WHERE recipeId = ? AND createdBy = ?"
+
+func DeleteImagesForRecipe(recipeId int64, createdBy int64) error {
+	existingImages, err := GetImageNamesForRecipe(recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to load existing images: %s", err)
+		return err
+	}
+	err = DeleteImagesFromFilepaths("recipes", existingImages)
+	if err != nil {
+		log.Printf("Failed to delete existing images: %s", err)
+		return err
+	}
+	_, err = db.Exec(removeImagesForRecipeQuery, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to remove existing images for recipe %d from %d: %s", recipeId, createdBy, err)
+		return err
+	}
+	return nil
 }
 
 // ------------------------------------------------------------

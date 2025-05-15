@@ -301,9 +301,14 @@ func updateRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	recipeInfo := c.PostForm("object")
+	if recipeInfo == "" {
+		log.Printf("Wrong request format: No recipe info found!")
+		c.AbortWithStatus(http.StatusBadRequest)
+	}
 	var recipeToUpdate data.Recipe
-	if err := c.BindJSON(&recipeToUpdate); err != nil {
-		log.Printf("Failed to parse update recipe body: %s", err)
+	if err := json.Unmarshal([]byte(recipeInfo), &recipeToUpdate); err != nil {
+		log.Printf("Failed to parse recipe to update: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -315,6 +320,14 @@ func updateRecipe(c *gin.Context) {
 	}
 	if err := database.UpdateRecipe(recipeToUpdate); err != nil {
 		log.Printf("Failed to update recipe: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	recipePk := data.RecipePK{
+		RecipeId:  recipeToUpdate.RecipeId,
+		CreatedBy: recipeToUpdate.CreatedBy.ID,
+	}
+	if err := database.UpdateAndReplaceImagesForRecipe(c, recipePk); err != nil {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
