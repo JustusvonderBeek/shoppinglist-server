@@ -183,6 +183,7 @@ func getAllShoppingListsForUser(c *gin.Context) {
 	// Asking the database for all the lists that are shared with the current user
 	sharedListIds, err := database.GetListIdsSharedWithUser(int64(userId))
 	if err != nil {
+		log.Printf("Failed to get shared listIds for user %d: %s", userId, err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -190,6 +191,7 @@ func getAllShoppingListsForUser(c *gin.Context) {
 	// Get full information for the shared lists
 	sharedLists, err := database.GetRawShoppingListsByIDs(sharedListIds)
 	if err != nil {
+		log.Printf("Failed to load shared lists for user %d: %s", userId, err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

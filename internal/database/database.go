@@ -424,7 +424,12 @@ func GetRawShoppingListsByIDs(listIds []data.ListPK) ([]data.List, error) {
 	if len(listIds) == 0 {
 		return []data.List{}, nil
 	}
-	rows, err := db.Query(getShoppingListsById, listIds)
+	flattenedListPKs := make([]interface{}, 0)
+	for _, listPk := range listIds {
+		flattenedListPKs = append(flattenedListPKs, listPk.ListID)
+		flattenedListPKs = append(flattenedListPKs, listPk.CreatedBy)
+	}
+	rows, err := db.Query(getShoppingListsById, flattenedListPKs...)
 	if err != nil {
 		return []data.List{}, err
 	}
@@ -691,7 +696,7 @@ func DropShoppingListTable() {
 
 // ------------------------------------------------------------
 
-const listIsSharedWithUser = "SELECT * FROM shared_list WHERE sharedWithId IN (?, -1)"
+const listIsSharedWithUser = "SELECT listId, createdBy FROM shared_list WHERE sharedWithId IN (?, -1)"
 
 func GetListIdsSharedWithUser(userId int64) ([]data.ListPK, error) {
 	rows, err := db.Query(listIsSharedWithUser, userId)
