@@ -312,10 +312,14 @@ func updateRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	// TODO: Include updating a shared recipe
-	if recipeId != int(recipeToUpdate.RecipeId) || userId != recipeToUpdate.CreatedBy.ID {
-		log.Printf("User %d is not allowed to update the recipe from %d", userId, recipeToUpdate.CreatedBy.ID)
-		c.AbortWithStatus(http.StatusUnauthorized)
+	if recipeId != int(recipeToUpdate.RecipeId) {
+		log.Printf("RecipeId to update in body %d and header %d do not match", recipeId, recipeToUpdate.CreatedBy.ID)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if err = IsUserAllowedToHandleData(recipeToUpdate, userId, true); err != nil {
+		log.Printf("User is not allowed to update recipe: %s", err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	if err := database.UpdateRecipe(recipeToUpdate); err != nil {
@@ -332,6 +336,21 @@ func updateRecipe(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+func IsUserAllowedToHandleData(recipe data.Recipe, userId int64, update bool) error {
+	if userId == recipe.CreatedBy.ID {
+		return nil
+	}
+	if !update {
+		log.Printf("UserId %d does not match recipe createdBy %d", userId, recipe.CreatedBy.ID)
+		return errors.New("user creating recipe different from user in recipe")
+	}
+	if err := database.IsRecipeSharedWithUser(userId, recipe.RecipeId, recipe.CreatedBy.ID); err != nil {
+		log.Printf("Recipe %d from %d to update is not shared with user %d", recipe.RecipeId, recipe.CreatedBy.ID, userId)
+		return errors.New("recipe is not shared with user")
+	}
+	return nil
 }
 
 func deleteRecipe(c *gin.Context) {
@@ -441,9 +460,20 @@ func deleteShareRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	//strCreatedBy := c.Param("createdBy")
+	//if err := IsUserAllowedToUnshare(recipeId, strCreatedBy, userId); err != nil {
+	//
+	//}
+	//paramCreatedBy, err := strconv.Atoi(strCreatedBy)
+	//if err != nil {
+	//	log.Printf("Failed to parse given createdBy %s: %s", strCreatedBy, err)
+	//	c.AbortWithStatus(http.StatusBadRequest)
+	//	return
+	//}
+
 	recipe, err := database.GetRecipe(int64(recipeId), userId)
 	if err != nil {
-		log.Printf("Recipe to share does not exist")
+		log.Printf("Recipe to unshare does not exist")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

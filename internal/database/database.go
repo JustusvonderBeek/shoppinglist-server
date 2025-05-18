@@ -1253,6 +1253,25 @@ func GetRecipeIdsSharedWithUserId(userId int64) ([]int64, []int64, error) {
 	return sharedWithRecipeIds, sharedWithCreatedBy, nil
 }
 
+const getSpecificRecipeSharedWithUser = "SELECT recipeId, createdBy, sharedWith FROM shared_recipe WHERE recipeId = ? AND createdBy = ? AND sharedWith = ?"
+
+func IsRecipeSharedWithUser(userId int64, recipeId int64, createdBy int64) error {
+	log.Printf("Checking if recipe %d from %d is shared with %d", recipeId, createdBy, userId)
+	row := db.QueryRow(getSpecificRecipeSharedWithUser, recipeId, createdBy, userId)
+	var storedRecipeId int64
+	var storedCreatedBy int64
+	var storedSharedWith int64
+	if err := row.Scan(&storedRecipeId, &storedCreatedBy, &storedSharedWith); err != nil {
+		log.Printf("Querying database for shared recipe failed: %s", err)
+		return err
+	}
+	if storedRecipeId != recipeId || storedCreatedBy != createdBy || storedSharedWith != userId {
+		log.Printf("Recipe %d from %d is not shared with %d", recipeId, createdBy, userId)
+		return errors.New("recipe is not shared with user")
+	}
+	return nil
+}
+
 const getAllRawRecipesQuery = "SELECT recipeId,createdBy,name,createdAt,lastUpdate,version,defaultPortion FROM recipe"
 
 func GetAllRecipes() ([]data.Recipe, error) {
