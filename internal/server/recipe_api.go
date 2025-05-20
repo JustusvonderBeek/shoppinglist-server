@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"log"
 	"mime"
 	"mime/multipart"
@@ -11,8 +12,6 @@ import (
 	"net/textproto"
 	"path/filepath"
 	"strconv"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
@@ -30,6 +29,12 @@ func createRecipe(c *gin.Context) {
 		log.Printf("Wrong request format: No recipe info found!")
 		c.AbortWithStatus(http.StatusBadRequest)
 	}
+	userId := c.GetInt64("userId")
+	if userId == 0 {
+		log.Printf("User is not correctly authenticated")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
 	var recipeToCreate data.Recipe
 	if err := json.Unmarshal([]byte(recipeInfo), &recipeToCreate); err != nil {
 		log.Printf("Failed to parse recipe to create: %s", err)
@@ -37,6 +42,11 @@ func createRecipe(c *gin.Context) {
 		return
 	}
 	log.Printf("Creating new recipe '%d' with name '%s'", recipeToCreate.RecipeId, recipeToCreate.Name)
+	if err := IsUserAllowedToHandleData(recipeToCreate, userId, false); err != nil {
+		log.Printf("Failed to create recipe '%d': %s", recipeToCreate.RecipeId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	// The user can specify his own id, therefore we don't return anything
 	if err := database.CreateRecipe(recipeToCreate); err != nil {
 		log.Printf("Failed to create recipe: %s", err)
@@ -130,16 +140,9 @@ func loadRecipeWithImages(recipeId int64, createdBy int64) (data.Recipe, [][]byt
 }
 
 func sendResponseInMultiformData(writer gin.ResponseWriter, recipes []data.Recipe, images [][][]byte, imageFilePaths [][]string) error {
-	// TODO: Find a better boundary
-	randomBoundary := "12345555111123123123132asdkjashfdlkasf"
-	writer.Header().Set("Content-Type", "multipart/mixed; boundary="+randomBoundary)
+	writer.Header().Set("Content-Type", "multipart/mixed")
 	writer.WriteHeader(http.StatusOK)
 	mw := multipart.NewWriter(writer)
-	err := mw.SetBoundary(randomBoundary)
-	if err != nil {
-		log.Printf("Failed to set boundary in response: %s", err)
-		return err
-	}
 	for i, recipe := range recipes {
 		// Layout is first the object content followed by binary data
 		header := make(textproto.MIMEHeader)
@@ -186,7 +189,7 @@ func sendResponseInMultiformData(writer gin.ResponseWriter, recipes []data.Recip
 			}
 		}
 	}
-	err = mw.Close()
+	err := mw.Close()
 	if err != nil {
 		log.Printf("Failed to close content writer: %s", err)
 	}
@@ -235,7 +238,7 @@ func getRecipeWithImages(c *gin.Context) {
 	// Since we wrote directly into the stream, we are done here
 }
 
-func getOwnAndSharedRecipeWithImages(c *gin.Context) {
+func getOwnAndSharedRecipesWithImages(c *gin.Context) {
 	userId := c.GetInt64("userId")
 	if userId == 0 {
 		log.Printf("User not authenticated")
@@ -272,6 +275,13 @@ func getOwnAndSharedRecipeWithImages(c *gin.Context) {
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
+		recipeCreator, err := database.GetUser(recipeCreatedBy)
+		if err != nil {
+			log.Printf("Failed to get recipe creator for recipe %d: %s", recipeId, err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		recipe.CreatedBy.Name = recipeCreator.Username
 		allRawRecipes = append(allRawRecipes, recipe)
 		allRawImages = append(allRawImages, imageData)
 		allRawImageFilePaths = append(allRawImageFilePaths, imageFilePaths)
@@ -366,6 +376,17 @@ func deleteRecipe(c *gin.Context) {
 	if userId == 0 {
 		log.Printf("User is not correctly authenticated")
 		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	recipeToDelete, err := database.GetRecipe(int64(recipeId), userId)
+	if err != nil {
+		log.Printf("Failed to get recipe %d: %s", recipeId, err)
+		c.AbortWithStatus(http.StatusOK)
+		return
+	}
+	if err := IsUserAllowedToHandleData(recipeToDelete, userId, false); err != nil {
+		log.Printf("User is not allowed to delete recipe %d: %s", recipeId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 	filepaths, err := database.GetImageNamesForRecipe(int64(recipeId), userId)
