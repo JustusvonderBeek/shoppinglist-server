@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -42,6 +43,21 @@ func createShoppingList(c *gin.Context) {
 	c.Status(http.StatusCreated)
 }
 
+func isUserAllowedToUpdateList(list data.List, userId int64, updated bool) error {
+	if userId == list.CreatedBy.ID {
+		return nil
+	}
+	if !updated {
+		log.Printf("UserId %d does not match list createdBy %d", userId, list.CreatedBy.ID)
+		return errors.New("user creating list different from user in list")
+	}
+	if err := database.IsListSharedWithUser(list.ListId, list.CreatedBy.ID, userId); err != nil {
+		log.Printf("List %d from %d to update is not shared with user %d", list.ListId, list.CreatedBy.ID, userId)
+		return errors.New("list is not shared with user")
+	}
+	return nil
+}
+
 func updateShoppingList(c *gin.Context) {
 	// Check the contained listId and createdBy
 	strListId := c.Param("listId")
@@ -75,8 +91,8 @@ func updateShoppingList(c *gin.Context) {
 	createdBy := updatedList.CreatedBy.ID
 	if createdBy != userId {
 		log.Printf("Caller and updatedList creator differ, checking access rights")
-		strCreatedBy := c.Query("createdBy")
-		if strCreatedBy == "" {
+		strCreatedBy, exists := c.GetQuery("createdBy")
+		if !exists || strCreatedBy == "" {
 			log.Printf("Caller and list creator are not identical but creator id not given. Preventing update...")
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
@@ -87,16 +103,12 @@ func updateShoppingList(c *gin.Context) {
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		if createdBy != int64(queryCreatedBy) {
-			log.Printf("query createdBy does not match list created by. Preventing update...")
+		if err := isUserAllowedToUpdateList(updatedList, userId, true); err != nil {
+			log.Printf("Failed to update list: %s", err)
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		if err = database.IsListSharedWithUser(int64(listId), createdBy, userId); err != nil {
-			log.Printf("updatedList %d is not shared with user %d", listId, userId)
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
+		createdBy = int64(queryCreatedBy)
 	}
 	// Either the user created the list or it was shared with the user
 	if err = database.CreateOrUpdateShoppingList(updatedList); err != nil {
@@ -229,19 +241,39 @@ func deleteShoppingList(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	strCreatedBy, exist := c.GetQuery("createdBy")
+	createdBy := userId
+	if !exist || strCreatedBy == "" {
+		log.Printf("No created by given, assuming own list")
+	} else {
+		convCreatedBy, err := strconv.Atoi(strCreatedBy)
+		if err != nil {
+			log.Printf("Failed to parse given createdBy: %s", strCreatedBy)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		createdBy = int64(convCreatedBy)
+	}
 	// User can only delete the own lists, therefore check only if the list
 	// is owned by the user
-	list, err := database.GetRawShoppingListWithId(int64(listId), int64(userId))
+	list, err := database.GetRawShoppingListWithId(int64(listId), createdBy)
 	if err != nil {
 		log.Printf("Failed to get mapping for listId %d: %s", listId, err)
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	// Can this really happen? What has to go wrong for the method above to return
-	// a list with a different createdBy ?
+	// Is list shared? Then delete sharing
 	if list.CreatedBy.ID != userId {
-		log.Printf("Cannot delete list: User %d did not create list %d", userId, list.ListId)
-		c.AbortWithStatus(http.StatusForbidden)
+		if err := database.IsListSharedWithUser(list.ListId, list.CreatedBy.ID, userId); err != nil {
+			log.Printf("Cannot delete list: User %d did not create list %d from %d and list is not shared", userId, list.ListId, list.CreatedBy.ID)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		err := database.DeleteSharingForUser(list.ListId, list.CreatedBy.ID, userId)
+		if err != nil {
+			log.Printf("Failed to delete sharing of list %d from %d with %d: %s", list.ListId, list.CreatedBy.ID, userId, err)
+			c.AbortWithStatus(http.StatusBadRequest)
+		}
 		return
 	}
 	if err := database.DeleteShoppingList(int64(listId), int64(userId)); err != nil {

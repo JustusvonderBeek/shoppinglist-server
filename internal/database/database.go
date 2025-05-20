@@ -542,8 +542,9 @@ func checkItemCorrect(item data.ItemWire) (data.Item, error) {
 	if item.Quantity <= 0 {
 		return data.Item{}, errors.New("invalid field quantity: <= 0")
 	}
+	trimmedItemName := strings.TrimSpace(item.Name)
 	converted := data.Item{
-		Name: item.Name,
+		Name: trimmedItemName,
 		Icon: item.Icon,
 	}
 	return converted, nil
