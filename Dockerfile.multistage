@@ -38,7 +38,7 @@ FROM gcr.io/distroless/base-debian12 AS build-release-stage
 WORKDIR /shopping-list-server
 
 COPY --from=build-stage /shopping-list-server/app-server ./app-server
-COPY --from=build-stage /shopping-list-server/resources ./resources/
+#COPY --from=build-stage /shopping-list-server/resources ./resources/
 
 # Only documentation
 EXPOSE 41652
