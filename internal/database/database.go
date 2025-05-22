@@ -1199,6 +1199,12 @@ func GetRecipe(recipeId int64, createdBy int64) (data.Recipe, error) {
 		log.Printf("Failed to get recipe %d from %d: %s", recipeId, createdBy, err)
 		return data.Recipe{}, err
 	}
+	recipeCreator, err := GetUser(recipe.CreatedBy.ID)
+	if err != nil {
+		log.Printf("Failed to get recipe creator %d for recipe %d: %s", recipe.CreatedBy.ID, recipeId, err)
+		return data.Recipe{}, err
+	}
+	recipe.CreatedBy.Name = recipeCreator.Username
 	ingredients, err := GetIngredientsForRecipe(recipeId, createdBy)
 	if err != nil {
 		log.Printf("Failed to get ingredient for recipe: %s", err)
