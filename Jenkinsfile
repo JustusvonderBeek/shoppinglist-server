@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'cloudsheeptech/shopping-list-server'
+        DOCKER_IMAGE = 'cloudsheeptech/shopping-list'
         DOCKER_TAG = 'latest'
         DOCKERFILE_NAME = 'Dockerfile.multistage'
+        DATABASE = 'shoppinglist'
     }
 
     tools {
@@ -28,15 +29,19 @@ pipeline {
         stage('Docker Image') {
             steps {
                 echo 'Building Docker Image'
-                script {
-                    dockerImage = docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}", "-f ${env.DOCKERFILE_NAME} .")
+                withCredentials([
+                    usernamePassword(credentialsId: 'shopping-list-database', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')
+                ]) {
+                    // Injecting credentials into the config files
+                    sh 'cp setup/dbConfig.template.json resources/dockerDb.json'
+                    def dockerImage = docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}", "-f ${env.DOCKERFILE_NAME} .")
                 }
             }
         }
         stage('Deploy') {
             steps {
                 script {
-                    docker.withRegistry('https://hub.docker.com/r', 'dockerhub-access-token') {
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-access-token') {
                         dockerImage.push()
                     }
                 }
