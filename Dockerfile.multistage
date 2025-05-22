@@ -17,7 +17,6 @@ RUN go mod download
 COPY internal ./internal
 COPY setup ./setup
 COPY cmd/shopping-list-server/main.go ./cmd/shopping-list-server/main.go
-COPY server.log ./
 COPY go.sum ./
 
 # DEBUG: Write the output of ls into a file
