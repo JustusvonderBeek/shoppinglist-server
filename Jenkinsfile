@@ -1,3 +1,6 @@
+// Intention to use the dockerImage across stages
+def dockerImage
+
 pipeline {
     agent any
 
@@ -20,26 +23,46 @@ pipeline {
                 sh 'go build -o app-server ./cmd/shopping-list-server'
             }
         }
-//         stage('Test') {
-//             steps {
-//                 echo 'Testing..'
-//                 sh 'go test ./...'
-//             }
-//         }
+        stage('Test') {
+            when {
+                equals expected: "false", actual: "${env.SKIP_TESTS}"
+            }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    echo 'Testing..'
+                    sh 'go test ./...'
+                }
+            }
+        }
+        stage('Prepare Docker Build') {
+            steps {
+                echo 'Copying important files'
+                withCredentials([
+                    file(credentialsId: 'shopping-list-db-secrets', variable: 'DB_SECRET_FILE'),
+                    file(credentialsId: 'shopping-list-jwt-secret', variable: 'JWT_SECRET_FILE'),
+                    file(credentialsId: 'shopping-list-certificate', variable: 'CERT_FILE'),
+                    file(credentialsId: 'shopping-list-certificate-key', variable: 'KEY_FILE')
+                ]) {
+                    // Injecting credentials into the config files
+                    sh 'mkdir -p resources'
+                    sh 'cat "$DB_SECRET_FILE" > resources/dockerDb.json'
+                    sh 'cat "$JWT_SECRET_FILE" > resources/jwtSecret.json'
+                    sh 'cat "$CERT_FILE" > resources/shoppinglist.crt'
+                    sh 'cat "$KEY_FILE" > resources/shoppinglist.pem'
+                }
+            }
+        }
         stage('Docker Image') {
             steps {
                 echo 'Building Docker Image'
-                withCredentials([
-                    usernamePassword(credentialsId: 'shopping-list-database', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')
-                ]) {
-                    // Injecting credentials into the config files
-                    sh 'cp setup/dbConfig.template.json resources/dockerDb.json'
-                    def dockerImage = docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}", "-f ${env.DOCKERFILE_NAME} .")
+                script {
+                    dockerImage = docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}", "-f ${env.DOCKERFILE_NAME} .")
                 }
             }
         }
         stage('Deploy') {
             steps {
+                echo 'Deploying docker build to dockerHub'
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-access-token') {
                         dockerImage.push()
@@ -50,6 +73,10 @@ pipeline {
     }
 
     post {
+        always {
+            echo 'Cleanup secret files'
+            sh 'rm -rf ./resources'
+        }
         success {
             echo 'Pipeline Succeeded'
         }
