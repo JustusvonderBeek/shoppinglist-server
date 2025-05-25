@@ -1361,7 +1361,24 @@ func UpdateRecipe(recipe data.Recipe) error {
 		log.Printf("Failed to update ingredients: %s", err)
 		return err
 	}
-	// TODO: Include updating images
+	return nil
+}
+
+func UpdateRecipeWithoutComparingVersion(recipeToUpdate data.Recipe) error {
+	log.Printf("Updating recipe %d from %d to version %d without compare", recipeToUpdate.RecipeId, recipeToUpdate.CreatedBy.ID, recipeToUpdate.Version)
+	_, err := db.Exec(updateRawRecipeQuery, recipeToUpdate.Version, recipeToUpdate.Name, recipeToUpdate.RecipeId, recipeToUpdate.CreatedBy.ID)
+	if err != nil {
+		log.Printf("Failed to update recipe version: %s", err)
+		return err
+	}
+	if err := updateDescriptions(recipeToUpdate.RecipeId, recipeToUpdate.CreatedBy.ID, recipeToUpdate.Description); err != nil {
+		log.Printf("Failed to update descriptions: %s", err)
+		return err
+	}
+	if err := updateIngredients(recipeToUpdate.RecipeId, recipeToUpdate.CreatedBy.ID, recipeToUpdate.Ingredients); err != nil {
+		log.Printf("Failed to update ingredients: %s", err)
+		return err
+	}
 	return nil
 }
 
@@ -1457,25 +1474,31 @@ func DeleteAllSharingForRecipe(recipeId int64, createdBy int64) error {
 const createImagePerRecipeQuery = "INSERT INTO images_per_recipe (recipeId,createdBy,filename) VALUES (?, ?, ?)"
 
 func UpdateAndReplaceImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
-	err := DeleteImagesForRecipe(recipePK.RecipeId, recipePK.CreatedBy)
+	temporaryFilespaths, err := MarkImagesForDeletion(recipePK.RecipeId, recipePK.CreatedBy)
 	if err != nil {
 		return err
 	}
-	err = StoreImagesForRecipe(ctx, recipePK)
+	_, err = StoreImagesForRecipe(ctx, recipePK)
 	if err != nil {
+		_ = RestoreImagesMarkedForDeletion(temporaryFilespaths, recipePK)
 		return err
 	}
+	err = DeleteImagesFromFilepaths("recipes", temporaryFilespaths)
 	return nil
 }
 
-func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
+func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) ([]string, error) {
 	filenames, err := storeImages(ctx, recipePK.RecipeId, recipePK.CreatedBy, "content", "recipes")
 	if err != nil {
-		return err
+		return []string{}, err
 	}
+	return storeRecipeImageFilepathsInDatabase(filenames, recipePK)
+}
+
+func storeRecipeImageFilepathsInDatabase(filenames []string, recipePK data.RecipePK) ([]string, error) {
 	if len(filenames) == 0 {
 		log.Printf("No images for recipe %d found", recipePK.RecipeId)
-		return nil
+		return []string{}, errors.New("no images found")
 	}
 	query := createImagePerRecipeQuery
 	if len(filenames) > 1 {
@@ -1487,8 +1510,8 @@ func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) error {
 		flattenedParameters = append(flattenedParameters, recipePK.CreatedBy)
 		flattenedParameters = append(flattenedParameters, filename)
 	}
-	_, err = db.Exec(query, flattenedParameters...)
-	return err
+	_, err := db.Exec(query, flattenedParameters...)
+	return filenames, err
 }
 
 func storeImages(ctx *gin.Context, recipeId int64, createdBy int64, imageFieldName string, filePathPrefix string) ([]string, error) {
@@ -1550,6 +1573,30 @@ func GetImagesFromFilepaths(folder string, filenames []string) ([][]byte, error)
 	return fileContents, nil
 }
 
+func RenameImagesFromFilepaths(folder string, filenames []string, renameMarker string, removeMarker bool) ([]string, error) {
+	newFilenames := make([]string, 0)
+	for _, filename := range filenames {
+		fileStoreLocation := filepath.Join("images", folder, filename)
+		extension := filepath.Ext(filename) // Includes '.png'
+		fileWithoutExtension := strings.TrimSuffix(filename, extension)
+		var renamedFileWithExtension string
+		if removeMarker {
+			renamedFileWithExtension = strings.ReplaceAll(fileWithoutExtension, renameMarker, "")
+			renamedFileWithExtension = fmt.Sprintf("%s%s", renamedFileWithExtension, extension)
+		} else {
+			renamedFileWithExtension = fmt.Sprintf("%s_%s%s", fileWithoutExtension, renameMarker, extension)
+		}
+		newFileStoreLocation := filepath.Join("images", folder, renamedFileWithExtension)
+		err := os.Rename(fileStoreLocation, newFileStoreLocation)
+		if err != nil {
+			log.Printf("Failed to rename image %s to %s: %s", fileStoreLocation, newFileStoreLocation, err)
+			return []string{}, err
+		}
+		newFilenames = append(newFilenames, renamedFileWithExtension)
+	}
+	return newFilenames, nil
+}
+
 func DeleteImagesFromFilepaths(folder string, filenames []string) error {
 	var errorOccured error
 	errorOccured = nil
@@ -1565,6 +1612,36 @@ func DeleteImagesFromFilepaths(folder string, filenames []string) error {
 }
 
 const removeImagesForRecipeQuery = "DELETE FROM images_per_recipe WHERE recipeId = ? AND createdBy = ?"
+
+func MarkImagesForDeletion(recipeId int64, createdBy int64) ([]string, error) {
+	existingImages, err := GetImageNamesForRecipe(recipeId, createdBy)
+	if err != nil {
+		log.Printf("Failed to load existing images: %s", err)
+		return []string{}, err
+	}
+	renamedFiles, err := RenameImagesFromFilepaths("recipes", existingImages, "del", false)
+	if err != nil {
+		log.Printf("Failed to rename images: %s", err)
+		return []string{}, err
+	}
+	_, err = db.Exec(removeImagesForRecipeQuery, recipeId, createdBy)
+	if err != nil {
+		log.Printf("Removing images marked for deleting from database failed: %s", err)
+		return []string{}, err
+	}
+	return renamedFiles, nil
+}
+
+func RestoreImagesMarkedForDeletion(fileLocations []string, recipePK data.RecipePK) error {
+	log.Printf("Restoring images marked for deletion for recipe %d from %d", recipePK.RecipeId, recipePK.CreatedBy)
+	restoredFiles, err := RenameImagesFromFilepaths("recipes", fileLocations, "_del", true)
+	if err != nil {
+		log.Printf("Failed to restore images: %s", err)
+		return err
+	}
+	_, err = storeRecipeImageFilepathsInDatabase(restoredFiles, recipePK)
+	return err
+}
 
 func DeleteImagesForRecipe(recipeId int64, createdBy int64) error {
 	existingImages, err := GetImageNamesForRecipe(recipeId, createdBy)

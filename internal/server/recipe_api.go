@@ -57,7 +57,9 @@ func createRecipe(c *gin.Context) {
 		RecipeId:  recipeToCreate.RecipeId,
 		CreatedBy: recipeToCreate.CreatedBy.ID,
 	}
-	if err := database.StoreImagesForRecipe(c, recipePk); err != nil {
+	if _, err := database.StoreImagesForRecipe(c, recipePk); err != nil {
+		// If the creation of the images failed, delete the recipe
+		_ = database.DeleteRecipe(recipeToCreate.RecipeId, recipeToCreate.CreatedBy.ID)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -332,6 +334,13 @@ func updateRecipe(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	oldRecipe, err := database.GetRecipe(recipeToUpdate.RecipeId, recipeToUpdate.CreatedBy.ID)
+	if err != nil {
+		// Internal error but don't inform user
+		log.Printf("Failed to get recipe for rollback operation %d: %s", recipeToUpdate.RecipeId, err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	if err := database.UpdateRecipe(recipeToUpdate); err != nil {
 		log.Printf("Failed to update recipe: %s", err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -342,6 +351,8 @@ func updateRecipe(c *gin.Context) {
 		CreatedBy: recipeToUpdate.CreatedBy.ID,
 	}
 	if err := database.UpdateAndReplaceImagesForRecipe(c, recipePk); err != nil {
+		// Restore the state before the update and ignore errors
+		_ = database.UpdateRecipeWithoutComparingVersion(oldRecipe)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
