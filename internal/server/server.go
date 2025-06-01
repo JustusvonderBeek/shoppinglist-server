@@ -132,9 +132,10 @@ func Start(cfg configuration.Config) error {
 	// Only allow TLS
 	var err error
 	if !cfg.DisableTLS {
+		log.Printf("Listening on %s with TLS enabled...", address)
 		err = router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
 	} else {
-		log.Printf("Disabling TLS...")
+		log.Printf("Listening on %s without TLS...", address)
 		err = router.Run(address)
 	}
 	return err
