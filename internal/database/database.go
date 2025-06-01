@@ -429,7 +429,12 @@ func GetRawShoppingListsByIDs(listIds []data.ListPK) ([]data.List, error) {
 		flattenedListPKs = append(flattenedListPKs, listPk.ListID)
 		flattenedListPKs = append(flattenedListPKs, listPk.CreatedBy)
 	}
-	rows, err := db.Query(getShoppingListsById, flattenedListPKs...)
+	query := getShoppingListsById
+	if len(flattenedListPKs) > 1 {
+		getShoppingListsByIdInAppendableFormat := strings.TrimSuffix(getShoppingListsById, ")")
+		query = getShoppingListsByIdInAppendableFormat + strings.Repeat(",(?,?)", len(listIds)-1) + ")"
+	}
+	rows, err := db.Query(query, flattenedListPKs...)
 	if err != nil {
 		return []data.List{}, err
 	}
@@ -1498,7 +1503,7 @@ func StoreImagesForRecipe(ctx *gin.Context, recipePK data.RecipePK) ([]string, e
 func storeRecipeImageFilepathsInDatabase(filenames []string, recipePK data.RecipePK) ([]string, error) {
 	if len(filenames) == 0 {
 		log.Printf("No images for recipe %d found", recipePK.RecipeId)
-		return []string{}, errors.New("no images found")
+		return []string{}, nil
 	}
 	query := createImagePerRecipeQuery
 	if len(filenames) > 1 {
