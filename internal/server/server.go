@@ -2,6 +2,8 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"time"
@@ -10,6 +12,36 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/middleware"
+)
+
+// ------------------------------------------------------------
+// Monitoring functionality
+// ------------------------------------------------------------
+
+var (
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"path"},
+	)
+
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "Duration of HTTP requests",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"path"},
+	)
+
+	activeConnections = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_connections",
+			Help: "Number of active connections",
+		},
+	)
 )
 
 // ------------------------------------------------------------
@@ -49,6 +81,34 @@ func pingTest(c *gin.Context) {
 // The main function
 // ------------------------------------------------------------
 
+func init() {
+	// Register Prometheus metrics
+	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, activeConnections)
+}
+
+// Middleware to track Prometheus metrics
+func prometheusMiddleware(c *gin.Context) {
+	path := c.Request.URL.Path
+
+	// begin timer to measure the requests duration
+	timer := prometheus.NewTimer(httpRequestDuration.WithLabelValues(path))
+
+	// increment total request counter
+	httpRequestsTotal.WithLabelValues(path).Inc()
+
+	// increment number of active connections
+	activeConnections.Inc()
+
+	// complete processing request
+	c.Next()
+
+	// record request duration (post processing)
+	timer.ObserveDuration()
+
+	// decrement total number of active connections (post processing)
+	activeConnections.Dec()
+}
+
 func SetupRouter(cfg configuration.Config) *gin.Engine {
 	if cfg.Production {
 		gin.SetMode(gin.ReleaseMode)
@@ -59,6 +119,7 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	router := gin.Default()
 	authentication.Setup(cfg)
 	router.Use(middleware.CorsMiddleware())
+	router.Use(prometheusMiddleware)
 
 	// ------------- Handling Account Creation and Login ---------------
 
@@ -121,6 +182,9 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	}
 
 	router.GET("/test/unauth", returnUnauth)
+
+	// Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	return router
 }
