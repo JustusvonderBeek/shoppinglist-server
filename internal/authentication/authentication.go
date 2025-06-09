@@ -259,6 +259,31 @@ func DebugAuthenticationMiddleware() gin.HandlerFunc {
 	return debugAuthentication
 }
 
+func AdminAuthWithoutUserMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKeyString := c.GetHeader("x-api-key")
+		if apiKeyString == "" {
+			log.Print("No token found! Abort")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no API token"})
+			return
+		}
+		// Validate the token to be correct
+		apiKeyClaims, err := ApiKeyValid(apiKeyString)
+		if err != nil {
+			log.Printf("API Key not valid: %s", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
+			return
+		}
+		// Validate the user
+		if apiKeyClaims.Admin != true {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func AdminAuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKeyString := c.GetHeader("x-api-key")

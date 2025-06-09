@@ -181,10 +181,14 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 		admin.GET("/recipes", getAllRecipes)
 	}
 
-	router.GET("/test/unauth", returnUnauth)
+	metrics := router.Group("/v1")
+	metrics.Use(authentication.AdminAuthWithoutUserMiddleware())
+	{
+		// Prometheus metrics endpoint, secured by API Key
+		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	}
 
-	// Prometheus metrics endpoint
-	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	router.GET("/test/unauth", returnUnauth)
 
 	return router
 }
