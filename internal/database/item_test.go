@@ -102,12 +102,12 @@ func TestInsertItem(t *testing.T) {
 		log.Printf("Failed to create new item: %s", err)
 		t.FailNow()
 	}
-	if created == 0 {
+	if created.ItemId == 0 {
 		log.Printf("Item ID (%d) not correct but zero", created)
 		t.FailNow()
 	}
 	PrintItemTable()
-	getItem, err := GetItem(created)
+	getItem, err := GetItem(created.ItemId)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -137,7 +137,7 @@ func TestModifyItemName(t *testing.T) {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := GetItem(created)
+	getItem, err := GetItem(created.ItemId)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
@@ -152,7 +152,7 @@ func TestModifyItemName(t *testing.T) {
 		t.FailNow()
 	}
 	updatedName := "New Item"
-	newItem, err := ModifyItem(created, updatedName)
+	newItem, err := ModifyItem(created.ItemId, updatedName, created.Icon)
 	if err != nil {
 		log.Printf("Failed to modify item name: %s", err)
 		t.FailNow()
@@ -178,12 +178,12 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Printf("Failed to create new item")
 		t.FailNow()
 	}
-	getItem, err := GetItem(created)
+	getItem, err := GetItem(created.ItemId)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ItemId != created {
+	if getItem.ItemId != created.ItemId {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -191,7 +191,7 @@ func TestModifyItemIcon(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	newItem, err := ModifyItemIcon(created, "New Icon")
+	newItem, err := ModifyItem(created.ItemId, created.Name, "New Icon")
 	if err != nil {
 		log.Printf("Failed to modify item icon: %s", err)
 		t.FailNow()
@@ -218,12 +218,12 @@ func TestDeleteItem(t *testing.T) {
 		t.FailNow()
 	}
 	PrintItemTable()
-	getItem, err := GetItem(created)
+	getItem, err := GetItem(created.ItemId)
 	if err != nil {
 		log.Printf("Failed to get new item")
 		t.FailNow()
 	}
-	if getItem.ItemId != created {
+	if getItem.ItemId != created.ItemId {
 		log.Print("Item ID not correct")
 		t.FailNow()
 	}
@@ -231,12 +231,12 @@ func TestDeleteItem(t *testing.T) {
 		log.Print("Information cannot be retrieved correctly")
 		t.FailNow()
 	}
-	err = DeleteItem(created)
+	err = DeleteItem(created.ItemId)
 	if err != nil {
 		log.Printf("Failed to delete item: %s", err)
 		t.FailNow()
 	}
-	getItem, err = GetItem(created)
+	getItem, err = GetItem(created.ItemId)
 	if err == nil || getItem.ItemId != 0 {
 		log.Printf("Can still retrieve item!")
 		t.FailNow()

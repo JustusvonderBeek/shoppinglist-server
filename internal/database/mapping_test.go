@@ -13,7 +13,6 @@ import (
 
 func createDefaultMapping() data.ListItem {
 	return data.ListItem{
-		ID:        12,
 		ListId:    1,
 		ItemId:    1,
 		Quantity:  1,
@@ -31,7 +30,7 @@ func TestInsertMapping(t *testing.T) {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
+	if created.ItemId == 0 {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
@@ -45,7 +44,7 @@ func TestInsertMapping(t *testing.T) {
 		t.FailNow()
 	}
 	onlyMapping := getMapping[0]
-	if onlyMapping.ItemId != mapping.ItemId || onlyMapping.Quantity != 1 || onlyMapping.Checked != mapping.Checked || onlyMapping.CreatedBy != mapping.CreatedBy || onlyMapping.AddedBy != mapping.AddedBy {
+	if onlyMapping.Quantity != 1 || onlyMapping.Checked != mapping.Checked || onlyMapping.AddedBy != mapping.AddedBy {
 		log.Printf("Wrongly inserted. Attributes do not match")
 		t.FailNow()
 	}
@@ -63,11 +62,11 @@ func TestInsertDoubleMapping(t *testing.T) {
 			log.Printf("Failed to insert mapping into database: %s", err)
 			t.FailNow()
 		}
-		if created.ID == 0 {
+		if created.ItemId == 0 {
 			log.Print("Mapping not correctly inserted")
 			t.FailNow()
 		}
-		getMapping, err := GetItemsInList(mapping.ListId, created.ID)
+		getMapping, err := GetItemsInList(mapping.ListId, created.ItemId)
 		if err != nil {
 			log.Printf("The mapping or item for the mapping cannot be found")
 			t.FailNow()
@@ -77,7 +76,7 @@ func TestInsertDoubleMapping(t *testing.T) {
 			t.FailNow()
 		}
 		onlyMapping := getMapping[0]
-		if onlyMapping.ItemId != mapping.ItemId || onlyMapping.Quantity != 1 || onlyMapping.Checked != mapping.Checked || onlyMapping.CreatedBy != mapping.CreatedBy || onlyMapping.AddedBy != mapping.AddedBy {
+		if onlyMapping.Quantity != 1 || onlyMapping.Checked != mapping.Checked || onlyMapping.AddedBy != mapping.AddedBy {
 			log.Printf("Wrongly inserted. Attributes do not match")
 			t.FailNow()
 		}
@@ -104,7 +103,7 @@ func TestUpdatingMapping(t *testing.T) {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
+	if created.ItemId == 0 {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}
@@ -118,7 +117,7 @@ func TestUpdatingMapping(t *testing.T) {
 		t.FailNow()
 	}
 	onlyMapping := getMapping[0]
-	if onlyMapping.ItemId != mapping.ItemId || onlyMapping.Quantity != mapping.Quantity || onlyMapping.Checked != mapping.Checked || onlyMapping.CreatedBy != mapping.CreatedBy || onlyMapping.AddedBy != mapping.AddedBy {
+	if onlyMapping.Quantity != mapping.Quantity || onlyMapping.Checked != mapping.Checked || onlyMapping.AddedBy != mapping.AddedBy {
 		log.Printf("Wrongly inserted. Attributes do not match")
 		t.FailNow()
 	}
@@ -141,7 +140,7 @@ func TestUpdatingMapping(t *testing.T) {
 		t.FailNow()
 	}
 	onlyMapping = updatedMapping[0]
-	if onlyMapping.ItemId != mapping.ItemId || onlyMapping.Quantity != mapping.Quantity || onlyMapping.Checked != mapping.Checked || onlyMapping.CreatedBy != mapping.CreatedBy || onlyMapping.AddedBy != mapping.AddedBy {
+	if onlyMapping.Quantity != mapping.Quantity || onlyMapping.Checked != mapping.Checked || onlyMapping.AddedBy != mapping.AddedBy {
 		log.Printf("Wrongly updated. Attributes do not match")
 		t.FailNow()
 	}
@@ -158,7 +157,7 @@ func TestDeleteMapping(t *testing.T) {
 		log.Printf("Failed to insert mapping into database: %s", err)
 		t.FailNow()
 	}
-	if created.ID == 0 {
+	if created.ItemId == 0 {
 		log.Print("Mapping not correctly inserted")
 		t.FailNow()
 	}

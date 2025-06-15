@@ -51,7 +51,7 @@ func TestCreatingList(t *testing.T) {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err := GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list: %s", err)
 		t.FailNow()
@@ -81,7 +81,7 @@ func TestUpdatingList(t *testing.T) {
 			log.Printf("Failed to create new list: %s", err)
 			t.FailNow()
 		}
-		getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
+		getList, err := GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 		if err != nil {
 			log.Printf("Failed to get newly created shopping list: %s", err)
 			t.FailNow()
@@ -118,7 +118,7 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to create new list: %s", err)
 		t.FailNow()
 	}
-	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err := GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -136,7 +136,7 @@ func TestModifyListName(t *testing.T) {
 		log.Printf("Failed to modify shopping list name: %s", err)
 		t.FailNow()
 	}
-	getList, err = GetShoppingList(updatedList.ListId, updatedList.CreatedBy.ID)
+	getList, err = GetRawShoppingListWithId(updatedList.ListId, updatedList.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get list: %s", err)
 		t.FailNow()
@@ -151,7 +151,7 @@ func TestModifyListName(t *testing.T) {
 	}
 	log.Print("TestModifyListName successfully completed")
 	DropShoppingListTable()
-	ResetUserTable()
+	DropUserTable()
 }
 
 func TestDeletingList(t *testing.T) {
@@ -168,7 +168,7 @@ func TestDeletingList(t *testing.T) {
 		t.FailNow()
 	}
 	PrintShoppingListTable()
-	getList, err := GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err := GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 	if err != nil {
 		log.Printf("Failed to get newly created shopping list")
 		t.FailNow()
@@ -182,7 +182,7 @@ func TestDeletingList(t *testing.T) {
 		log.Printf("Failed to delete shopping list: %s", err)
 		t.FailNow()
 	}
-	getList, err = GetShoppingList(list.ListId, list.CreatedBy.ID)
+	getList, err = GetRawShoppingListWithId(list.ListId, list.CreatedBy.ID)
 	if err == nil || getList.ListId == list.ListId {
 		log.Printf("Can get delete list!")
 		t.FailNow()
