@@ -12,9 +12,9 @@ placeholder_locality="<locality>"
 placeholder_password="<password>"
 
 # Replace each string with the given information from the 'db_conf.json' file
-username=$(cat "$database_information" | jq -r .DBUser)
-password=$(cat "$database_information" | jq -r .DBPwd)
-dbaddress=$(cat "$database_information" | jq -r .Addr)
+username=$(cat "$database_information" | jq -r .DatabaseUser)
+password=$(cat "$database_information" | jq -r .DatabasePassword)
+dbaddress=$(cat "$database_information" | jq -r .DatabaseHost)
 locality=${dbaddress%%:*}
 # echo "$username, $password, $locality"
 

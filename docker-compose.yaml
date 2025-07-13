@@ -1,11 +1,8 @@
-version: '3.1'
-
 services:
   mariadb:
-    image: mariadb:11.3.2
+    image: mariadb:lts
+    hostname: database
     restart: always
-    ports:
-      - "3306:3306"
     volumes:
       - db-data:/var/lib/mysql
       # This volume is only mounted and meant to be used for the initialization
@@ -18,12 +15,21 @@ services:
       - MARIADB_USER=user
       - MARIADB_PASSWORD=<password>
 
+  # The server application
   application:
-    image: shop-server
+    image: shopping-list-server:0.8.13
+    build:
+      context: .
+      dockerfile: Dockerfile.shopping-list-server
     restart: always
     ports:
       - "46152:46152"
+    environment:
+      - DB_CONFIG_FILE=resources/db.json
+    volumes:
+      - images:/images
 
 volumes:
   db-data:
+  images:
   

@@ -5,23 +5,23 @@
 -- OR directly:
 -- sudo mysql < ./create_mysql_db.sql
 
-DROP DATABASE IF EXISTS shoppinglist;
-CREATE DATABASE shoppinglist;
+DROP DATABASE IF EXISTS shopping_list_prod;
+CREATE DATABASE shopping_list_prod;
 
-use shoppinglist;
+use shopping_list_prod;
 
-DROP USER IF EXISTS '<username>'@'<locality>';
-CREATE USER IF NOT EXISTS '<username>'@'<locality>' IDENTIFIED BY '<password>';
+DROP USER IF EXISTS '<username>'@'%';
+CREATE USER IF NOT EXISTS '<username>'@'%' IDENTIFIED BY '<password>';
 
 SELECT User
 FROM mysql.user;
 
-GRANT ALL PRIVILEGES ON shoppinglist.* TO '<username>'@'<locality>' WITH GRANT OPTION;
-GRANT FILE ON *.* TO '<username>'@'<locality>' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON shopping_list_prod.* TO '<username>'@'%' WITH GRANT OPTION;
+GRANT FILE ON *.* TO '<username>'@'%' WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
 
-SHOW GRANTS FOR '<username>'@'<locality>';
+SHOW GRANTS FOR '<username>'@'%';
 
 -- Table for AUTHENTICATION + AUTHORIZATION (mapping what lists / items can be seen)
 
