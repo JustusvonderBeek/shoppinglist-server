@@ -11,16 +11,11 @@ WORKDIR /shopping-list-server
 COPY go.mod ./
 # Now download the dependencies
 RUN go mod download
-# Copy the src files into the image
-# COPY *.go ./
-# Copy the other directories as well
+# Copy the src files and other directories into the image
 COPY internal ./internal
 COPY setup ./setup
 COPY cmd/shopping-list-server/main.go ./cmd/shopping-list-server/main.go
 COPY go.sum ./
-
-# DEBUG: Write the output of ls into a file
-# RUN echo "$(ls -1 /shopping-list)"
 
 # Compile the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o ./app-server ./cmd/shopping-list-server
