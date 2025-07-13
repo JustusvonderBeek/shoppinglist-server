@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -15,39 +14,15 @@ import (
 )
 
 func main() {
+	config := configuration.HandleCommandlineAndExportConfiguration()
 
-	addr := flag.String("a", "0.0.0.0", "Listen address")
-	port := flag.String("p", "46152", "Listen port")
-	logfile := flag.String("l", "server.log", "The logfile location")
-	dbConfig := flag.String("c", "resources/db.json", "The database configuration file")
-	tlscert := flag.String("cert", "resources/servercert.pem", "The location of the TLS Certificate")
-	tlskey := flag.String("key", "resources/serverkey.pem", "The location of the TLS keyfile")
-	jwtFile := flag.String("jwt", "resources/jwtSecret.json", "The path to the file holding the JWT Secret")
-	resetDb := flag.Bool("reset", false, "Reset the whole database")
-	production := flag.Bool("production", false, "Enable production mode")
-	noTls := flag.Bool("k", false, "Disable TLS for testing")
-	flag.Parse()
-
-	configuration := configuration.Config{
-		ListenAddr:     *addr,
-		ListenPort:     *port,
-		DatabaseConfig: *dbConfig,
-		ResetDatabase:  *resetDb,
-		TLSCertificate: *tlscert,
-		TLSKeyfile:     *tlskey,
-		DisableTLS:     *noTls,
-		Production:     *production,
-		JWTSecretFile:  *jwtFile,
-		JWTTimeout:     180, // Maybe make this a parameter later
-	}
-
-	setupLogger(*logfile)
+	setupLogger(config.Logfile)
 	// Fails if database not connected
-	database.CheckDatabaseOnline(configuration)
-	if configuration.ResetDatabase {
+	database.CheckDatabaseOnline(config.DatabaseConfig)
+	if config.DatabaseConfig.ResetDatabase {
 		resetDatabase()
 	}
-	server.Start(configuration)
+	server.Start(config)
 }
 
 func resetDatabase() {

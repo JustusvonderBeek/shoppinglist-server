@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
-	"github.com/JustusvonderBeek/shoppinglist-server/internal/util"
 )
 
 // A small database wrapper allowing to access a MySQL database
@@ -28,74 +26,8 @@ import (
 // Configuration File Handling
 // ------------------------------------------------------------
 
-var config DBConf
+var config configuration.DatabaseConfig
 var db *sql.DB
-
-type DBConf struct {
-	DBUser      string
-	DBPwd       string
-	Addr        string
-	NetworkType string
-	DBName      string
-}
-
-func createDefaultConfiguration(confFile string) {
-	// This method is only meant to create the file in the right format
-	// It is not meant to create a config file holding a working configuration
-	conf := DBConf{
-		DBUser:      "",
-		DBPwd:       "",
-		Addr:        "127.0.0.1:3306",
-		NetworkType: "tcp",
-		DBName:      "shoppinglist",
-	}
-	config = conf
-	storeConfiguration(confFile)
-}
-
-func loadConfigFile(filename string) ([]byte, error) {
-	return util.ReadFileFromRoot(filename)
-}
-
-func loadDbConfig(filename string) (DBConf, error) {
-	if filename == "" {
-		return DBConf{}, errors.New("no database config file given")
-	}
-	content, err := loadConfigFile(filename)
-	if err != nil && os.IsNotExist(err) {
-		createDefaultConfiguration(filename)
-		return DBConf{}, errors.New("no config file found, created default one but missing entries")
-	} else if err != nil {
-		return DBConf{}, err
-	}
-	var conf DBConf
-	err = json.Unmarshal(content, &conf)
-	if err != nil {
-		return DBConf{}, err
-	}
-	return conf, nil
-}
-
-func loadConfig(confFile string) {
-	loadedConfig, err := loadDbConfig(confFile)
-	if err != nil {
-		log.Fatalf("Failed to load DB loadedConfig: %s", err)
-	}
-	config = loadedConfig
-	log.Printf("Successfully loaded loadedConfig from '%s'", confFile)
-}
-
-func storeConfiguration(filename string) {
-	if filename == "" {
-		log.Fatal("Cannot store configuration file due to empty location")
-	}
-	encoded, err := json.Marshal(config)
-	if err != nil {
-		log.Fatalf("Failed to convert configuration to file format")
-	}
-	storedFilename, _, err := util.WriteFileAtRoot(encoded, filename, false)
-	log.Printf("Stored configuration to file: %s", storedFilename)
-}
 
 // ------------------------------------------------------------
 
@@ -107,21 +39,20 @@ func ResetDatabase() {
 	DropShoppingListTable()
 }
 
-func CheckDatabaseOnline(cfg configuration.Config) {
-	if config == (DBConf{}) {
-		log.Print("Configuration not initialized")
-		loadConfig(cfg.DatabaseConfig)
+func CheckDatabaseOnline(config configuration.DatabaseConfig) {
+	if config == (configuration.DatabaseConfig{}) {
+		log.Fatalf("Configuration not initialized")
 	}
 	if db != nil {
 		log.Print("Already connected to database")
 		return
 	}
 	mysqlCfg := mysql.Config{
-		User:                 config.DBUser,
-		Passwd:               config.DBPwd,
-		Net:                  config.NetworkType,
-		Addr:                 config.Addr,
-		DBName:               config.DBName,
+		User:                 config.DatabaseUser,
+		Passwd:               config.DatabasePassword,
+		Net:                  config.DatabaseNetworkType,
+		Addr:                 config.DatabaseHost,
+		DBName:               config.DatabaseName,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 		ParseTime:            true,

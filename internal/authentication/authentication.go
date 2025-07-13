@@ -21,7 +21,7 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
 
-var config configuration.Config
+var config configuration.AuthConfig
 var (
 	_, b, _, _ = runtime.Caller(0)
 	basepath   = filepath.Dir(b)
@@ -31,8 +31,8 @@ var (
 // Setup and configuration
 // ------------------------------------------------------------
 
-func Setup(cfg configuration.Config) {
-	config = cfg
+func Setup(authConfig configuration.AuthConfig) {
+	config = authConfig
 	err := SetupWhitelistedIPs()
 	if err != nil {
 		log.Fatalf("Failed to setup whitelisted IPs: %s", err)
@@ -188,7 +188,7 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		// }
 		// log.Printf("Token is issued for: %d", parsedClaim.Id)
 		pwd, _ := os.Getwd()
-		finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+		finalJWTFile := filepath.Join(pwd, config.JwtSecretFile)
 		data, err := os.ReadFile(finalJWTFile)
 		if err != nil {
 			log.Print("Failed to find JWT secret file")

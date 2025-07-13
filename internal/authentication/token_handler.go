@@ -52,7 +52,7 @@ func SetupTokenHandler() error {
 func GenerateNewJWTToken(id int, username string) (string, error) {
 	// Give enough time for a few requests
 	notBefore := time.Now()
-	expiresAt := notBefore.Add(time.Duration(config.JWTTimeout) * time.Second)
+	expiresAt := notBefore.Add(time.Duration(config.JwtTimeout) * time.Second)
 	claims := &Claims{
 		Id:       id,
 		Username: username,
@@ -64,7 +64,7 @@ func GenerateNewJWTToken(id int, username string) (string, error) {
 		},
 	}
 	newToken := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	secretFileReader := util.ConfigReader{Filename: config.JWTSecretFile}
+	secretFileReader := util.ConfigReader{Filename: config.JwtSecretFile}
 	secret, err := loadSecretFromDisk(&secretFileReader)
 	if err != nil {
 		return "", err
@@ -131,7 +131,7 @@ func removeInvalidTokens(tokens []string) ([]string, error) {
 				return nil, errors.New("unauthorized")
 			}
 			pwd, _ := os.Getwd()
-			finalJWTFile := filepath.Join(pwd, config.JWTSecretFile)
+			finalJWTFile := filepath.Join(pwd, config.JwtSecretFile)
 			data, err := os.ReadFile(finalJWTFile)
 			if err != nil {
 				log.Print("Failed to find JWT secret file")
@@ -167,7 +167,7 @@ func loadSecretFromDisk(reader util.IReader) (JWTSecretFile, error) {
 		if err != nil {
 			return JWTSecretFile{}, err
 		}
-		log.Fatalf("Wrote default JWT secret file. Please set the secret under: '%s'", config.JWTSecretFile)
+		log.Fatalf("Wrote default JWT secret file. Please set the secret under: '%s'", config.JwtSecretFile)
 	} else if err != nil {
 		return JWTSecretFile{}, err
 	}
@@ -195,7 +195,7 @@ func storeJWTSecret(jwtSecret JWTSecretFile) error {
 	if err != nil {
 		return err
 	}
-	writtenFilepath, _, err := util.OverwriteFileAtRoot(rawJwtSecretFile, config.JWTSecretFile)
+	writtenFilepath, _, err := util.OverwriteFileAtRoot(rawJwtSecretFile, config.JwtSecretFile)
 	log.Printf("Stored JWT secret file at: %s", writtenFilepath)
 	return err
 }

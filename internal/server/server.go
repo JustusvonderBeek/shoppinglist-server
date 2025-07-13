@@ -15,36 +15,6 @@ import (
 )
 
 // ------------------------------------------------------------
-// Monitoring functionality
-// ------------------------------------------------------------
-
-var (
-	httpRequestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		},
-		[]string{"path"},
-	)
-
-	httpRequestDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "Duration of HTTP requests",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"path"},
-	)
-
-	activeConnections = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "active_connections",
-			Help: "Number of active connections",
-		},
-	)
-)
-
-// ------------------------------------------------------------
 // Debug functionality
 // ------------------------------------------------------------
 
@@ -86,38 +56,15 @@ func init() {
 	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, activeConnections)
 }
 
-// Middleware to track Prometheus metrics
-func prometheusMiddleware(c *gin.Context) {
-	path := c.Request.URL.Path
-
-	// begin timer to measure the requests duration
-	timer := prometheus.NewTimer(httpRequestDuration.WithLabelValues(path))
-
-	// increment total request counter
-	httpRequestsTotal.WithLabelValues(path).Inc()
-
-	// increment number of active connections
-	activeConnections.Inc()
-
-	// complete processing request
-	c.Next()
-
-	// record request duration (post processing)
-	timer.ObserveDuration()
-
-	// decrement total number of active connections (post processing)
-	activeConnections.Dec()
-}
-
-func SetupRouter(cfg configuration.Config) *gin.Engine {
-	if cfg.Production {
+func SetupRouter(config configuration.Config) *gin.Engine {
+	if config.Production {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
 
 	router := gin.Default()
-	authentication.Setup(cfg)
+	authentication.Setup(config.JwtConfig)
 	router.Use(middleware.CorsMiddleware())
 	router.Use(prometheusMiddleware)
 
@@ -193,15 +140,18 @@ func SetupRouter(cfg configuration.Config) *gin.Engine {
 	return router
 }
 
-func Start(cfg configuration.Config) error {
-	router := SetupRouter(cfg)
+func Start(config configuration.Config) error {
+	router := SetupRouter(config)
 
-	address := cfg.ListenAddr + ":" + cfg.ListenPort
+	serverConfig := config.ServerAddrConfig
+	tlsConfig := config.TLSConfig
+
+	address := serverConfig.ListenAddr + ":" + serverConfig.ListenPort
 	// Only allow TLS
 	var err error
-	if !cfg.DisableTLS {
+	if !tlsConfig.DisableTLS {
 		log.Printf("Listening on %s with TLS enabled...", address)
-		err = router.RunTLS(address, cfg.TLSCertificate, cfg.TLSKeyfile)
+		err = router.RunTLS(address, tlsConfig.TLSCertificateFile, tlsConfig.TLSKeyFile)
 	} else {
 		log.Printf("Listening on %s without TLS...", address)
 		err = router.Run(address)
