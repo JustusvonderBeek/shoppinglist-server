@@ -1,13 +1,14 @@
 #!/bin/bash
 
+domain="shop.cloudsheeptech.com"
 outputPath="$1"
 if [[ $# -lt 1 ]]; then
   outputPath="./"
 fi
-outputCert="shoppinglist.crt"
-outputKey="shoppinglist.pem"
+outputCert="$domain.crt"
+outputKey="$domain.pem"
 
-serverSign="servercert.csr"
+serverSign="$domain.csr"
 serverCert=""
 serverConfig="server-cert.conf"
 rootConfig="root-ca.conf"
@@ -26,7 +27,7 @@ if [[ ! -f serial.txt ]]; then
   echo '01' > serial.txt
 fi
 
-openssl ca -config "$rootConfig" -policy signing_policy -extensions signing_req -notext -out servercert.pem -infiles "$serverSign"
+openssl ca -config "$rootConfig" -policy signing_policy -extensions signing_req -notext -out shop.cloudsheeptech.com.pem -infiles "$serverSign"
 
 #openssl req -x509 -newkey rsa:4096 -keyout "$outputPath$outputKey" -out "$outputPath$outputCert" -sha512 -days 365 -nodes -subj "/C=DE/ST=Bavaria/L=Munich/O=Cloudsheeptech/OU=Shoppinglist/CN=shop.cloudsheeptech.com"
 

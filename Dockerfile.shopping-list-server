@@ -23,8 +23,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o ./app-server ./cmd/shopping-list-server
 # Copy the configuration
 COPY resources/dockerDb.json ./resources/db.json
 COPY resources/jwtSecret.json ./resources/jwtSecret.json
-COPY resources/servercert.pem ./resources/servercert.pem
-COPY resources/serverkey.pem ./resources/serverkey.pem
+COPY resources/shop.cloudsheeptech.com.crt ./resources/shop.cloudsheeptech.com.crt
+COPY resources/shop.cloudsheeptech.com.pem ./resources/shop.cloudsheeptech.com.pem
 
 # Now we switch to the stage where we only deploy the application
 FROM gcr.io/distroless/static-debian12 AS build-release-stage

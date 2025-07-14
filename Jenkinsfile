@@ -7,8 +7,8 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'cloudsheeptech/shopping-list'
         DOCKER_TAG = 'latest'
-        DOCKERFILE_NAME = 'Dockerfile.multistage'
-        DATABASE = 'shoppinglist'
+        DOCKERFILE_NAME = 'Dockerfile.shopping-list-server'
+        DATABASE = 'shopping_list_test'
     }
 
     tools {
@@ -47,8 +47,8 @@ pipeline {
                     sh 'mkdir -p resources'
                     sh 'cat "$DB_SECRET_FILE" > resources/dockerDb.json'
                     sh 'cat "$JWT_SECRET_FILE" > resources/jwtSecret.json'
-                    sh 'cat "$CERT_FILE" > resources/shoppinglist.crt'
-                    sh 'cat "$KEY_FILE" > resources/shoppinglist.pem'
+                    sh 'cat "$CERT_FILE" > resources/shop.cloudsheeptech.com.crt'
+                    sh 'cat "$KEY_FILE" > resources/shop.cloudsheeptech.com.pem'
                 }
             }
         }
