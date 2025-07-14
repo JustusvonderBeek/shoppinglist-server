@@ -7,6 +7,7 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/util"
 	"log"
 	"os"
+	"strconv"
 )
 
 func HandleCommandlineAndExportConfiguration() Config {
@@ -15,8 +16,8 @@ func HandleCommandlineAndExportConfiguration() Config {
 	port := flag.String("p", "46152", "Listen port")
 
 	// TLS Configuration
-	tlscert := flag.String("cert", "resources/servercert.pem", "The location of the TLS TLSCertificateFile")
-	tlskey := flag.String("key", "resources/serverkey.pem", "The location of the TLS keyfile")
+	tlscert := flag.String("cert", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS TLSCertificateFile")
+	tlskey := flag.String("key", "resources/shop.cloudsheeptech.com.pem", "The location of the TLS keyfile")
 	noTls := flag.Bool("k", false, "Disable TLS for testing")
 
 	// Authentication configuration
@@ -54,6 +55,13 @@ func HandleCommandlineAndExportConfiguration() Config {
 		osDbPassword = storedDatabaseConfig.DatabasePassword
 	}
 
+	// Production environment variable
+	osProductionBool, envExists := os.LookupEnv("PRODUCTION")
+	osProduction := *production
+	if envExists {
+		osProduction, _ = strconv.ParseBool(osProductionBool)
+	}
+
 	serverConfig := ServerConfig{
 		ListenAddr: *addr,
 		ListenPort: *port,
@@ -82,7 +90,7 @@ func HandleCommandlineAndExportConfiguration() Config {
 		TLSConfig:        tlsConfig,
 		DatabaseConfig:   databaseConfig,
 		JwtConfig:        authConfig,
-		Production:       *production,
+		Production:       osProduction,
 		Logfile:          *logfile,
 	}
 
