@@ -34,7 +34,11 @@ func HandleCommandlineAndExportConfiguration() Config {
 	flag.Parse()
 
 	// Take environment options first, overwrite by command-line options
-	storedDatabaseConfig, err := LoadDatabaseConfig(*dbConfig)
+	osDbConfig, envExists := os.LookupEnv("DB_CONFIG_FILE")
+	if !envExists {
+		osDbConfig = *dbConfig
+	}
+	storedDatabaseConfig, err := LoadDatabaseConfig(osDbConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
