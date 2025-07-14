@@ -13,7 +13,7 @@ services:
       - MARIADB_ROOT_USER=root_user
       - MARIADB_ROOT_PASSWORD=<root_password>
       - MARIADB_USER=user
-      - MARIADB_PASSWORD=<password>
+      - MARIADB_PASSWORD=password
 
   # The server application
   application:
@@ -26,7 +26,10 @@ services:
       - "46152:46152"
     environment:
       - DB_CONFIG_FILE=resources/db.json
+      - PRODUCTION=false
     volumes:
+      # TODO: create and manage configuration folder during deployment
+      - /srv/shopping-list-server/config:/resources
       - images:/images
 
 volumes:
