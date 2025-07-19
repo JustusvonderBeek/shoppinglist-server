@@ -37,7 +37,7 @@ services:
       - CONFIG_FILE=../resources/config.json
       - PRODUCTION=true
     volumes:
-      - /srv/shopping-list-server/config:/resources
+      - /srv/shopping-list-server/:/
       - images:/images
 
 volumes:
