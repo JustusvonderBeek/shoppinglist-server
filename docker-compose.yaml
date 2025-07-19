@@ -25,8 +25,7 @@ services:
     ports:
       - "46152:46152"
     environment:
-      - DB_CONFIG_FILE=resources/db.json
-      - PRODUCTION=false
+      - CONFIG_FILE=resources/config.json
     volumes:
       # TODO: create and manage configuration folder during deployment
       - /srv/shopping-list-server/config:/resources

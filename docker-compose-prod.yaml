@@ -34,7 +34,7 @@ services:
     ports:
       - "46152:46152"
     environment:
-      - DB_CONFIG_FILE=resources/db.json
+      - CONFIG_FILE=../resources/config.json
       - PRODUCTION=true
     volumes:
       - /srv/shopping-list-server/config:/resources
