@@ -57,7 +57,7 @@ func init() {
 }
 
 func SetupRouter(config configuration.Config) *gin.Engine {
-	if config.Production {
+	if config.Server.Production {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
@@ -151,7 +151,7 @@ func Start(config configuration.Config) error {
 	var err error
 	if !tlsConfig.DisableTLS {
 		log.Printf("Listening on %s with TLS enabled...", address)
-		err = router.RunTLS(address, tlsConfig.TLSCertificateFile, tlsConfig.TLSKeyFile)
+		err = router.RunTLS(address, tlsConfig.CertificateFile, tlsConfig.KeyFile)
 	} else {
 		log.Printf("Listening on %s without TLS...", address)
 		err = router.Run(address)

@@ -16,7 +16,7 @@ import (
 func main() {
 	config := configuration.HandleCommandlineAndExportConfiguration()
 
-	setupLogger(config.Logfile)
+	setupLogger(config.Server.Logfile)
 	// Fails if database not connected
 	database.CheckDatabaseOnline(config.Database)
 	if config.Database.Reset {

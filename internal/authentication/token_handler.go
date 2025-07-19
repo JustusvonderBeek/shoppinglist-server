@@ -52,7 +52,7 @@ func SetupTokenHandler() error {
 func GenerateNewJWTToken(id int, username string) (string, error) {
 	// Give enough time for a few requests
 	notBefore := time.Now()
-	expiresAt := notBefore.Add(time.Duration(config.JwtTimeout) * time.Second)
+	expiresAt := notBefore.Add(time.Duration(config.JwtTimeoutMs) * time.Millisecond)
 	claims := &Claims{
 		Id:       id,
 		Username: username,

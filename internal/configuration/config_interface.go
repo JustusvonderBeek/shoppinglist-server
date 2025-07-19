@@ -19,8 +19,8 @@ type ServerConfig struct {
 }
 
 type TLSConfig struct {
-	TLSCertificateFile string
-	TLSKeyFile         string
+	CertificateFile string
+	KeyFile         string
 
 	DisableTLS bool
 }
@@ -39,7 +39,7 @@ type DatabaseConfig struct {
 type AuthConfig struct {
 	Secret        string
 	JwtSecretFile string
-	JwtTimeout    float32 // This is only meant for testing; not for production
+	JwtTimeoutMs  int // This is only meant for testing; not for production
 }
 
 type APIKeyConfig struct {

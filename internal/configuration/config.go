@@ -12,7 +12,7 @@ import (
 
 func HandleCommandlineAndExportConfiguration() Config {
 	// Configuration file location
-	configFile := flag.String("c", "resources/config.json", "The configuration file")
+	cmdConfigFile := flag.String("c", "resources/config.json", "The configuration file")
 
 	// Server configuration
 	addr := flag.String("a", "0.0.0.0", "Listen address")
@@ -24,122 +24,109 @@ func HandleCommandlineAndExportConfiguration() Config {
 	resetDb := flag.Bool("reset", false, "Reset the whole database")
 
 	// TLS Configuration
-	tlscert := flag.String("cert", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS TLSCertificateFile")
-	tlskey := flag.String("key", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS keyfile")
-	noTls := flag.Bool("k", false, "Disable TLS for testing")
+	tlsCert := flag.String("cert", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS CertificateFile")
+	tlsKey := flag.String("key", "resources/shop.cloudsheeptech.com.pem", "The location of the TLS keyfile")
+	tlsDisable := flag.Bool("k", false, "Disable TLS for testing")
 
-	// Authentication configuration
-	jwtFile := flag.String("jwt", "resources/jwtSecret.json", "The path to the file holding the Server Secret")
+	// JWT
+	jwtTimeoutMs := flag.Int("t", 500, "JWT timeout in milliseconds")
 
 	flag.Parse()
 
-	// Take environment options first, overwrite by command-line options
-	osDbConfig, envExists := os.LookupEnv("DB_CONFIG_FILE")
-	if !envExists {
-		osDbConfig = *configFile
+	//  Command-Line over ENVIRONMENT option
+	// First, read the envConfigFile file
+	configFile := *cmdConfigFile
+	envConfigFile, envExists := os.LookupEnv("CONFIG_FILE")
+	if envExists {
+		configFile = envConfigFile
 	}
-	storedDatabaseConfig, err := LoadDatabaseConfig(osDbConfig)
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "c" {
+			configFile = *cmdConfigFile
+		}
+	})
+	config, err := loadConfigFile(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	osDbHost, envExists := os.LookupEnv("DB_HOST")
-	if !envExists {
-		osDbHost = storedDatabaseConfig.Host
-	}
-	osDbName, envExists := os.LookupEnv("DB_NAME")
-	if !envExists {
-		osDbName = storedDatabaseConfig.Name
-	}
-	osDbUser, envExists := os.LookupEnv("DB_USER")
-	if !envExists {
-		osDbUser = storedDatabaseConfig.User
-	}
-	osDbPassword, envExists := os.LookupEnv("DB_PASSWORD")
-	if !envExists {
-		osDbPassword = storedDatabaseConfig.Password
-	}
 
-	// Production environment variable
-	osProductionBool, envExists := os.LookupEnv("PRODUCTION")
-	osProduction := *production
+	// Parse ENV
+	envDbHost, envExists := os.LookupEnv("DB_HOST")
 	if envExists {
-		osProduction, _ = strconv.ParseBool(osProductionBool)
+		config.Database.Host = envDbHost
 	}
 
-	serverConfig := ServerConfig{
-		ListenAddr: *addr,
-		ListenPort: *port,
-	}
-	tlsConfig := TLSConfig{
-		TLSCertificateFile: *tlscert,
-		TLSKeyFile:         *tlskey,
-		DisableTLS:         *noTls,
-	}
-	databaseConfig := DatabaseConfig{
-		DatabaseConfigFile:  *configFile,
-		User:                osDbUser,
-		Password:            osDbPassword,
-		Name:                osDbName,
-		Host:                osDbHost,
-		DatabaseNetworkType: "tcp",
-		Reset:               *resetDb,
-	}
-	authConfig := AuthConfig{
-		JwtSecretFile: *jwtFile,
-		JwtTimeout:    500,
+	envProduction, envExists := os.LookupEnv("PRODUCTION")
+	if envExists {
+		envProductionParsed, err := strconv.ParseBool(envProduction)
+		if err != nil {
+			log.Printf("Error parsing PRODUCTION '%s' as bool: %v", envProduction, err)
+		} else {
+			config.Server.Production = envProductionParsed
+		}
 	}
 
-	config := Config{
-		Server:     serverConfig,
-		TLS:        tlsConfig,
-		Database:   databaseConfig,
-		JWT:        authConfig,
-		Production: osProduction,
-		Logfile:    *logfile,
-	}
+	// Set the config options from cmd if exists
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "addr":
+			config.Server.ListenAddr = *addr
+		case "port":
+			config.Server.ListenPort = *port
+		case "production":
+			config.Server.Production = *production
+		case "l":
+			config.Server.Logfile = *logfile
+		case "reset":
+			config.Database.Reset = *resetDb
+		case "cert":
+			config.TLS.CertificateFile = *tlsCert
+		case "key":
+			config.TLS.KeyFile = *tlsKey
+		case "k":
+			config.TLS.DisableTLS = *tlsDisable
+		case "t":
+			config.JWT.JwtTimeoutMs = *jwtTimeoutMs
+		}
+	})
 
 	return config
 }
 
-func LoadDatabaseConfig(filename string) (DatabaseConfig, error) {
+func loadConfigFile(filename string) (Config, error) {
 	if filename == "" {
-		return DatabaseConfig{}, errors.New("no database config file given")
+		return Config{}, errors.New("no config file given")
 	}
-	content, err := loadConfigFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil && os.IsNotExist(err) {
 		createDefaultConfiguration(filename)
-		return DatabaseConfig{}, errors.New("no config file found, created default one but missing entries")
+		return Config{}, errors.New("no config file found, created default one but missing entries")
 	} else if err != nil {
-		return DatabaseConfig{}, err
+		return Config{}, err
 	}
-	var conf DatabaseConfig
-	err = json.Unmarshal(content, &conf)
+	var config Config
+	err = json.Unmarshal(content, &config)
 	if err != nil {
-		return DatabaseConfig{}, err
+		return Config{}, err
 	}
-	return conf, nil
-}
-
-func loadConfigFile(filename string) ([]byte, error) {
-	return util.ReadFileFromRoot(filename)
+	return config, nil
 }
 
 // This method is only meant to create the file in the right format
 // It is not meant to create a config file holding a working configuration
-func createDefaultConfiguration(confFile string) {
-	conf := DatabaseConfig{
-		DatabaseConfigFile:  confFile,
-		User:                "username",
-		Password:            "password",
-		Name:                "shopping-list-prod",
-		Host:                "localhost",
-		DatabaseNetworkType: "tcp",
-		Reset:               false,
+func createDefaultConfiguration(configFile string) {
+	conf := Config{
+		Server:   ServerConfig{},
+		Database: DatabaseConfig{},
+		TLS:      TLSConfig{},
+		JWT:      AuthConfig{},
+		API:      APIKeyConfig{},
+		Admin:    AdminConfig{},
 	}
-	storeConfiguration(confFile, conf)
+	storeConfiguration(configFile, conf)
 }
 
-func storeConfiguration(filename string, config DatabaseConfig) {
+func storeConfiguration(filename string, config Config) {
 	if filename == "" {
 		log.Fatal("Cannot store configuration file due to empty location")
 	}
