@@ -1,21 +1,21 @@
 package configuration
 
+import "time"
+
 type Config struct {
-	ServerAddrConfig ServerConfig
-
-	TLSConfig TLSConfig
-
-	DatabaseConfig DatabaseConfig
-
-	JwtConfig AuthConfig
-
-	Production bool
-	Logfile    string
+	Server   ServerConfig
+	Database DatabaseConfig
+	TLS      TLSConfig
+	JWT      AuthConfig
+	API      APIKeyConfig
+	Admin    AdminConfig
 }
 
 type ServerConfig struct {
 	ListenAddr string
 	ListenPort string
+	Production bool
+	Logfile    string
 }
 
 type TLSConfig struct {
@@ -26,20 +26,28 @@ type TLSConfig struct {
 }
 
 type DatabaseConfig struct {
-	DatabaseConfigFile string
+	User     string
+	Password string
 
-	DatabaseUser     string
-	DatabasePassword string
+	Name        string
+	Host        string
+	NetworkType string
 
-	DatabaseName string
-
-	DatabaseHost        string
-	DatabaseNetworkType string
-
-	ResetDatabase bool
+	Reset bool
 }
 
 type AuthConfig struct {
+	Secret        string
 	JwtSecretFile string
 	JwtTimeout    float32 // This is only meant for testing; not for production
+}
+
+type APIKeyConfig struct {
+	Key        string
+	ValidUntil time.Time
+}
+
+type AdminConfig struct {
+	User     string
+	Password string
 }

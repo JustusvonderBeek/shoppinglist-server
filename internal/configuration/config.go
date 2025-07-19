@@ -11,32 +11,32 @@ import (
 )
 
 func HandleCommandlineAndExportConfiguration() Config {
+	// Configuration file location
+	configFile := flag.String("c", "resources/config.json", "The configuration file")
+
 	// Server configuration
 	addr := flag.String("a", "0.0.0.0", "Listen address")
 	port := flag.String("p", "46152", "Listen port")
+	production := flag.Bool("production", false, "Enable production mode")
+	logfile := flag.String("l", "server.log", "The logfile location")
+
+	// Database configuration
+	resetDb := flag.Bool("reset", false, "Reset the whole database")
 
 	// TLS Configuration
 	tlscert := flag.String("cert", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS TLSCertificateFile")
-	tlskey := flag.String("key", "resources/shop.cloudsheeptech.com.pem", "The location of the TLS keyfile")
+	tlskey := flag.String("key", "resources/shop.cloudsheeptech.com.crt", "The location of the TLS keyfile")
 	noTls := flag.Bool("k", false, "Disable TLS for testing")
 
 	// Authentication configuration
-	jwtFile := flag.String("jwt", "resources/jwtSecret.json", "The path to the file holding the JWT Secret")
-
-	// Database configuration
-	dbConfig := flag.String("c", "resources/db.json", "The database configuration file")
-	resetDb := flag.Bool("reset", false, "Reset the whole database")
-
-	// Auxiliary config
-	logfile := flag.String("l", "server.log", "The logfile location")
-	production := flag.Bool("production", false, "Enable production mode")
+	jwtFile := flag.String("jwt", "resources/jwtSecret.json", "The path to the file holding the Server Secret")
 
 	flag.Parse()
 
 	// Take environment options first, overwrite by command-line options
 	osDbConfig, envExists := os.LookupEnv("DB_CONFIG_FILE")
 	if !envExists {
-		osDbConfig = *dbConfig
+		osDbConfig = *configFile
 	}
 	storedDatabaseConfig, err := LoadDatabaseConfig(osDbConfig)
 	if err != nil {
@@ -44,19 +44,19 @@ func HandleCommandlineAndExportConfiguration() Config {
 	}
 	osDbHost, envExists := os.LookupEnv("DB_HOST")
 	if !envExists {
-		osDbHost = storedDatabaseConfig.DatabaseHost
+		osDbHost = storedDatabaseConfig.Host
 	}
 	osDbName, envExists := os.LookupEnv("DB_NAME")
 	if !envExists {
-		osDbName = storedDatabaseConfig.DatabaseName
+		osDbName = storedDatabaseConfig.Name
 	}
 	osDbUser, envExists := os.LookupEnv("DB_USER")
 	if !envExists {
-		osDbUser = storedDatabaseConfig.DatabaseUser
+		osDbUser = storedDatabaseConfig.User
 	}
 	osDbPassword, envExists := os.LookupEnv("DB_PASSWORD")
 	if !envExists {
-		osDbPassword = storedDatabaseConfig.DatabasePassword
+		osDbPassword = storedDatabaseConfig.Password
 	}
 
 	// Production environment variable
@@ -76,13 +76,13 @@ func HandleCommandlineAndExportConfiguration() Config {
 		DisableTLS:         *noTls,
 	}
 	databaseConfig := DatabaseConfig{
-		DatabaseConfigFile:  *dbConfig,
-		DatabaseUser:        osDbUser,
-		DatabasePassword:    osDbPassword,
-		DatabaseName:        osDbName,
-		DatabaseHost:        osDbHost,
+		DatabaseConfigFile:  *configFile,
+		User:                osDbUser,
+		Password:            osDbPassword,
+		Name:                osDbName,
+		Host:                osDbHost,
 		DatabaseNetworkType: "tcp",
-		ResetDatabase:       *resetDb,
+		Reset:               *resetDb,
 	}
 	authConfig := AuthConfig{
 		JwtSecretFile: *jwtFile,
@@ -90,12 +90,12 @@ func HandleCommandlineAndExportConfiguration() Config {
 	}
 
 	config := Config{
-		ServerAddrConfig: serverConfig,
-		TLSConfig:        tlsConfig,
-		DatabaseConfig:   databaseConfig,
-		JwtConfig:        authConfig,
-		Production:       osProduction,
-		Logfile:          *logfile,
+		Server:     serverConfig,
+		TLS:        tlsConfig,
+		Database:   databaseConfig,
+		JWT:        authConfig,
+		Production: osProduction,
+		Logfile:    *logfile,
 	}
 
 	return config
@@ -129,12 +129,12 @@ func loadConfigFile(filename string) ([]byte, error) {
 func createDefaultConfiguration(confFile string) {
 	conf := DatabaseConfig{
 		DatabaseConfigFile:  confFile,
-		DatabaseUser:        "username",
-		DatabasePassword:    "password",
-		DatabaseName:        "shopping-list-prod",
-		DatabaseHost:        "localhost",
+		User:                "username",
+		Password:            "password",
+		Name:                "shopping-list-prod",
+		Host:                "localhost",
 		DatabaseNetworkType: "tcp",
-		ResetDatabase:       false,
+		Reset:               false,
 	}
 	storeConfiguration(confFile, conf)
 }

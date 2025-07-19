@@ -12,7 +12,7 @@ import (
 
 func connectDatabase() {
 	cfg := configuration.Config{
-		DatabaseConfig: "../resources/db.json",
+		Database: "../resources/db.json",
 	}
 	CheckDatabaseOnline(cfg)
 }

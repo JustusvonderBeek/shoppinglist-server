@@ -41,7 +41,7 @@ const USER_FILE = "user.json"
 var cfg = configuration.Config{
 	ListenAddr:     "0.0.0.0",
 	ListenPort:     "46152",
-	DatabaseConfig: "../../resources/db.json",
+	Database:       "../../resources/db.json",
 	TLSCertificate: "../../resources/shoppinglist.crt",
 	TLSKeyfile:     "../../resources/shoppinglist.pem",
 	JWTSecretFile:  "../../resources/jwtSecret.json",
@@ -80,14 +80,14 @@ func readUserFile() (data.User, error) {
 }
 
 func storeJwtToFile(jwt string) {
-	log.Print("Storing JWT token for testing to file")
+	log.Print("Storing Server token for testing to file")
 	err := os.MkdirAll(TESTING_DIR, 0777)
 	if err != nil {
 		log.Printf("Failed to create directory: %s", err)
 		return
 	}
 	if err := os.WriteFile(TESTING_DIR+JWT_FILE, []byte(jwt), 0660); err != nil {
-		log.Printf("Failed to write JWT token to file: %s", err)
+		log.Printf("Failed to write Server token to file: %s", err)
 	}
 }
 
@@ -105,7 +105,7 @@ func readJwtFromFile() (string, error) {
 
 func connectDatabase() {
 	cfg := configuration.Config{
-		DatabaseConfig: "../../resources/db.json",
+		Database: "../../resources/db.json",
 	}
 	database.CheckDatabaseOnline(cfg)
 }
@@ -391,16 +391,16 @@ func TestAuthenticationTimeoutedToken(t *testing.T) {
 		finalJWTFile := filepath.Join(pwd, cfg.JWTSecretFile)
 		data, err := os.ReadFile(finalJWTFile)
 		if err != nil {
-			log.Print("Failed to find JWT secret file")
+			log.Print("Failed to find Server secret file")
 			return nil, err
 		}
 		var jwtSecret authentication.JWTSecretFile
 		err = json.Unmarshal(data, &jwtSecret)
 		if err != nil {
-			log.Print("JWT secret file is in incorrect format")
+			log.Print("Server secret file is in incorrect format")
 			return nil, err
 		}
-		log.Print("Parsed and loaded JWT secret file")
+		log.Print("Parsed and loaded Server secret file")
 		secretByteKey := []byte(jwtSecret.Secret)
 		return secretByteKey, nil
 	})
@@ -666,7 +666,7 @@ func TestCreatingList(t *testing.T) {
 	// Load authentication token
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -717,7 +717,7 @@ func TestGetAllOwnLists(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -808,7 +808,7 @@ func TestGetAllLists(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -900,7 +900,7 @@ func TestGetAllListsWithItems(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -983,7 +983,7 @@ func TestRemoveList(t *testing.T) {
 	// Load authentication token
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -1043,7 +1043,7 @@ func TestCreateSharingWithoutSharedUser(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -1112,7 +1112,7 @@ func TestCreateSharing(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token
@@ -1174,7 +1174,7 @@ func TestCreateSharingOfUnownedList(t *testing.T) {
 	w := httptest.NewRecorder()
 	token, err := readJwtFromFile()
 	if err != nil {
-		log.Printf("Failed to read JWT file: %s", err)
+		log.Printf("Failed to read Server file: %s", err)
 		t.FailNow()
 	}
 	bearer := "Bearer " + token

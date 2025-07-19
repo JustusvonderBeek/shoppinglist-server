@@ -64,7 +64,7 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	}
 
 	router := gin.Default()
-	authentication.Setup(config.JwtConfig)
+	authentication.Setup(config.JWT)
 	router.Use(middleware.CorsMiddleware())
 	router.Use(prometheusMiddleware)
 
@@ -73,7 +73,7 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	// TODO: Outsource the handling of users into it's own Service
 	// Independent of API version, therefore not in the auth bracket
 	router.POST("/v1/users", CreateAccount)
-	// JWT BASED AUTHENTICATION
+	// Server BASED AUTHENTICATION
 	router.POST("/v1/users/login/:userId", authentication.Login)
 
 	// ------------- Handling Routes v1 (API version 1) ---------------
@@ -143,8 +143,8 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 func Start(config configuration.Config) error {
 	router := SetupRouter(config)
 
-	serverConfig := config.ServerAddrConfig
-	tlsConfig := config.TLSConfig
+	serverConfig := config.Server
+	tlsConfig := config.TLS
 
 	address := serverConfig.ListenAddr + ":" + serverConfig.ListenPort
 	// Only allow TLS

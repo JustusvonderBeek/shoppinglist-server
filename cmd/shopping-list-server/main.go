@@ -18,8 +18,8 @@ func main() {
 
 	setupLogger(config.Logfile)
 	// Fails if database not connected
-	database.CheckDatabaseOnline(config.DatabaseConfig)
-	if config.DatabaseConfig.ResetDatabase {
+	database.CheckDatabaseOnline(config.Database)
+	if config.Database.Reset {
 		resetDatabase()
 	}
 	server.Start(config)

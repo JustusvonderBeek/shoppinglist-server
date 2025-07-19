@@ -48,11 +48,11 @@ func CheckDatabaseOnline(config configuration.DatabaseConfig) {
 		return
 	}
 	mysqlCfg := mysql.Config{
-		User:                 config.DatabaseUser,
-		Passwd:               config.DatabasePassword,
+		User:                 config.User,
+		Passwd:               config.Password,
 		Net:                  config.DatabaseNetworkType,
-		Addr:                 config.DatabaseHost,
-		DBName:               config.DatabaseName,
+		Addr:                 config.Host,
+		DBName:               config.Name,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 		ParseTime:            true,
