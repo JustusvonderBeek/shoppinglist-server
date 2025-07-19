@@ -18,7 +18,7 @@ echo "Creating new certificate and keyfile."
 # Creating the resource folder if it does not exists yet
 mkdir -p $outputPath
 
-openssl req -config "$serverConfig" -newkey rsa:4096 -sha256 -nodes -out "$serverSign" -outform PEM
+openssl req -config "$serverConfig" -newkey rsa:4096 -sha256 -nodes -keyout "$outputKey" -out "$serverSign" -outform PEM
 
 if [[ ! -f index.txt ]]; then
   touch index.txt
@@ -27,7 +27,7 @@ if [[ ! -f serial.txt ]]; then
   echo '01' > serial.txt
 fi
 
-openssl ca -config "$rootConfig" -policy signing_policy -extensions signing_req -notext -out shop.cloudsheeptech.com.pem -infiles "$serverSign"
+openssl ca -config "$rootConfig" -policy signing_policy -extensions signing_req -notext -out "$outputCert" -infiles "$serverSign"
 
 #openssl req -x509 -newkey rsa:4096 -keyout "$outputPath$outputKey" -out "$outputPath$outputCert" -sha512 -days 365 -nodes -subj "/C=DE/ST=Bavaria/L=Munich/O=Cloudsheeptech/OU=Shoppinglist/CN=shop.cloudsheeptech.com"
 
