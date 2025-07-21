@@ -6,15 +6,15 @@ echo "Filling the database SQL file with the correct credentials"
 database_file="create_mysql_db.sql"
 replaced_database_file="filled_database.sql"
 replaced_docker_db_setup_file="../compose-db-setup/filled_database.sql"
-database_information="../resources/db.json"
+database_information="../resources/config.json"
 placeholder_username="<username>"
 placeholder_locality="<locality>"
 placeholder_password="<password>"
 
 # Replace each string with the given information from the 'db_conf.json' file
-username=$(cat "$database_information" | jq -r .DatabaseUser)
-password=$(cat "$database_information" | jq -r .DatabasePassword)
-dbaddress=$(cat "$database_information" | jq -r .DatabaseHost)
+username=$(cat "$database_information" | jq -r .Database.User)
+password=$(cat "$database_information" | jq -r .Database.Password)
+dbaddress=$(cat "$database_information" | jq -r .Database.Host)
 locality=${dbaddress%%:*}
 # echo "$username, $password, $locality"
 

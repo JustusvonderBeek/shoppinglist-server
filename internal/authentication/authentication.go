@@ -1,11 +1,10 @@
 package authentication
 
 import (
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -21,7 +20,12 @@ import (
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
 )
 
-var config configuration.AuthConfig
+type AuthenticationHandler struct {
+	config       configuration.Config
+	tokenHandler *TokenHandler
+	db           *sql.DB
+}
+
 var (
 	_, b, _, _ = runtime.Caller(0)
 	basepath   = filepath.Dir(b)
@@ -31,15 +35,17 @@ var (
 // Setup and configuration
 // ------------------------------------------------------------
 
-func Setup(authConfig configuration.AuthConfig) {
-	config = authConfig
-	err := SetupWhitelistedIPs()
-	if err != nil {
-		log.Fatalf("Failed to setup whitelisted IPs: %s", err)
-	}
-	err = SetupTokenHandler()
-	if err != nil {
-		log.Fatalf("Failed to setup token handler: %s", err)
+func NewAuthenticationHandler(db *sql.DB, config configuration.Config) *AuthenticationHandler {
+	// TODO: Move into database as well
+	//err := SetupWhitelistedIPs()
+	//if err != nil {
+	//	log.Fatalf("Failed to setup whitelisted IPs: %s", err)
+	//}
+	tokenHandler := NewTokenHandler(db, config.JWT)
+	return &AuthenticationHandler{
+		config:       config,
+		tokenHandler: tokenHandler,
+		db:           db,
 	}
 }
 
@@ -70,7 +76,7 @@ func IPWhiteList(whitelist map[string]bool) gin.HandlerFunc {
 // Account authentication and login
 // ------------------------------------------------------------
 
-func Login(c *gin.Context) {
+func (a *AuthenticationHandler) Login(c *gin.Context) {
 	// Decided to only use the JSON in the body for authentication as everything else is redundant
 	// TODO: Even prevent login if header with credentials is set
 	// c.GetHeader("Authorization")
@@ -83,6 +89,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	// database.PrintUserTable("shoppers")
+	// TODO: Move this functionality out of the code and into the data; with a permission column
 	specialUser := user.Username
 	if specialUser == "admin" {
 		log.Print("Admin user logging in, changing login process for debug purposes")
@@ -91,13 +98,12 @@ func Login(c *gin.Context) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		token, err := GenerateNewJWTToken(int(user.OnlineID), specialUser)
+		token, err := a.tokenHandler.GenerateNewJWTToken(user.OnlineID, specialUser)
 		if err != nil {
 			log.Printf("Failed to generate JWT token: %s", err)
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
-		tokens = append(tokens, token)
 		wireToken := Token{
 			Token: token,
 		}
@@ -130,7 +136,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Generate a new token that is valid for a few minutes to make a few requests
-	token, err := GenerateNewJWTToken(int(user.OnlineID), user.Username)
+	token, err := a.tokenHandler.GenerateNewJWTToken(user.OnlineID, user.Username)
 	if err != nil {
 		log.Printf("Failed to generate JWT token: %s", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -138,9 +144,11 @@ func Login(c *gin.Context) {
 	}
 
 	log.Print("User found and token generated")
-	database.ModifyLastLogin(user.OnlineID)
-
-	// log.Printf("Sending token: %s", token)
+	_, err = database.ModifyLastLogin(user.OnlineID)
+	if err != nil {
+		log.Printf("Failed to modify last login: %s", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}
 
 	wireToken := Token{
 		Token: token,
@@ -148,14 +156,10 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, wireToken)
 }
 
-func basicTokenAuthenticationFunction(c *gin.Context) {
-	// body, _ := io.ReadAll(c.Request.Body)
-	// header := c.Request.Header
+func (a *AuthenticationHandler) basicTokenAuthenticationFunction(c *gin.Context) {
 	origin := c.ClientIP()
 	remote := c.RemoteIP()
-	// log.Printf("Request body: %s", body)
-	// log.Printf("Request header: %s", header)
-	log.Printf("Origin: %s, Remote: %s", origin, remote)
+	log.Printf("Authenticate client from origin: %s, Remote: %s", origin, remote)
 
 	tokenString := c.GetHeader("Authorization")
 	if tokenString == "" {
@@ -181,47 +185,27 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		if !ok {
 			return nil, errors.New("unauthorized")
 		}
-		// parsedClaim, ok := t.Claims.(Claims)
-		// if !ok {
-		// 	log.Print("Token in invalid format")
-		// 	return nil, errors.New("token in invalid format")
-		// }
-		// log.Printf("Token is issued for: %d", parsedClaim.Id)
-		pwd, _ := os.Getwd()
-		finalJWTFile := filepath.Join(pwd, config.JwtSecretFile)
-		data, err := os.ReadFile(finalJWTFile)
-		if err != nil {
-			log.Print("Failed to find JWT secret file")
-			return nil, err
-		}
-		var jwtSecret JWTSecretFile
-		err = json.Unmarshal(data, &jwtSecret)
-		if err != nil {
-			log.Print("JWT secret file is in incorrect format")
-			return nil, err
-		}
-		if time.Now().After(jwtSecret.ValidUntil) {
-			log.Print("The given secret is no longer valid! Please renew the secret")
+
+		if time.Now().After(a.config.JWT.ValidUntil) {
+			log.Print("The given secret under 'JWT.Secret' is no longer valid! Please renew the secret in config.json")
 			return nil, errors.New("token no longer valid")
 		}
-		secretKeyByte := []byte(jwtSecret.Secret)
+		secretKeyByte := []byte(a.config.JWT.Secret)
 		return secretKeyByte, nil
 	})
-	// log.Printf("Parsing got: %s, %s", token.Raw, err)
 	if err != nil {
 		log.Printf("Error during token parsing: %s", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 	// Checking if user in this form exists
-	// TODO: Find a way to extract the custom information from the token
 	parsedClaims, ok := token.Claims.(*Claims)
 	if !ok {
 		log.Print("Received token claims are in incorrect format!")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
-	user, err := database.GetUser(int64(parsedClaims.Id))
+	user, err := database.GetUser(parsedClaims.Id)
 	if err != nil {
 		log.Printf("User for id %d not found!", parsedClaims.Id)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
@@ -233,13 +217,13 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 		return
 	}
 	// Check if the token was issued
-	if err = IsTokenValid(reqToken); err != nil {
+	if err = a.tokenHandler.IsTokenValid(reqToken); err != nil {
 		log.Printf("Error with token: %s", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 	if token.Valid {
-		c.Set("userId", int64(claims.Id))
+		c.Set("userId", claims.Id)
 		c.Next()
 	} else {
 		log.Printf("Invalid claims: %v", claims)
@@ -247,19 +231,19 @@ func basicTokenAuthenticationFunction(c *gin.Context) {
 	}
 }
 
-func debugAuthentication(c *gin.Context) {
+func (a *AuthenticationHandler) debugAuthentication(c *gin.Context) {
 	c.Next()
 }
 
-func AuthMiddleware() gin.HandlerFunc {
-	return basicTokenAuthenticationFunction
+func (a *AuthenticationHandler) AuthMiddleware() gin.HandlerFunc {
+	return a.basicTokenAuthenticationFunction
 }
 
-func DebugAuthenticationMiddleware() gin.HandlerFunc {
-	return debugAuthentication
+func (a *AuthenticationHandler) DebugAuthenticationMiddleware() gin.HandlerFunc {
+	return a.debugAuthentication
 }
 
-func AdminAuthWithoutUserMiddleware() gin.HandlerFunc {
+func (a *AuthenticationHandler) AdminAuthWithoutUserMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKeyString := c.GetHeader("x-api-key")
 		if apiKeyString == "" {
@@ -268,7 +252,7 @@ func AdminAuthWithoutUserMiddleware() gin.HandlerFunc {
 			return
 		}
 		// Validate the token to be correct
-		apiKeyClaims, err := ApiKeyValid(apiKeyString)
+		apiKeyClaims, err := a.ApiKeyValid(apiKeyString)
 		if err != nil {
 			log.Printf("API Key not valid: %s", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
@@ -284,7 +268,7 @@ func AdminAuthWithoutUserMiddleware() gin.HandlerFunc {
 	}
 }
 
-func AdminAuthenticationMiddleware() gin.HandlerFunc {
+func (a *AuthenticationHandler) AdminAuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKeyString := c.GetHeader("x-api-key")
 		if apiKeyString == "" {
@@ -293,7 +277,7 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 		// Validate the token to be correct
-		apiKeyClaims, err := ApiKeyValid(apiKeyString)
+		apiKeyClaims, err := a.ApiKeyValid(apiKeyString)
 		if err != nil {
 			log.Printf("API Key not valid: %s", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
@@ -305,7 +289,7 @@ func AdminAuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		basicTokenAuthenticationFunction(c)
+		a.basicTokenAuthenticationFunction(c)
 	}
 }
 
@@ -321,7 +305,7 @@ type ApiKeySecret struct {
 	ValidUntil time.Time `json:"validUntil"`
 }
 
-func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
+func (a *AuthenticationHandler) parseApiKeyToClaims(apiKey string) (ApiKey, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	claims := ApiKey{}
 	_, err := jwt.ParseWithClaims(apiKey, &claims, func(t *jwt.Token) (interface{}, error) {
@@ -329,25 +313,11 @@ func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
 		if !ok {
 			return nil, errors.New("invalid signing method")
 		}
-
-		pwd, _ := os.Getwd()
-		finalJWTFile := filepath.Join(pwd, secretFile)
-		secretFileData, err := os.ReadFile(finalJWTFile)
-		if err != nil {
-			log.Print("Failed to find JWT secret file")
-			return nil, err
-		}
-		var jwtSecret ApiKeySecret
-		err = json.Unmarshal(secretFileData, &jwtSecret)
-		if err != nil {
-			log.Print("JWT secret file is in incorrect format")
-			return nil, err
-		}
-		if time.Now().After(jwtSecret.ValidUntil) {
+		if time.Now().After(a.config.API.ValidUntil) {
 			log.Print("The given secret is no longer valid! Please renew the secret")
 			return nil, errors.New("token no longer valid")
 		}
-		secretKeyByte := []byte(jwtSecret.Secret)
+		secretKeyByte := []byte(a.config.API.Key)
 		return secretKeyByte, nil
 	})
 	if err != nil {
@@ -356,8 +326,8 @@ func parseApiKeyToClaims(apiKey string, secretFile string) (ApiKey, error) {
 	return claims, nil
 }
 
-func ApiKeyValid(apiKey string) (ApiKey, error) {
-	httpRequestClaims, err := parseApiKeyToClaims(apiKey, "resources/jwtSecret.json")
+func (a *AuthenticationHandler) ApiKeyValid(apiKey string) (ApiKey, error) {
+	httpRequestClaims, err := a.parseApiKeyToClaims(apiKey)
 	if err != nil {
 		return ApiKey{}, err
 	}
@@ -367,19 +337,8 @@ func ApiKeyValid(apiKey string) (ApiKey, error) {
 	if httpRequestClaims.Admin != true {
 		return ApiKey{}, errors.New("invalid user rights")
 	}
-	finalApiKeySecretPath := filepath.Join(basepath, "../../resources/apiKey.secret")
-	content, err := os.ReadFile(finalApiKeySecretPath)
-	if err != nil {
-		return ApiKey{}, errors.New("current master API key not valid")
-	}
-	var apiKeySecret ApiKeySecret
-	err = json.Unmarshal(content, &apiKeySecret)
-	if err != nil {
-		log.Printf("Error during API Key verification. API Key Secret file is in incorrect format")
-		return ApiKey{}, errors.New("api key secret in incorrect format")
-	}
-	if httpRequestClaims.Key != apiKeySecret.Secret {
-		log.Printf("Claimed key '%s' does not match secret '%s'", httpRequestClaims.Key, apiKeySecret.Secret)
+	if httpRequestClaims.Key != a.config.API.Key {
+		log.Print("Claimed key does not match secret")
 		return ApiKey{}, errors.New("invalid secret")
 	}
 	log.Printf("API Key is valid")

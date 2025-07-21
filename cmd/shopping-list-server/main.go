@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
@@ -18,11 +19,14 @@ func main() {
 
 	setupLogger(config.Server.Logfile)
 	// Fails if database not connected
-	database.CheckDatabaseOnline(config.Database)
+	db, err := database.CheckDatabaseOnline(config.Database)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if config.Database.Reset {
 		resetDatabase()
 	}
-	server.Start(config)
+	server.Start(db, config)
 }
 
 func resetDatabase() {
@@ -41,6 +45,13 @@ func resetDatabase() {
 }
 
 func setupLogger(logfile string) {
+	if logfile == "" {
+		log.Fatalf("No log file specified")
+	}
+	err := os.MkdirAll(filepath.Dir(logfile), 0760)
+	if err != nil {
+		log.Fatalf("Failed to recursively create log directory '%s': %s", filepath.Dir(logfile), err)
+	}
 	logFile, err := os.OpenFile(logfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
 	if err != nil {
 		panic(err)

@@ -2,13 +2,10 @@ package server
 
 import (
 	"errors"
-	"github.com/JustusvonderBeek/shoppinglist-server/internal/authentication"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/data"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/database"
@@ -39,13 +36,13 @@ func validateUserAndCreateAccount(user data.User, apiKey string) (data.User, err
 	if user.Username == "" || user.Password == "" {
 		return data.User{}, errors.New("invalid username or password")
 	}
-	if user.Username == "admin" {
-		keyValid, err := authentication.ApiKeyValid(apiKey)
-		if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
-			log.Printf("api key not valid %s - %s", err, apiKey)
-			return data.User{}, errors.New("invalid api key")
-		}
-	}
+	//if user.Username == "admin" {
+	//	keyValid, err := authentication.ApiKeyValid(apiKey)
+	//	if apiKey == "" || err != nil || keyValid.ValidUntil.Before(time.Now()) {
+	//		log.Printf("api key not valid %s - %s", err, apiKey)
+	//		return data.User{}, errors.New("invalid api key")
+	//	}
+	//}
 	loginUser, err := database.CreateUserAccountInDatabase(user.Username, user.Password)
 	if err != nil {
 		return data.User{}, err

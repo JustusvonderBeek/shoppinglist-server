@@ -39,13 +39,13 @@ func ResetDatabase() {
 	DropShoppingListTable()
 }
 
-func CheckDatabaseOnline(config configuration.DatabaseConfig) {
+func CheckDatabaseOnline(config configuration.DatabaseConfig) (*sql.DB, error) {
 	if config == (configuration.DatabaseConfig{}) {
 		log.Fatalf("Configuration not initialized")
 	}
 	if db != nil {
 		log.Print("Already connected to database")
-		return
+		return db, nil
 	}
 	mysqlCfg := mysql.Config{
 		User:                 config.User,
@@ -69,6 +69,7 @@ func CheckDatabaseOnline(config configuration.DatabaseConfig) {
 		log.Fatalf("Database not responding: %s", pingErr)
 	}
 	log.Print("Connected to database")
+	return db, nil
 }
 
 func convertTimeToString(timeToFormat time.Time) string {

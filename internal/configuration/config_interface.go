@@ -38,6 +38,7 @@ type DatabaseConfig struct {
 
 type AuthConfig struct {
 	Secret        string
+	ValidUntil    time.Time
 	JwtSecretFile string
 	JwtTimeoutMs  int // This is only meant for testing; not for production
 }

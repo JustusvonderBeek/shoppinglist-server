@@ -5,10 +5,10 @@
 -- OR directly:
 -- sudo mysql < ./create_mysql_db.sql
 
-DROP DATABASE IF EXISTS shopping_list_prod;
-CREATE DATABASE shopping_list_prod;
+DROP DATABASE IF EXISTS shopping_list_test;
+CREATE DATABASE shopping_list_test;
 
-use shopping_list_prod;
+use shopping_list_test;
 
 DROP USER IF EXISTS '<username>'@'%';
 CREATE USER IF NOT EXISTS '<username>'@'%' IDENTIFIED BY '<password>';
@@ -16,7 +16,7 @@ CREATE USER IF NOT EXISTS '<username>'@'%' IDENTIFIED BY '<password>';
 SELECT User
 FROM mysql.user;
 
-GRANT ALL PRIVILEGES ON shopping_list_prod.* TO '<username>'@'%' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON shopping_list_test.* TO '<username>'@'%' WITH GRANT OPTION;
 GRANT FILE ON *.* TO '<username>'@'%' WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
@@ -146,6 +146,16 @@ CREATE TABLE shared_recipe
     PRIMARY KEY (recipeId, createdBy, sharedWith),
     FOREIGN KEY (recipeId, createdBy) REFERENCES recipe (recipeId, createdBy) ON DELETE CASCADE,
     FOREIGN KEY (sharedWith) REFERENCES shoppers (id) ON DELETE CASCADE
+);
+
+-- JWT Token Storage
+CREATE TABLE token
+(
+    userId     BIGINT        NOT NULL,
+    token      VARCHAR(300) NOT NULL,
+    validUntil DATETIME      NOT NULL,
+    PRIMARY KEY (userId),
+    FOREIGN KEY (userId) REFERENCES shoppers (id) ON DELETE CASCADE
 );
 
 -- Keeping track of the shopping history to suggest items

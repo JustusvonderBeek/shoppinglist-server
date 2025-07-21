@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -56,7 +57,7 @@ func init() {
 	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, activeConnections)
 }
 
-func SetupRouter(config configuration.Config) *gin.Engine {
+func SetupRouter(db *sql.DB, config configuration.Config) *gin.Engine {
 	if config.Server.Production {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -64,7 +65,7 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	}
 
 	router := gin.Default()
-	authentication.Setup(config.JWT)
+	auth := authentication.NewAuthenticationHandler(db, config)
 	router.Use(middleware.CorsMiddleware())
 	router.Use(prometheusMiddleware)
 
@@ -74,13 +75,13 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	// Independent of API version, therefore not in the auth bracket
 	router.POST("/v1/users", CreateAccount)
 	// Server BASED AUTHENTICATION
-	router.POST("/v1/users/login/:userId", authentication.Login)
+	router.POST("/v1/users/login/:userId", auth.Login)
 
 	// ------------- Handling Routes v1 (API version 1) ---------------
 
 	// Add authentication middleware to v1 router
 	authorized := router.Group("/v1")
-	authorized.Use(authentication.AuthMiddleware())
+	authorized.Use(auth.AuthMiddleware())
 	{
 		// The structure is similar to the order of operations: create, update, get, delete
 
@@ -121,7 +122,7 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	}
 
 	admin := router.Group("v1/admin")
-	admin.Use(authentication.AdminAuthenticationMiddleware())
+	admin.Use(auth.AdminAuthenticationMiddleware())
 	{
 		admin.GET("/users", getAllUsers)
 		admin.GET("/lists", getAllLists)
@@ -129,7 +130,7 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	}
 
 	metrics := router.Group("/v1")
-	metrics.Use(authentication.AdminAuthWithoutUserMiddleware())
+	metrics.Use(auth.AdminAuthWithoutUserMiddleware())
 	{
 		// Prometheus metrics endpoint, secured by API Key
 		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -140,8 +141,8 @@ func SetupRouter(config configuration.Config) *gin.Engine {
 	return router
 }
 
-func Start(config configuration.Config) error {
-	router := SetupRouter(config)
+func Start(db *sql.DB, config configuration.Config) error {
+	router := SetupRouter(db, config)
 
 	serverConfig := config.Server
 	tlsConfig := config.TLS
