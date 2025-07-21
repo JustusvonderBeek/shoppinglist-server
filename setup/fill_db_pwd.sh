@@ -22,7 +22,7 @@ locality=${dbaddress%%:*}
 
 # '-i' inline; '-e' expression; 's/' search?; '/g' globally; 's/searchString/replaceString/g' replace globally
 replaced_username=$(sed -e "s/$placeholder_username/$username/g" "$database_file")
-replaced_database=$(sed -e "s/$placeholder_database/$database/g" <<< $replaced_username)
+replaced_database=$(sed -e "s/$placeholder_database/$database/g" <<< replaced_username)
 replaced_locality=$(sed -e "s/$placeholder_locality/$locality/g" <<< replaced_database)
 # Can make problems if the password contains the same character as the delimiter of sed!
 replaced_password=$(sed -e "s|$placeholder_password|$password|g" <<< $replaced_locality)
