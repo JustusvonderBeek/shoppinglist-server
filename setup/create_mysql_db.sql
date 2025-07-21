@@ -5,10 +5,10 @@
 -- OR directly:
 -- sudo mysql < ./create_mysql_db.sql
 
-DROP DATABASE IF EXISTS shopping_list_test;
-CREATE DATABASE shopping_list_test;
+DROP DATABASE IF EXISTS <database>;
+CREATE DATABASE <database>;
 
-use shopping_list_test;
+use <database>;
 
 DROP USER IF EXISTS '<username>'@'%';
 CREATE USER IF NOT EXISTS '<username>'@'%' IDENTIFIED BY '<password>';
@@ -16,7 +16,7 @@ CREATE USER IF NOT EXISTS '<username>'@'%' IDENTIFIED BY '<password>';
 SELECT User
 FROM mysql.user;
 
-GRANT ALL PRIVILEGES ON shopping_list_test.* TO '<username>'@'%' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON <database>.* TO '<username>'@'%' WITH GRANT OPTION;
 GRANT FILE ON *.* TO '<username>'@'%' WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
