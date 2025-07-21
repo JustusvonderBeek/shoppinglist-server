@@ -16,7 +16,7 @@ placeholder_database="<database>"
 username=$(cat "$database_information" | jq -r .Database.User)
 password=$(cat "$database_information" | jq -r .Database.Password)
 dbaddress=$(cat "$database_information" | jq -r .Database.Host)
-database=$(cat "$database_information" | jq -r Database.Name)
+database=$(cat "$database_information" | jq -r .Database.Name)
 locality=${dbaddress%%:*}
 # echo "$username, $password, $locality"
 
