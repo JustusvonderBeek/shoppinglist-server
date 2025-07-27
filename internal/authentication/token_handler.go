@@ -3,6 +3,7 @@ package authentication
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"log"
 	"time"
@@ -117,14 +118,15 @@ func (t *TokenHandler) removeInvalidTokens() error {
 
 const selectUserTokenQuery = "SELECT userId, token, validUntil FROM token WHERE userId = ? ORDER BY validUntil DESC"
 
-func (t *TokenHandler) IsTokenValid(token string) error {
-	rows, err := t.db.Query(selectUserTokenQuery, token)
+func (t *TokenHandler) IsTokenValid(userId int64, token string) error {
+	rows, err := t.db.Query(selectUserTokenQuery, userId)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return errors.New("no token for user found")
+		errorMsg := fmt.Sprintf("no token for user found: %s", rows.Err())
+		return errors.New(errorMsg)
 	}
 	var tokenData TokenData
 	for rows.Next() {
@@ -136,6 +138,9 @@ func (t *TokenHandler) IsTokenValid(token string) error {
 	}
 	if tokenData.ValidUntil.Before(time.Now().UTC()) {
 		return errors.New("token no longer valid")
+	}
+	if token != tokenData.Token {
+		return errors.New("given token does not current user token")
 	}
 	return nil
 }
