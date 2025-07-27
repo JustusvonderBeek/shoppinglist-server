@@ -124,7 +124,7 @@ func (t *TokenHandler) IsTokenValid(token string) error {
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return errors.New("invalid token")
+		return errors.New("no token for user found")
 	}
 	var tokenData TokenData
 	for rows.Next() {
@@ -134,8 +134,8 @@ func (t *TokenHandler) IsTokenValid(token string) error {
 		// If there is more than a single entry skip rest
 		break
 	}
-	if tokenData.ValidUntil.Before(time.Now()) {
-		return errors.New("invalid token")
+	if tokenData.ValidUntil.Before(time.Now().UTC()) {
+		return errors.New("token no longer valid")
 	}
 	return nil
 }
