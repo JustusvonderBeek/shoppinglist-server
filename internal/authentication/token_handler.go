@@ -48,7 +48,7 @@ type TokenData struct {
 func (t *TokenHandler) GenerateNewJWTToken(id int64, username string) (string, error) {
 	// Give enough time for a few requests
 	notBefore := time.Now()
-	expiresAt := notBefore.Add(time.Duration(t.config.JwtTimeoutMs) * time.Millisecond)
+	expiresAt := notBefore.Add(time.Duration(t.config.KeyTimeoutMs) * time.Millisecond)
 	claims := &Claims{
 		Id:       id,
 		Username: username,

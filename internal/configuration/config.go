@@ -86,7 +86,7 @@ func HandleCommandlineAndExportConfiguration() Config {
 		case "k":
 			config.TLS.DisableTLS = *tlsDisable
 		case "t":
-			config.JWT.JwtTimeoutMs = *jwtTimeoutMs
+			config.JWT.KeyTimeoutMs = *jwtTimeoutMs
 		}
 	})
 
