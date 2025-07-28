@@ -3,7 +3,6 @@ package authentication
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/JustusvonderBeek/shoppinglist-server/internal/configuration"
 	"log"
 	"time"
@@ -39,16 +38,16 @@ type Token struct {
 }
 
 type TokenData struct {
-	UserId     int64
-	Token      string
-	ValidUntil time.Time
+	UserId     int64     `json:"userId"`
+	Token      string    `json:"token"`
+	ValidUntil time.Time `json:"validUntil"`
 }
 
 // ------------------------------------------------------------
 
 func (t *TokenHandler) GenerateNewJWTToken(id int64, username string) (string, error) {
 	// Give enough time for a few requests
-	notBefore := time.Now()
+	notBefore := time.Now().UTC()
 	expiresAt := notBefore.Add(time.Duration(t.config.KeyTimeoutMs) * time.Millisecond)
 	claims := &Claims{
 		Id:       id,
@@ -124,10 +123,6 @@ func (t *TokenHandler) IsTokenValid(userId int64, token string) error {
 		return err
 	}
 	defer rows.Close()
-	if !rows.Next() {
-		errorMsg := fmt.Sprintf("no token for user found: %s", rows.Err())
-		return errors.New(errorMsg)
-	}
 	var tokenData TokenData
 	for rows.Next() {
 		if err := rows.Scan(&tokenData.UserId, &tokenData.Token, &tokenData.ValidUntil); err != nil {

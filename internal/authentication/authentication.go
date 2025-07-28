@@ -217,7 +217,7 @@ func (a *AuthenticationHandler) basicTokenAuthenticationFunction(c *gin.Context)
 		return
 	}
 	// Check if the token was issued
-	if err = a.tokenHandler.IsTokenValid(user.OnlineID, tokenString); err != nil {
+	if err = a.tokenHandler.IsTokenValid(user.OnlineID, token.Raw); err != nil {
 		log.Printf("Error with token: %s", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
