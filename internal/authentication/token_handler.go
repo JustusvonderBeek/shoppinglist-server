@@ -136,11 +136,14 @@ func (t *TokenHandler) IsTokenValid(userId int64, token string) error {
 		// If there is more than a single entry skip rest
 		break
 	}
+	log.Printf("User token valid until: %s", tokenData.ValidUntil)
 	if tokenData.ValidUntil.Before(time.Now().UTC()) {
+		log.Printf("Stored token only valid until: %s", tokenData.ValidUntil)
 		return errors.New("token no longer valid")
 	}
 	if token != tokenData.Token {
-		return errors.New("given token does not current user token")
+		log.Printf("Stored token and user token mismatch")
+		return errors.New("given token does not match current user token")
 	}
 	return nil
 }
